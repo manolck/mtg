@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { parseCSV } from '../services/csvParser';
 import { searchCardByName, searchCardsByName, searchCardByMultiverseId, searchCardByNameAndNumber } from '../services/mtgApi';
 import { searchCardByScryfallId, searchCardBySetAndNumber, searchCardByNameAndNumberScryfall } from '../services/scryfallApi';
 import type { MTGCard } from '../types/card';
 import type { UserCard } from '../types/card';
-import type { ImportJob, ImportReport, CardImportStatus } from '../types/import';
+import type { ImportReport, CardImportStatus } from '../types/import';
 import { useAuth } from './useAuth';
 import { useImports } from './useImports';
 import type { UserProfile } from '../types/user';
@@ -515,12 +515,13 @@ export function useCollection(userId?: string) {
       }
       
       if (frontFace?.multiverseid && (!backFace?.imageUrl || !backFace?.multiverseid)) {
+        const frontMultiverseid = frontFace.multiverseid;
         const potentialBackFace = allCards.find(c => 
           !c.manaCost && 
           c.multiverseid && 
           c.imageUrl &&
-          (c.multiverseid === frontFace.multiverseid + 1 || 
-           c.multiverseid === frontFace.multiverseid - 1 ||
+          (c.multiverseid === frontMultiverseid + 1 || 
+           c.multiverseid === frontMultiverseid - 1 ||
            (c.layout === 'transform' || c.name.includes(' // ')))
         );
         if (potentialBackFace) {
@@ -626,12 +627,14 @@ export function useCollection(userId?: string) {
     setIsImportPaused(false);
     importPausedRef.current = false;
 
+    // Déclarer jobId avant le try pour qu'il soit accessible dans le catch
+    let jobId: string = importId || '';
+
     try {
       setError(null);
       const cardsRef = collection(db, 'users', currentUser.uid, 'collection');
 
       // Créer ou récupérer l'import job
-      let jobId: string = importId || '';
       let startIndex = 0;
       let storedCsvContent: string | undefined = undefined;
       let total: number;
@@ -1235,7 +1238,7 @@ export function useCollection(userId?: string) {
                 mtgData: mtgData,
                 backImageUrl: backImageUrl,
                 backMultiverseid: backMultiverseid,
-                backMtgData: backMtgData,
+                backMtgData: backMtgData || undefined,
               }
             : c
         );

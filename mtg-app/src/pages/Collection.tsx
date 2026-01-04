@@ -9,7 +9,7 @@ import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { SearchInput } from '../components/UI/SearchInput';
-import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword, extractKeywordsFromCard } from '../utils/keywordSearch';
+import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword } from '../utils/keywordSearch';
 import { Modal } from '../components/UI/Modal';
 import { ProgressBar } from '../components/UI/ProgressBar';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
@@ -34,12 +34,10 @@ export function Collection() {
     reloadCard,
     importProgress,
     canModify,
-    viewingUserId,
     pauseImport,
     resumeImport,
     cancelImport,
-    isImportPaused,
-    currentImportId
+    isImportPaused
   } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
   const { decks, createDeck, addCardToDeck } = useDecks();
   const [showDeckModal, setShowDeckModal] = useState(false);
@@ -730,24 +728,24 @@ export function Collection() {
                 {isImportPaused ? (
                   <Button
                     variant="primary"
-                    size="sm"
                     onClick={() => resumeImport()}
+                    className="text-sm px-2 py-1"
                   >
                     Reprendre
                   </Button>
                 ) : (
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={() => pauseImport()}
+                    className="text-sm px-2 py-1"
                   >
                     Pause
                   </Button>
                 )}
                 <Button
                   variant="danger"
-                  size="sm"
                   onClick={() => cancelImport()}
+                  className="text-sm px-2 py-1"
                 >
                   Annuler
                 </Button>

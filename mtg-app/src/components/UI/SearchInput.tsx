@@ -17,6 +17,7 @@ export function SearchInput({
   onChange,
   onSuggestionSelect,
   showKeywordSuggestions = true,
+  onKeyDown,
   ...props 
 }: SearchInputProps) {
   const [suggestions, setSuggestions] = useState<Array<{ text: string; type: 'keyword' | 'action' | 'ability_word'; en: string; fr: string }>>([]);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, limit, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, collectionGroup } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '../types/user';

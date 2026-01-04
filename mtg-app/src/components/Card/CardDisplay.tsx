@@ -1,6 +1,5 @@
 import { useState, useMemo, memo } from 'react';
 import type { UserCard } from '../../types/card';
-import { Button } from '../UI/Button';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
 
@@ -22,7 +21,6 @@ export const CardDisplay = memo(function CardDisplay({
   onDelete,
   onUpdateQuantity,
   onReloadCard,
-  showQuantity = true,
   showActions = false 
 }: CardDisplayProps) {
   const imageUrl = card.mtgData?.imageUrl;
@@ -31,13 +29,6 @@ export const CardDisplay = memo(function CardDisplay({
   const cardName = card.name;
   
   const [showBackFace, setShowBackFace] = useState(false);
-
-  const handleQuantityChange = (delta: number) => {
-    if (onUpdateQuantity) {
-      const newQuantity = Math.max(1, card.quantity + delta);
-      onUpdateQuantity(card.id, newQuantity);
-    }
-  };
 
   const [showMenu, setShowMenu] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);

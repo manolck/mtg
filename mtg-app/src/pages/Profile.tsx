@@ -14,7 +14,7 @@ import type { ImportJob } from '../types/import';
 export function Profile() {
   const { profile, loading, error, updateProfile } = useProfile();
   const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
-  const { importCSV, resumeImport, cancelImport } = useCollection();
+  const { importCSV, cancelImport } = useCollection();
   const [pseudonym, setPseudonym] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedImport, setSelectedImport] = useState<ImportJob | null>(null);

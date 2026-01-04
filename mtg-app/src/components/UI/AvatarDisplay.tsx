@@ -1,4 +1,4 @@
-import { getAvatarById, getDefaultAvatar, type Avatar } from '../../data/avatars';
+import { getAvatarById, getDefaultAvatar } from '../../data/avatars';
 
 interface AvatarDisplayProps {
   avatarId?: string;

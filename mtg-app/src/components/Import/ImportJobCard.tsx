@@ -87,9 +87,8 @@ export function ImportJobCard({
         {onDelete && (
           <Button
             variant="danger"
-            size="sm"
             onClick={() => onDelete(importJob.id)}
-            className="ml-2"
+            className="ml-2 text-sm px-2 py-1"
           >
             Supprimer
           </Button>
@@ -168,8 +167,8 @@ export function ImportJobCard({
         {importJob.status === 'paused' && onResume && (
           <Button
             variant="primary"
-            size="sm"
             onClick={() => onResume(importJob.id)}
+            className="text-sm px-2 py-1"
           >
             Reprendre
           </Button>
@@ -177,8 +176,8 @@ export function ImportJobCard({
         {(importJob.status === 'running' || importJob.status === 'paused') && onCancel && (
           <Button
             variant="danger"
-            size="sm"
             onClick={() => onCancel(importJob.id)}
+            className="text-sm px-2 py-1"
           >
             Annuler
           </Button>
@@ -186,8 +185,8 @@ export function ImportJobCard({
         {importJob.report && onViewReport && (
           <Button
             variant="secondary"
-            size="sm"
             onClick={() => onViewReport(importJob)}
+            className="text-sm px-2 py-1"
           >
             Voir le rapport
           </Button>

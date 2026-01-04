@@ -88,8 +88,6 @@ export async function searchCardByName(name: string, language?: string): Promise
               );
               
               if (frenchVersion) {
-                // Déterminer si c'est la face avant ou arrière
-                const isFront = card.manaCost !== undefined && card.manaCost !== null;
                 const frenchCard: MTGCard = {
                   ...card,
                   name: frenchVersion.name || card.name,
