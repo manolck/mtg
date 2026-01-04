@@ -1,0 +1,1641 @@
+{
+  "version": "1.0",
+  "description": "Liste des mots-clés (keyword abilities) de Magic: The Gathering pour la recherche de cartes",
+  "keywords": [
+    {
+      "id": "deathtouch",
+      "en": "Deathtouch",
+      "fr": "Contact mortel",
+      "category": "static"
+    },
+    {
+      "id": "defender",
+      "en": "Defender",
+      "fr": "Défenseur",
+      "category": "static"
+    },
+    {
+      "id": "double_strike",
+      "en": "Double Strike",
+      "fr": "Double initiative",
+      "category": "static"
+    },
+    {
+      "id": "first_strike",
+      "en": "First Strike",
+      "fr": "Initiative",
+      "category": "static"
+    },
+    {
+      "id": "flash",
+      "en": "Flash",
+      "fr": "Flash",
+      "category": "static"
+    },
+    {
+      "id": "flying",
+      "en": "Flying",
+      "fr": "Vol",
+      "category": "static"
+    },
+    {
+      "id": "haste",
+      "en": "Haste",
+      "fr": "Célérité",
+      "category": "static"
+    },
+    {
+      "id": "hexproof",
+      "en": "Hexproof",
+      "fr": "Hexproof",
+      "category": "static"
+    },
+    {
+      "id": "indestructible",
+      "en": "Indestructible",
+      "fr": "Indestructible",
+      "category": "static"
+    },
+    {
+      "id": "intimidate",
+      "en": "Intimidate",
+      "fr": "Intimidation",
+      "category": "static"
+    },
+    {
+      "id": "lifelink",
+      "en": "Lifelink",
+      "fr": "Lien de vie",
+      "category": "static"
+    },
+    {
+      "id": "menace",
+      "en": "Menace",
+      "fr": "Menace",
+      "category": "static"
+    },
+    {
+      "id": "reach",
+      "en": "Reach",
+      "fr": "Portée",
+      "category": "static"
+    },
+    {
+      "id": "shroud",
+      "en": "Shroud",
+      "fr": "Voile",
+      "category": "static"
+    },
+    {
+      "id": "trample",
+      "en": "Trample",
+      "fr": "Piétinement",
+      "category": "static"
+    },
+    {
+      "id": "vigilance",
+      "en": "Vigilance",
+      "fr": "Vigilance",
+      "category": "static"
+    },
+    {
+      "id": "ward",
+      "en": "Ward",
+      "fr": "Protection",
+      "category": "triggered"
+    },
+    {
+      "id": "banding",
+      "en": "Banding",
+      "fr": "Bande",
+      "category": "static"
+    },
+    {
+      "id": "rampage",
+      "en": "Rampage",
+      "fr": "Déchaînement",
+      "category": "triggered"
+    },
+    {
+      "id": "cumulative_upkeep",
+      "en": "Cumulative Upkeep",
+      "fr": "Entretien cumulatif",
+      "category": "triggered"
+    },
+    {
+      "id": "flanking",
+      "en": "Flanking",
+      "fr": "Déborder",
+      "category": "triggered"
+    },
+    {
+      "id": "phasing",
+      "en": "Phasing",
+      "fr": "Déphasage",
+      "category": "static"
+    },
+    {
+      "id": "buyback",
+      "en": "Buyback",
+      "fr": "Rachat",
+      "category": "static"
+    },
+    {
+      "id": "shadow",
+      "en": "Shadow",
+      "fr": "Ombre",
+      "category": "static"
+    },
+    {
+      "id": "cycling",
+      "en": "Cycling",
+      "fr": "Cyclage",
+      "category": "activated"
+    },
+    {
+      "id": "echo",
+      "en": "Echo",
+      "fr": "Écho",
+      "category": "triggered"
+    },
+    {
+      "id": "horsemanship",
+      "en": "Horsemanship",
+      "fr": "Équitation",
+      "category": "static"
+    },
+    {
+      "id": "fading",
+      "en": "Fading",
+      "fr": "Déclin",
+      "category": "static"
+    },
+    {
+      "id": "kicker",
+      "en": "Kicker",
+      "fr": "Kicker",
+      "category": "static"
+    },
+    {
+      "id": "ninjutsu",
+      "en": "Ninjutsu",
+      "fr": "Ninjutsu",
+      "category": "activated"
+    },
+    {
+      "id": "epic",
+      "en": "Epic",
+      "fr": "Épique",
+      "category": "static"
+    },
+    {
+      "id": "convoke",
+      "en": "Convoke",
+      "fr": "Convoquer",
+      "category": "static"
+    },
+    {
+      "id": "dredge",
+      "en": "Dredge",
+      "fr": "Dragage",
+      "category": "static"
+    },
+    {
+      "id": "transmute",
+      "en": "Transmute",
+      "fr": "Transmutation",
+      "category": "activated"
+    },
+    {
+      "id": "bloodthirst",
+      "en": "Bloodthirst",
+      "fr": "Soif de sang",
+      "category": "static"
+    },
+    {
+      "id": "haunt",
+      "en": "Haunt",
+      "fr": "Hantise",
+      "category": "triggered"
+    },
+    {
+      "id": "replicate",
+      "en": "Replicate",
+      "fr": "Réplication",
+      "category": "static"
+    },
+    {
+      "id": "forecast",
+      "en": "Forecast",
+      "fr": "Prévision",
+      "category": "activated"
+    },
+    {
+      "id": "graft",
+      "en": "Graft",
+      "fr": "Greffe",
+      "category": "static"
+    },
+    {
+      "id": "recover",
+      "en": "Recover",
+      "fr": "Récupération",
+      "category": "triggered"
+    },
+    {
+      "id": "ripple",
+      "en": "Ripple",
+      "fr": "Ondulation",
+      "category": "triggered"
+    },
+    {
+      "id": "split_second",
+      "en": "Split Second",
+      "fr": "Fraction de seconde",
+      "category": "static"
+    },
+    {
+      "id": "suspend",
+      "en": "Suspend",
+      "fr": "Suspension",
+      "category": "static"
+    },
+    {
+      "id": "vanishing",
+      "en": "Vanishing",
+      "fr": "Disparition",
+      "category": "static"
+    },
+    {
+      "id": "absorb",
+      "en": "Absorb",
+      "fr": "Absorption",
+      "category": "static"
+    },
+    {
+      "id": "aura_swap",
+      "en": "Aura Swap",
+      "fr": "Échange d'aura",
+      "category": "activated"
+    },
+    {
+      "id": "delve",
+      "en": "Delve",
+      "fr": "Fouiller",
+      "category": "static"
+    },
+    {
+      "id": "fortify",
+      "en": "Fortify",
+      "fr": "Fortifier",
+      "category": "activated"
+    },
+    {
+      "id": "frenzy",
+      "en": "Frenzy",
+      "fr": "Frénésie",
+      "category": "triggered"
+    },
+    {
+      "id": "gravestorm",
+      "en": "Gravestorm",
+      "fr": "Tempête funèbre",
+      "category": "triggered"
+    },
+    {
+      "id": "poisonous",
+      "en": "Poisonous",
+      "fr": "Vénéneux",
+      "category": "triggered"
+    },
+    {
+      "id": "transfigure",
+      "en": "Transfigure",
+      "fr": "Transfiguration",
+      "category": "activated"
+    },
+    {
+      "id": "champion",
+      "en": "Champion",
+      "fr": "Champion",
+      "category": "triggered"
+    },
+    {
+      "id": "changeling",
+      "en": "Changeling",
+      "fr": "Changeforme",
+      "category": "static"
+    },
+    {
+      "id": "evoke",
+      "en": "Evoke",
+      "fr": "Évoquer",
+      "category": "static"
+    },
+    {
+      "id": "hideaway",
+      "en": "Hideaway",
+      "fr": "Cachette",
+      "category": "triggered"
+    },
+    {
+      "id": "prowl",
+      "en": "Prowl",
+      "fr": "Rôder",
+      "category": "static"
+    },
+    {
+      "id": "reinforce",
+      "en": "Reinforce",
+      "fr": "Renforcer",
+      "category": "activated"
+    },
+    {
+      "id": "conspire",
+      "en": "Conspire",
+      "fr": "Comploter",
+      "category": "static"
+    },
+    {
+      "id": "persist",
+      "en": "Persist",
+      "fr": "Persistance",
+      "category": "triggered"
+    },
+    {
+      "id": "wither",
+      "en": "Wither",
+      "fr": "Flétrir",
+      "category": "static"
+    },
+    {
+      "id": "retrace",
+      "en": "Retrace",
+      "fr": "Retracer",
+      "category": "static"
+    },
+    {
+      "id": "devour",
+      "en": "Devour",
+      "fr": "Dévorer",
+      "category": "static"
+    },
+    {
+      "id": "exalted",
+      "en": "Exalted",
+      "fr": "Exalté",
+      "category": "triggered"
+    },
+    {
+      "id": "unearth",
+      "en": "Unearth",
+      "fr": "Exhumer",
+      "category": "activated"
+    },
+    {
+      "id": "cascade",
+      "en": "Cascade",
+      "fr": "Cascade",
+      "category": "triggered"
+    },
+    {
+      "id": "annihilator",
+      "en": "Annihilator",
+      "fr": "Annihilateur",
+      "category": "triggered"
+    },
+    {
+      "id": "level_up",
+      "en": "Level Up",
+      "fr": "Monter de niveau",
+      "category": "activated"
+    },
+    {
+      "id": "rebound",
+      "en": "Rebound",
+      "fr": "Rebond",
+      "category": "static"
+    },
+    {
+      "id": "umbra_armor",
+      "en": "Umbra Armor",
+      "fr": "Armure d'ombre",
+      "category": "static"
+    },
+    {
+      "id": "infect",
+      "en": "Infect",
+      "fr": "Infection",
+      "category": "static"
+    },
+    {
+      "id": "battle_cry",
+      "en": "Battle Cry",
+      "fr": "Cri de guerre",
+      "category": "triggered"
+    },
+    {
+      "id": "living_weapon",
+      "en": "Living Weapon",
+      "fr": "Arme vivante",
+      "category": "triggered"
+    },
+    {
+      "id": "undying",
+      "en": "Undying",
+      "fr": "Immortel",
+      "category": "triggered"
+    },
+    {
+      "id": "miracle",
+      "en": "Miracle",
+      "fr": "Miracle",
+      "category": "static"
+    },
+    {
+      "id": "soulbond",
+      "en": "Soulbond",
+      "fr": "Lien d'âme",
+      "category": "triggered"
+    },
+    {
+      "id": "overload",
+      "en": "Overload",
+      "fr": "Surcharge",
+      "category": "static"
+    },
+    {
+      "id": "scavenge",
+      "en": "Scavenge",
+      "fr": "Charognage",
+      "category": "activated"
+    },
+    {
+      "id": "unleash",
+      "en": "Unleash",
+      "fr": "Déchaîner",
+      "category": "static"
+    },
+    {
+      "id": "cipher",
+      "en": "Cipher",
+      "fr": "Chiffrement",
+      "category": "static"
+    },
+    {
+      "id": "evolve",
+      "en": "Evolve",
+      "fr": "Évolution",
+      "category": "triggered"
+    },
+    {
+      "id": "extort",
+      "en": "Extort",
+      "fr": "Extorquer",
+      "category": "triggered"
+    },
+    {
+      "id": "fuse",
+      "en": "Fuse",
+      "fr": "Fusion",
+      "category": "static"
+    },
+    {
+      "id": "bestow",
+      "en": "Bestow",
+      "fr": "Octroyer",
+      "category": "static"
+    },
+    {
+      "id": "tribute",
+      "en": "Tribute",
+      "fr": "Tribut",
+      "category": "static"
+    },
+    {
+      "id": "dethrone",
+      "en": "Dethrone",
+      "fr": "Détrôner",
+      "category": "triggered"
+    },
+    {
+      "id": "outlast",
+      "en": "Outlast",
+      "fr": "Tenir bon",
+      "category": "activated"
+    },
+    {
+      "id": "prowess",
+      "en": "Prowess",
+      "fr": "Prouesse",
+      "category": "triggered"
+    },
+    {
+      "id": "dash",
+      "en": "Dash",
+      "fr": "Ruée",
+      "category": "static"
+    },
+    {
+      "id": "exploit",
+      "en": "Exploit",
+      "fr": "Exploiter",
+      "category": "triggered"
+    },
+    {
+      "id": "renown",
+      "en": "Renown",
+      "fr": "Renommée",
+      "category": "triggered"
+    },
+    {
+      "id": "awaken",
+      "en": "Awaken",
+      "fr": "Éveiller",
+      "category": "static"
+    },
+    {
+      "id": "devoid",
+      "en": "Devoid",
+      "fr": "Vide",
+      "category": "static"
+    },
+    {
+      "id": "ingest",
+      "en": "Ingest",
+      "fr": "Ingérer",
+      "category": "triggered"
+    },
+    {
+      "id": "myriad",
+      "en": "Myriad",
+      "fr": "Myriade",
+      "category": "triggered"
+    },
+    {
+      "id": "surge",
+      "en": "Surge",
+      "fr": "Vague",
+      "category": "static"
+    },
+    {
+      "id": "skulk",
+      "en": "Skulk",
+      "fr": "Furtif",
+      "category": "static"
+    },
+    {
+      "id": "emerge",
+      "en": "Emerge",
+      "fr": "Émerger",
+      "category": "static"
+    },
+    {
+      "id": "escalate",
+      "en": "Escalate",
+      "fr": "Escalader",
+      "category": "static"
+    },
+    {
+      "id": "melee",
+      "en": "Melee",
+      "fr": "Mêlée",
+      "category": "triggered"
+    },
+    {
+      "id": "crew",
+      "en": "Crew",
+      "fr": "Équipage",
+      "category": "activated"
+    },
+    {
+      "id": "fabricate",
+      "en": "Fabricate",
+      "fr": "Fabriquer",
+      "category": "triggered"
+    },
+    {
+      "id": "partner",
+      "en": "Partner",
+      "fr": "Partenaire",
+      "category": "static"
+    },
+    {
+      "id": "undaunted",
+      "en": "Undaunted",
+      "fr": "Intrépide",
+      "category": "static"
+    },
+    {
+      "id": "improvise",
+      "en": "Improvise",
+      "fr": "Improviser",
+      "category": "static"
+    },
+    {
+      "id": "aftermath",
+      "en": "Aftermath",
+      "fr": "Conséquences",
+      "category": "static"
+    },
+    {
+      "id": "embalm",
+      "en": "Embalm",
+      "fr": "Embaumement",
+      "category": "activated"
+    },
+    {
+      "id": "eternalize",
+      "en": "Eternalize",
+      "fr": "Éternaliser",
+      "category": "activated"
+    },
+    {
+      "id": "afflict",
+      "en": "Afflict",
+      "fr": "Affliger",
+      "category": "triggered"
+    },
+    {
+      "id": "ascend",
+      "en": "Ascend",
+      "fr": "Ascension",
+      "category": "static"
+    },
+    {
+      "id": "assist",
+      "en": "Assist",
+      "fr": "Assistance",
+      "category": "static"
+    },
+    {
+      "id": "jump_start",
+      "en": "Jump-Start",
+      "fr": "Redémarrage",
+      "category": "static"
+    },
+    {
+      "id": "mentor",
+      "en": "Mentor",
+      "fr": "Mentor",
+      "category": "triggered"
+    },
+    {
+      "id": "afterlife",
+      "en": "Afterlife",
+      "fr": "Au-delà",
+      "category": "triggered"
+    },
+    {
+      "id": "riot",
+      "en": "Riot",
+      "fr": "Émeute",
+      "category": "static"
+    },
+    {
+      "id": "spectacle",
+      "en": "Spectacle",
+      "fr": "Spectacle",
+      "category": "static"
+    },
+    {
+      "id": "escape",
+      "en": "Escape",
+      "fr": "Évasion",
+      "category": "static"
+    },
+    {
+      "id": "companion",
+      "en": "Companion",
+      "fr": "Compagnon",
+      "category": "static"
+    },
+    {
+      "id": "mutate",
+      "en": "Mutate",
+      "fr": "Mutation",
+      "category": "static"
+    },
+    {
+      "id": "encore",
+      "en": "Encore",
+      "fr": "Bis",
+      "category": "activated"
+    },
+    {
+      "id": "boast",
+      "en": "Boast",
+      "fr": "Fanfaronner",
+      "category": "activated"
+    },
+    {
+      "id": "foretell",
+      "en": "Foretell",
+      "fr": "Prédire",
+      "category": "static"
+    },
+    {
+      "id": "demonstrate",
+      "en": "Demonstrate",
+      "fr": "Démontrer",
+      "category": "triggered"
+    },
+    {
+      "id": "daybound",
+      "en": "Daybound",
+      "fr": "Lié au jour",
+      "category": "static"
+    },
+    {
+      "id": "nightbound",
+      "en": "Nightbound",
+      "fr": "Lié à la nuit",
+      "category": "static"
+    },
+    {
+      "id": "disturb",
+      "en": "Disturb",
+      "fr": "Perturber",
+      "category": "static"
+    },
+    {
+      "id": "decayed",
+      "en": "Decayed",
+      "fr": "Décomposé",
+      "category": "static"
+    },
+    {
+      "id": "cleave",
+      "en": "Cleave",
+      "fr": "Fendre",
+      "category": "static"
+    },
+    {
+      "id": "training",
+      "en": "Training",
+      "fr": "Entraînement",
+      "category": "triggered"
+    },
+    {
+      "id": "compleated",
+      "en": "Compleated",
+      "fr": "Complété",
+      "category": "static"
+    },
+    {
+      "id": "reconfigure",
+      "en": "Reconfigure",
+      "fr": "Reconfigurer",
+      "category": "activated"
+    },
+    {
+      "id": "blitz",
+      "en": "Blitz",
+      "fr": "Blitz",
+      "category": "static"
+    },
+    {
+      "id": "casualty",
+      "en": "Casualty",
+      "fr": "Victime",
+      "category": "static"
+    },
+    {
+      "id": "enlist",
+      "en": "Enlist",
+      "fr": "Enrôler",
+      "category": "static"
+    },
+    {
+      "id": "read_ahead",
+      "en": "Read Ahead",
+      "fr": "Lire à l'avance",
+      "category": "static"
+    },
+    {
+      "id": "ravenous",
+      "en": "Ravenous",
+      "fr": "Vorace",
+      "category": "static"
+    },
+    {
+      "id": "squad",
+      "en": "Squad",
+      "fr": "Escouade",
+      "category": "static"
+    },
+    {
+      "id": "visit",
+      "en": "Visit",
+      "fr": "Visiter",
+      "category": "triggered"
+    },
+    {
+      "id": "prototype",
+      "en": "Prototype",
+      "fr": "Prototype",
+      "category": "static"
+    },
+    {
+      "id": "living_metal",
+      "en": "Living Metal",
+      "fr": "Métal vivant",
+      "category": "static"
+    },
+    {
+      "id": "more_than_meets_the_eye",
+      "en": "More Than Meets the Eye",
+      "fr": "Plus qu'il n'y paraît",
+      "category": "static"
+    },
+    {
+      "id": "for_mirrodin",
+      "en": "For Mirrodin!",
+      "fr": "Pour Mirrodin !",
+      "category": "triggered"
+    },
+    {
+      "id": "toxic",
+      "en": "Toxic",
+      "fr": "Toxique",
+      "category": "static"
+    },
+    {
+      "id": "backup",
+      "en": "Backup",
+      "fr": "Sauvegarde",
+      "category": "triggered"
+    },
+    {
+      "id": "bargain",
+      "en": "Bargain",
+      "fr": "Marchander",
+      "category": "static"
+    },
+    {
+      "id": "craft",
+      "en": "Craft",
+      "fr": "Artisanat",
+      "category": "activated"
+    },
+    {
+      "id": "disguise",
+      "en": "Disguise",
+      "fr": "Déguisement",
+      "category": "static"
+    },
+    {
+      "id": "solved",
+      "en": "Solved",
+      "fr": "Résolu",
+      "category": "static"
+    },
+    {
+      "id": "plot",
+      "en": "Plot",
+      "fr": "Complot",
+      "category": "static"
+    },
+    {
+      "id": "saddle",
+      "en": "Saddle",
+      "fr": "Seller",
+      "category": "activated"
+    },
+    {
+      "id": "spree",
+      "en": "Spree",
+      "fr": "Frénésie",
+      "category": "static"
+    },
+    {
+      "id": "freerunning",
+      "en": "Freerunning",
+      "fr": "Course libre",
+      "category": "static"
+    },
+    {
+      "id": "gift",
+      "en": "Gift",
+      "fr": "Cadeau",
+      "category": "static"
+    },
+    {
+      "id": "offspring",
+      "en": "Offspring",
+      "fr": "Rejeton",
+      "category": "static"
+    },
+    {
+      "id": "impending",
+      "en": "Impending",
+      "fr": "Imminent",
+      "category": "static"
+    },
+    {
+      "id": "exhaust",
+      "en": "Exhaust",
+      "fr": "Épuiser",
+      "category": "activated"
+    },
+    {
+      "id": "max_speed",
+      "en": "Max Speed",
+      "fr": "Vitesse maximale",
+      "category": "static"
+    },
+    {
+      "id": "start_your_engines",
+      "en": "Start Your Engines!",
+      "fr": "Démarrez vos moteurs !",
+      "category": "static"
+    },
+    {
+      "id": "harmonize",
+      "en": "Harmonize",
+      "fr": "Harmoniser",
+      "category": "static"
+    },
+    {
+      "id": "mobilize",
+      "en": "Mobilize",
+      "fr": "Mobiliser",
+      "category": "triggered"
+    },
+    {
+      "id": "job_select",
+      "en": "Job Select",
+      "fr": "Sélection de métier",
+      "category": "triggered"
+    },
+    {
+      "id": "tiered",
+      "en": "Tiered",
+      "fr": "Échelonné",
+      "category": "static"
+    },
+    {
+      "id": "station",
+      "en": "Station",
+      "fr": "Station",
+      "category": "activated"
+    },
+    {
+      "id": "warp",
+      "en": "Warp",
+      "fr": "Distorsion",
+      "category": "static"
+    },
+    {
+      "id": "infinity",
+      "en": "∞ (Infinity)",
+      "fr": "∞ (Infini)",
+      "category": "static"
+    },
+    {
+      "id": "mayhem",
+      "en": "Mayhem",
+      "fr": "Chaos",
+      "category": "static"
+    },
+    {
+      "id": "web_slinging",
+      "en": "Web-slinging",
+      "fr": "Lancer de toiles",
+      "category": "static"
+    },
+    {
+      "id": "firebending",
+      "en": "Firebending",
+      "fr": "Maîtrise du feu",
+      "category": "triggered"
+    }
+  ],
+  "keyword_actions": [
+    {
+      "id": "activate",
+      "en": "Activate",
+      "fr": "Activer"
+    },
+    {
+      "id": "attach",
+      "en": "Attach",
+      "fr": "Attacher"
+    },
+    {
+      "id": "behold",
+      "en": "Behold",
+      "fr": "Contempler"
+    },
+    {
+      "id": "cast",
+      "en": "Cast",
+      "fr": "Lancer"
+    },
+    {
+      "id": "counter",
+      "en": "Counter",
+      "fr": "Contrer"
+    },
+    {
+      "id": "create",
+      "en": "Create",
+      "fr": "Créer"
+    },
+    {
+      "id": "destroy",
+      "en": "Destroy",
+      "fr": "Détruire"
+    },
+    {
+      "id": "discard",
+      "en": "Discard",
+      "fr": "Défausser"
+    },
+    {
+      "id": "double",
+      "en": "Double",
+      "fr": "Doubler"
+    },
+    {
+      "id": "triple",
+      "en": "Triple",
+      "fr": "Tripler"
+    },
+    {
+      "id": "exchange",
+      "en": "Exchange",
+      "fr": "Échanger"
+    },
+    {
+      "id": "exile",
+      "en": "Exile",
+      "fr": "Exiler"
+    },
+    {
+      "id": "fight",
+      "en": "Fight",
+      "fr": "Combattre"
+    },
+    {
+      "id": "goad",
+      "en": "Goad",
+      "fr": "Provoquer"
+    },
+    {
+      "id": "investigate",
+      "en": "Investigate",
+      "fr": "Enquêter"
+    },
+    {
+      "id": "mill",
+      "en": "Mill",
+      "fr": "Mouliner"
+    },
+    {
+      "id": "play",
+      "en": "Play",
+      "fr": "Jouer"
+    },
+    {
+      "id": "regenerate",
+      "en": "Regenerate",
+      "fr": "Régénérer"
+    },
+    {
+      "id": "reveal",
+      "en": "Reveal",
+      "fr": "Révéler"
+    },
+    {
+      "id": "sacrifice",
+      "en": "Sacrifice",
+      "fr": "Sacrifier"
+    },
+    {
+      "id": "scry",
+      "en": "Scry",
+      "fr": "Scry"
+    },
+    {
+      "id": "search",
+      "en": "Search",
+      "fr": "Chercher"
+    },
+    {
+      "id": "shuffle",
+      "en": "Shuffle",
+      "fr": "Mélanger"
+    },
+    {
+      "id": "surveil",
+      "en": "Surveil",
+      "fr": "Surveiller"
+    },
+    {
+      "id": "tap",
+      "en": "Tap",
+      "fr": "Engager"
+    },
+    {
+      "id": "untap",
+      "en": "Untap",
+      "fr": "Dégager"
+    },
+    {
+      "id": "transform",
+      "en": "Transform",
+      "fr": "Transformer"
+    },
+    {
+      "id": "convert",
+      "en": "Convert",
+      "fr": "Convertir"
+    },
+    {
+      "id": "fateseal",
+      "en": "Fateseal",
+      "fr": "Sceller le destin"
+    },
+    {
+      "id": "clash",
+      "en": "Clash",
+      "fr": "Affrontement"
+    },
+    {
+      "id": "planeswalk",
+      "en": "Planeswalk",
+      "fr": "Voyager entre les plans"
+    },
+    {
+      "id": "set_in_motion",
+      "en": "Set in Motion",
+      "fr": "Mettre en mouvement"
+    },
+    {
+      "id": "abandon",
+      "en": "Abandon",
+      "fr": "Abandonner"
+    },
+    {
+      "id": "proliferate",
+      "en": "Proliferate",
+      "fr": "Proliférer"
+    },
+    {
+      "id": "detain",
+      "en": "Detain",
+      "fr": "Détenir"
+    },
+    {
+      "id": "populate",
+      "en": "Populate",
+      "fr": "Peupler"
+    },
+    {
+      "id": "monstrosity",
+      "en": "Monstrosity",
+      "fr": "Monstruosité"
+    },
+    {
+      "id": "vote",
+      "en": "Vote",
+      "fr": "Voter"
+    },
+    {
+      "id": "bolster",
+      "en": "Bolster",
+      "fr": "Renforcer"
+    },
+    {
+      "id": "manifest",
+      "en": "Manifest",
+      "fr": "Manifester"
+    },
+    {
+      "id": "support",
+      "en": "Support",
+      "fr": "Soutenir"
+    },
+    {
+      "id": "meld",
+      "en": "Meld",
+      "fr": "Fusionner"
+    },
+    {
+      "id": "exert",
+      "en": "Exert",
+      "fr": "Épuiser"
+    },
+    {
+      "id": "explore",
+      "en": "Explore",
+      "fr": "Explorer"
+    },
+    {
+      "id": "assemble",
+      "en": "Assemble",
+      "fr": "Assembler"
+    },
+    {
+      "id": "adapt",
+      "en": "Adapt",
+      "fr": "Adapter"
+    },
+    {
+      "id": "amass",
+      "en": "Amass",
+      "fr": "Amasser"
+    },
+    {
+      "id": "learn",
+      "en": "Learn",
+      "fr": "Apprendre"
+    },
+    {
+      "id": "venture_into_the_dungeon",
+      "en": "Venture into the Dungeon",
+      "fr": "S'aventurer dans le donjon"
+    },
+    {
+      "id": "connive",
+      "en": "Connive",
+      "fr": "Comploter"
+    },
+    {
+      "id": "open_an_attraction",
+      "en": "Open an Attraction",
+      "fr": "Ouvrir une attraction"
+    },
+    {
+      "id": "roll_to_visit_your_attractions",
+      "en": "Roll to Visit Your Attractions",
+      "fr": "Lancer pour visiter vos attractions"
+    },
+    {
+      "id": "incubate",
+      "en": "Incubate",
+      "fr": "Incuber"
+    },
+    {
+      "id": "the_ring_tempts_you",
+      "en": "The Ring Tempts You",
+      "fr": "L'anneau vous tente"
+    },
+    {
+      "id": "face_a_villainous_choice",
+      "en": "Face a Villainous Choice",
+      "fr": "Affronter un choix maléfique"
+    },
+    {
+      "id": "time_travel",
+      "en": "Time Travel",
+      "fr": "Voyager dans le temps"
+    },
+    {
+      "id": "discover",
+      "en": "Discover",
+      "fr": "Découvrir"
+    },
+    {
+      "id": "cloak",
+      "en": "Cloak",
+      "fr": "Cacher"
+    },
+    {
+      "id": "collect_evidence",
+      "en": "Collect Evidence",
+      "fr": "Collecter des preuves"
+    },
+    {
+      "id": "suspect",
+      "en": "Suspect",
+      "fr": "Suspecter"
+    },
+    {
+      "id": "forage",
+      "en": "Forage",
+      "fr": "Fourrager"
+    },
+    {
+      "id": "manifest_dread",
+      "en": "Manifest Dread",
+      "fr": "Manifester l'effroi"
+    },
+    {
+      "id": "endure",
+      "en": "Endure",
+      "fr": "Endurer"
+    },
+    {
+      "id": "harness",
+      "en": "Harness",
+      "fr": "Harnacher"
+    },
+    {
+      "id": "airbend",
+      "en": "Airbend",
+      "fr": "Maîtrise de l'air"
+    },
+    {
+      "id": "earthbend",
+      "en": "Earthbend",
+      "fr": "Maîtrise de la terre"
+    },
+    {
+      "id": "waterbend",
+      "en": "Waterbend",
+      "fr": "Maîtrise de l'eau"
+    }
+  ],
+  "ability_words": [
+    {
+      "id": "adamant",
+      "en": "Adamant",
+      "fr": "Inflexible"
+    },
+    {
+      "id": "addendum",
+      "en": "Addendum",
+      "fr": "Addendum"
+    },
+    {
+      "id": "alliance",
+      "en": "Alliance",
+      "fr": "Alliance"
+    },
+    {
+      "id": "battalion",
+      "en": "Battalion",
+      "fr": "Bataillon"
+    },
+    {
+      "id": "bloodrush",
+      "en": "Bloodrush",
+      "fr": "Bloodrush"
+    },
+    {
+      "id": "celebration",
+      "en": "Celebration",
+      "fr": "Célébration"
+    },
+    {
+      "id": "channel",
+      "en": "Channel",
+      "fr": "Canalisation"
+    },
+    {
+      "id": "chroma",
+      "en": "Chroma",
+      "fr": "Chroma"
+    },
+    {
+      "id": "cohort",
+      "en": "Cohort",
+      "fr": "Cohorte"
+    },
+    {
+      "id": "constellation",
+      "en": "Constellation",
+      "fr": "Constellation"
+    },
+    {
+      "id": "converge",
+      "en": "Converge",
+      "fr": "Convergence"
+    },
+    {
+      "id": "councils_dilemma",
+      "en": "Council's Dilemma",
+      "fr": "Dilemme du conseil"
+    },
+    {
+      "id": "coven",
+      "en": "Coven",
+      "fr": "Coven"
+    },
+    {
+      "id": "delirium",
+      "en": "Delirium",
+      "fr": "Délire"
+    },
+    {
+      "id": "descend_4",
+      "en": "Descend 4",
+      "fr": "Descendre 4"
+    },
+    {
+      "id": "descend_8",
+      "en": "Descend 8",
+      "fr": "Descendre 8"
+    },
+    {
+      "id": "domain",
+      "en": "Domain",
+      "fr": "Domaine"
+    },
+    {
+      "id": "eerie",
+      "en": "Eerie",
+      "fr": "Étrange"
+    },
+    {
+      "id": "eminence",
+      "en": "Eminence",
+      "fr": "Éminence"
+    },
+    {
+      "id": "enrage",
+      "en": "Enrage",
+      "fr": "Enrage"
+    },
+    {
+      "id": "fateful_hour",
+      "en": "Fateful Hour",
+      "fr": "Heure fatidique"
+    },
+    {
+      "id": "fathomless_descent",
+      "en": "Fathomless Descent",
+      "fr": "Descente insondable"
+    },
+    {
+      "id": "ferocious",
+      "en": "Ferocious",
+      "fr": "Féroce"
+    },
+    {
+      "id": "flurry",
+      "en": "Flurry",
+      "fr": "Rafale"
+    },
+    {
+      "id": "formidable",
+      "en": "Formidable",
+      "fr": "Formidable"
+    },
+    {
+      "id": "grandeur",
+      "en": "Grandeur",
+      "fr": "Grandeur"
+    },
+    {
+      "id": "hellbent",
+      "en": "Hellbent",
+      "fr": "Hellbent"
+    },
+    {
+      "id": "heroic",
+      "en": "Heroic",
+      "fr": "Héroïque"
+    },
+    {
+      "id": "imprint",
+      "en": "Imprint",
+      "fr": "Impression"
+    },
+    {
+      "id": "inspired",
+      "en": "Inspired",
+      "fr": "Inspiré"
+    },
+    {
+      "id": "join_forces",
+      "en": "Join Forces",
+      "fr": "Joignez vos forces"
+    },
+    {
+      "id": "kinship",
+      "en": "Kinship",
+      "fr": "Parenté"
+    },
+    {
+      "id": "landfall",
+      "en": "Landfall",
+      "fr": "Toucheterre"
+    },
+    {
+      "id": "lieutenant",
+      "en": "Lieutenant",
+      "fr": "Lieutenant"
+    },
+    {
+      "id": "magecraft",
+      "en": "Magecraft",
+      "fr": "Art de mage"
+    },
+    {
+      "id": "metalcraft",
+      "en": "Metalcraft",
+      "fr": "Art métallurgique"
+    },
+    {
+      "id": "morbid",
+      "en": "Morbid",
+      "fr": "Morbidité"
+    },
+    {
+      "id": "pack_tactics",
+      "en": "Pack Tactics",
+      "fr": "Tactique de meute"
+    },
+    {
+      "id": "paradox",
+      "en": "Paradox",
+      "fr": "Paradoxe"
+    },
+    {
+      "id": "parley",
+      "en": "Parley",
+      "fr": "Parlement"
+    },
+    {
+      "id": "radiance",
+      "en": "Radiance",
+      "fr": "Radiance"
+    },
+    {
+      "id": "raid",
+      "en": "Raid",
+      "fr": "Raid"
+    },
+    {
+      "id": "rally",
+      "en": "Rally",
+      "fr": "Ralliement"
+    },
+    {
+      "id": "renew",
+      "en": "Renew",
+      "fr": "Renouveler"
+    },
+    {
+      "id": "revolt",
+      "en": "Revolt",
+      "fr": "Révolte"
+    },
+    {
+      "id": "secret_council",
+      "en": "Secret Council",
+      "fr": "Conseil secret"
+    },
+    {
+      "id": "spell_mastery",
+      "en": "Spell Mastery",
+      "fr": "Maîtrise des sorts"
+    },
+    {
+      "id": "strive",
+      "en": "Strive",
+      "fr": "Effort"
+    },
+    {
+      "id": "survival",
+      "en": "Survival",
+      "fr": "Survie"
+    },
+    {
+      "id": "sweep",
+      "en": "Sweep",
+      "fr": "Balayage"
+    },
+    {
+      "id": "tempting_offer",
+      "en": "Tempting Offer",
+      "fr": "Offre tentante"
+    },
+    {
+      "id": "threshold",
+      "en": "Threshold",
+      "fr": "Seuil"
+    },
+    {
+      "id": "undergrowth",
+      "en": "Undergrowth",
+      "fr": "Sous-bois"
+    },
+    {
+      "id": "valiant",
+      "en": "Valiant",
+      "fr": "Vaillant"
+    },
+    {
+      "id": "void",
+      "en": "Void",
+      "fr": "Vide"
+    },
+    {
+      "id": "will_of_the_council",
+      "en": "Will of the Council",
+      "fr": "Volonté du conseil"
+    }
+  ],
+  "categories": {
+    "static": "Capacités statiques (toujours actives)",
+    "triggered": "Capacités déclenchées (se déclenchent lors d'événements)",
+    "activated": "Capacités activées (coût à payer pour activer)",
+    "keyword_actions": "Actions de mots-clés (instructions à suivre)",
+    "ability_words": "Mots-clés d'aptitude (regroupent des capacités similaires)"
+  }
+}
+

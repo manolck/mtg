@@ -1,0 +1,15 @@
+# Exemple de fichier CSV pour l'import de cartes
+# Format supporté : Nom, Quantité, Édition (optionnel)
+# Vous pouvez aussi utiliser juste le nom, ou nom + quantité
+
+Lightning Bolt, 4, M21
+Black Lotus, 1, LEA
+Ancestral Recall, 1, LEA
+Time Walk, 1, LEA
+Mox Pearl, 1, LEA
+Mox Sapphire, 1, LEA
+Mox Jet, 1, LEA
+Mox Ruby, 1, LEA
+Mox Emerald, 1, LEA
+Sol Ring, 4, CMR
+

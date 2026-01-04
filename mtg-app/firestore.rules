@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Règles pour les collections utilisateur
+    // Lecture publique pour toutes les collections, écriture uniquement pour sa propre collection
+    match /users/{userId}/collection/{cardId} {
+      allow read: if request.auth != null; // Tous les utilisateurs connectés peuvent lire les collections
+      allow write: if request.auth != null && request.auth.uid == userId; // Seul le propriétaire peut modifier
+    }
+    
+    // Règle pour collectionGroup - permet de lister toutes les collections de tous les utilisateurs
+    match /{path=**}/collection/{cardId} {
+      allow read: if request.auth != null;
+    }
+    
+    // Règles pour les decks (privés)
+    match /users/{userId}/decks/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Règles pour les profils utilisateur (lecture publique, écriture privée)
+    match /users/{userId}/profile/{document=**} {
+      allow read: if request.auth != null; // Tous les utilisateurs connectés peuvent lire les profils
+      allow write: if request.auth != null && request.auth.uid == userId; // Seul le propriétaire peut écrire
+    }
+    
+    // Permettre de lister les utilisateurs (pour trouver les collections)
+    match /users/{userId} {
+      allow read: if request.auth != null;
+    }
+    
+    // Règles pour les imports (privés)
+    match /users/{userId}/imports/{importId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
