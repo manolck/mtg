@@ -95,7 +95,7 @@ Les règles garantissent que :
 npm run dev
 ```
 
-L'application sera accessible sur `http://localhost:5173`
+L'application sera accessible sur `http://localhost:3000`
 
 ## Format CSV
 
