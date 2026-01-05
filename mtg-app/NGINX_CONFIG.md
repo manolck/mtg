@@ -299,3 +299,4 @@ sudo tail -f /var/log/nginx/error.log
 
 Cette configuration permet d'accéder à votre application via HTTPS tout en laissant Vite tourner en HTTP en local, ce qui est la configuration recommandée pour le développement et la production.
 
+
