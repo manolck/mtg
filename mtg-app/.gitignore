@@ -33,3 +33,5 @@ dist-ssr
 .firebase
 firebase-debug.log
 firestore-debug.log
+serviceAccountKey.json
+*.serviceAccountKey.json

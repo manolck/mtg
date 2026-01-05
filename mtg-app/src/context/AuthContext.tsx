@@ -3,7 +3,6 @@ import {
   type User as FirebaseUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
 import { auth } from '../services/firebase';
@@ -13,7 +12,6 @@ interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -52,10 +50,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }
 
-  async function signup(email: string, password: string) {
-    await createUserWithEmailAndPassword(auth, email, password);
-  }
-
   async function logout() {
     await signOut(auth);
   }
@@ -64,7 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     currentUser,
     loading,
     login,
-    signup,
     logout,
   };
 

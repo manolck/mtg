@@ -5,12 +5,11 @@ import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
 
 export function Login() {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signup } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,11 +18,7 @@ export function Login() {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        await signup(email, password);
-      } else {
-        await login(email, password);
-      }
+      await login(email, password);
       navigate('/collection');
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
@@ -37,21 +32,10 @@ export function Login() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            {isSignUp ? 'Créer un compte' : 'Connexion'}
+            Connexion
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            {isSignUp
-              ? 'Déjà un compte ?'
-              : "Pas encore de compte ?"}{' '}
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-              }}
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
-              {isSignUp ? 'Se connecter' : 'S\'inscrire'}
-            </button>
+            Connectez-vous avec votre compte
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -75,12 +59,12 @@ export function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              autoComplete="current-password"
               minLength={6}
             />
           </div>
           <Button type="submit" loading={loading} className="w-full">
-            {isSignUp ? 'S\'inscrire' : 'Se connecter'}
+            Se connecter
           </Button>
         </form>
       </div>

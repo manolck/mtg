@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "setup-admin": "node scripts/setup-admin.js",
+    "setup-admin-simple": "node scripts/setup-admin-simple.js"
   },
   "dependencies": {
     "firebase": "^12.7.0",

@@ -145,3 +145,4 @@ Cette liste est basée sur les règles officielles de Magic: The Gathering. Elle
 - **Crew** / **Équipage** : Engager des créatures pour que le véhicule devienne une créature
 
 
+

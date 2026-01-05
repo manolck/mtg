@@ -54,6 +54,7 @@ export function useProfile() {
           email: currentUser.email || '',
           pseudonym: currentUser.displayName || currentUser.email?.split('@')[0] || 'Joueur',
           avatarId: defaultAvatar.id,
+          role: 'user',
           createdAt: new Date(),
           updatedAt: new Date(),
         };

@@ -9,7 +9,14 @@ export interface UserProfile {
   pseudonym?: string;
   avatarId?: string;
   email: string;
+  role?: 'admin' | 'user';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AdminUser {
+  email: string;
+  password: string;
+  role?: 'admin' | 'user';
 }
 

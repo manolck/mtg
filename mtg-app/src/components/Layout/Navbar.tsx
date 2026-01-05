@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
+import { useAdmin } from '../../hooks/useAdmin';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { Button } from '../UI/Button';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
@@ -8,6 +9,7 @@ import { AvatarDisplay } from '../UI/AvatarDisplay';
 export function Navbar() {
   const { currentUser, logout } = useAuth();
   const { profile } = useProfile();
+  const { isAdmin } = useAdmin();
   const { isDark, toggleDarkMode } = useDarkMode();
   const navigate = useNavigate();
 
@@ -53,6 +55,14 @@ export function Navbar() {
             >
               Profil
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Admin
+              </Link>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             {/* Toggle Dark Mode */}
