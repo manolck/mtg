@@ -9,7 +9,7 @@
 import type { UserCard } from '../types/card';
 import { scryfallQueue } from '../utils/apiQueue';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import { getCardPriceFromMTGJSON, initializeMTGJSONPrices } from './mtgjsonPriceService';
+import { getCardPriceFromMTGJSON, initializeMTGJSONPrices, isMTGJSONInitialized, waitForMTGJSONInitialization } from './mtgjsonPriceServiceAPI';
 
 export interface CardPrice {
   usd?: string;
@@ -137,8 +137,16 @@ export async function calculateCollectionValue(
   const byCard = new Map<string, number>();
   let total = 0;
 
-  // Initialiser MTGJSON si pas déjà fait
-  await initializeMTGJSONPrices();
+  // S'assurer que MTGJSON est initialisé (ne bloque pas si déjà en cours)
+  // L'initialisation se fait normalement au démarrage de l'app
+  const initialized = await isMTGJSONInitialized();
+  if (!initialized) {
+    // Si pas encore initialisé, initialiser maintenant
+    await initializeMTGJSONPrices();
+  } else {
+    // Si une initialisation est en cours, attendre qu'elle se termine
+    await waitForMTGJSONInitialization();
+  }
 
   // Traiter les cartes (pas besoin de délai pour MTGJSON, mais on en garde un petit pour Scryfall fallback)
   for (const card of cards) {

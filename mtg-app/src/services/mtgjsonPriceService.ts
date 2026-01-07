@@ -15,7 +15,7 @@ const MTGJSON_PRICES_URL = 'https://mtgjson.com/api/v5/AllPrices.json';
 // Alternative: https://mtgjson.com/api/v5/AllPrices.json.zip (format compressé)
 const MTGJSON_PRICES_FILE_KEY = 'mtgjson_prices';
 const MTGJSON_LAST_UPDATE_KEY = 'mtgjson_last_update';
-const UPDATE_INTERVAL_DAYS = 15; // Mise à jour 2 fois par mois (tous les 15 jours)
+const UPDATE_INTERVAL_DAYS = 60; // Mise à jour tous les 2 mois (60 jours)
 
 // Cache en mémoire pour les prix recherchés
 const priceCache = new LRUCache<CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
@@ -78,7 +78,7 @@ interface MTGJSONPriceData {
 /**
  * Vérifie si une mise à jour est nécessaire
  */
-function shouldUpdatePrices(): boolean {
+export function shouldUpdatePrices(): boolean {
   try {
     const lastUpdateStr = localStorage.getItem(MTGJSON_LAST_UPDATE_KEY);
     if (!lastUpdateStr) {
@@ -99,12 +99,12 @@ function shouldUpdatePrices(): boolean {
  * Télécharge le fichier AllPrices.json depuis MTGJSON
  * @param removeOldFirst Si true, supprime l'ancien fichier avant de télécharger le nouveau
  */
-async function downloadPricesFile(removeOldFirst: boolean = false): Promise<MTGJSONPriceData | null> {
+export async function downloadPricesFile(removeOldFirst: boolean = false): Promise<MTGJSONPriceData | null> {
+  // Sauvegarder l'ancien fichier en cas d'échec (déclaré en dehors du try pour être accessible dans le catch)
+  let oldData: string | null = null;
+  let oldUpdateDate: string | null = null;
+  
   try {
-    // Sauvegarder l'ancien fichier en cas d'échec
-    let oldData: string | null = null;
-    let oldUpdateDate: string | null = null;
-    
     if (removeOldFirst) {
       // Sauvegarder l'ancien pour pouvoir le restaurer en cas d'échec
       oldData = localStorage.getItem(MTGJSON_PRICES_FILE_KEY);
@@ -182,32 +182,35 @@ async function downloadPricesFile(removeOldFirst: boolean = false): Promise<MTGJ
 
 /**
  * Charge les prix depuis le cache local ou télécharge si nécessaire
+ * @param forceUpdate Si true, force le téléchargement même si le cache est récent
+ * @param allowDownload Si false, ne télécharge pas même si le cache est vide (utilise uniquement le cache)
  */
-async function loadPricesData(): Promise<MTGJSONPriceData | null> {
-  // Vérifier si une mise à jour est nécessaire
-  if (shouldUpdatePrices()) {
-    // Supprimer l'ancien fichier avant de télécharger le nouveau
-    const downloaded = await downloadPricesFile(true);
-    if (downloaded) {
-      return downloaded;
-    }
-    // Si le téléchargement échoue, essayer de charger depuis le cache
-  }
-
-  // Essayer de charger depuis le cache
+async function loadPricesData(forceUpdate: boolean = false, allowDownload: boolean = true): Promise<MTGJSONPriceData | null> {
+  // Essayer d'abord de charger depuis le cache
   try {
     const cached = localStorage.getItem(MTGJSON_PRICES_FILE_KEY);
     if (cached) {
       const data: MTGJSONPriceData = JSON.parse(cached);
       console.log('Loaded MTGJSON prices from cache');
-      return data;
+      
+      // Si on ne force pas la mise à jour et qu'on a des données en cache, les retourner
+      if (!forceUpdate) {
+        return data;
+      }
     }
   } catch (error) {
     console.error('Error loading cached prices:', error);
   }
 
-  // Si pas de cache, télécharger
-  return downloadPricesFile();
+  // Si pas de cache et qu'on autorise le téléchargement, télécharger
+  if (allowDownload) {
+    // Si une mise à jour est nécessaire, supprimer l'ancien fichier
+    const needsUpdate = shouldUpdatePrices();
+    return downloadPricesFile(needsUpdate || forceUpdate);
+  }
+
+  // Si pas de cache et qu'on n'autorise pas le téléchargement, retourner null
+  return null;
 }
 
 /**
@@ -307,29 +310,65 @@ let cachedPricesData: MTGJSONPriceData | null = null;
 let pricesDataPromise: Promise<MTGJSONPriceData | null> | null = null;
 
 /**
+ * Vérifie si MTGJSON est déjà initialisé ou en cours d'initialisation
+ */
+export function isMTGJSONInitialized(): boolean {
+  // Si on a des données en mémoire ou une promesse en cours, c'est initialisé
+  if (cachedPricesData !== null || pricesDataPromise !== null) {
+    return true;
+  }
+  
+  // Si on a un cache dans localStorage, on considère que c'est initialisé
+  // (même si pas encore chargé en mémoire)
+  try {
+    return localStorage.getItem(MTGJSON_PRICES_FILE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Attend que MTGJSON soit initialisé (si une initialisation est en cours)
+ */
+export async function waitForMTGJSONInitialization(): Promise<void> {
+  if (pricesDataPromise) {
+    await pricesDataPromise;
+  }
+}
+
+/**
  * Initialise le chargement des prix (appelé une fois au démarrage)
+ * - Si pas de cache : télécharge le fichier immédiatement
+ * - Si cache existe : charge depuis le cache, puis met à jour en arrière-plan si nécessaire (> 2 mois)
  */
 export async function initializeMTGJSONPrices(): Promise<void> {
+  // Si une initialisation est déjà en cours, attendre qu'elle se termine
   if (pricesDataPromise) {
-    return pricesDataPromise.then(() => {});
+    await pricesDataPromise;
+    return;
   }
 
-  pricesDataPromise = loadPricesData();
-  cachedPricesData = await pricesDataPromise;
+  // Si les données sont déjà en cache en mémoire, pas besoin de recharger
+  if (cachedPricesData) {
+    return;
+  }
+
+  // Vérifier si on a déjà un fichier en cache
+  const hasCache = localStorage.getItem(MTGJSON_PRICES_FILE_KEY) !== null;
   
-  // Vérifier en arrière-plan si une mise à jour est nécessaire
-  if (shouldUpdatePrices()) {
-    // Télécharger en arrière-plan sans bloquer
-    // Supprimer l'ancien fichier avant de télécharger le nouveau
-    downloadPricesFile(true).then(data => {
-      if (data) {
-        cachedPricesData = data;
-        // Vider le cache en mémoire pour forcer le rechargement avec les nouvelles données
-        priceCache.clear();
-      }
-    }).catch(error => {
-      console.warn('Background price update failed:', error);
-    });
+  if (hasCache) {
+    // Si on a un cache, charger depuis le cache d'abord (rapide)
+    pricesDataPromise = loadPricesData(false, false); // Ne pas télécharger si cache existe
+    cachedPricesData = await pricesDataPromise;
+    
+    // NE PAS vérifier shouldUpdatePrices() ici car cela déclencherait un téléchargement
+    // La mise à jour en arrière-plan se fait UNIQUEMENT au démarrage de l'app (dans App.tsx)
+    // et seulement si la dernière mise à jour date de plus de 2 mois
+  } else {
+    // Si pas de cache, télécharger immédiatement (premier démarrage)
+    console.log('No MTGJSON cache found, downloading prices file...');
+    pricesDataPromise = loadPricesData(false, true); // Autoriser le téléchargement
+    cachedPricesData = await pricesDataPromise;
   }
 }
 
@@ -348,8 +387,18 @@ export async function getCardPriceFromMTGJSON(
   }
 
   // S'assurer que les données sont chargées
+  // Si pas encore initialisé, charger depuis le cache uniquement (ne pas télécharger)
   if (!cachedPricesData && !pricesDataPromise) {
-    await initializeMTGJSONPrices();
+    // Vérifier si on a un cache avant d'initialiser
+    const hasCache = localStorage.getItem(MTGJSON_PRICES_FILE_KEY) !== null;
+    if (hasCache) {
+      // Si cache existe, charger depuis le cache sans télécharger
+      pricesDataPromise = loadPricesData(false, false);
+      cachedPricesData = await pricesDataPromise;
+    } else {
+      // Si pas de cache, initialiser (va télécharger au démarrage uniquement)
+      await initializeMTGJSONPrices();
+    }
   }
 
   // Attendre que les données soient chargées

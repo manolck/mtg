@@ -15,7 +15,7 @@ import { Wishlist } from './pages/Wishlist';
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
 import { useEffect } from 'react';
-import { initializeMTGJSONPrices } from './services/mtgjsonPriceService';
+import { initializeMTGJSONPrices, shouldUpdatePrices, updateMTGJSONPrices } from './services/mtgjsonPriceServiceAPI';
 
 function ErrorHandlerInitializer() {
   const { showError } = useToast();
@@ -29,8 +29,23 @@ function ErrorHandlerInitializer() {
 
 function MTGJSONInitializer() {
   useEffect(() => {
-    // Initialiser MTGJSON en arrière-plan (ne bloque pas le chargement de l'app)
-    initializeMTGJSONPrices().catch(error => {
+    // Initialiser MTGJSON au démarrage de l'application
+    // Charge d'abord depuis le cache (rapide), puis met à jour en arrière-plan si nécessaire (> 2 mois)
+    initializeMTGJSONPrices().then(() => {
+      // Après l'initialisation, vérifier si une mise à jour est nécessaire en arrière-plan
+      // Cette vérification se fait UNIQUEMENT au démarrage de l'app, pas à chaque accès à Statistics
+      if (shouldUpdatePrices()) {
+        console.log('MTGJSON prices update available (last update > 15 days), triggering server update...');
+        updateMTGJSONPrices().then(success => {
+          if (success) {
+            localStorage.setItem('mtgjson_last_update', new Date().toISOString());
+            console.log('Server price update completed');
+          }
+        }).catch(error => {
+          console.warn('Background price update failed:', error);
+        });
+      }
+    }).catch(error => {
       console.warn('Failed to initialize MTGJSON prices:', error);
     });
   }, []);
