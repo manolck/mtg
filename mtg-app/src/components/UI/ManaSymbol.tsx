@@ -11,7 +11,8 @@ interface ManaSymbolProps {
 }
 
 export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps) {
-  const baseClasses = 'inline-block';
+  const baseClasses = 'inline-block flex-shrink-0';
+  const imageStyle = { width: size, height: size, display: 'inline-block', objectFit: 'contain' };
   
   switch (color) {
     case 'W':
@@ -22,6 +23,7 @@ export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps
           width={size}
           height={size}
           className={`${baseClasses} ${className}`}
+          style={imageStyle}
         />
       );
     case 'U':
@@ -32,6 +34,7 @@ export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps
           width={size}
           height={size}
           className={`${baseClasses} ${className}`}
+          style={imageStyle}
         />
       );
     case 'B':
@@ -42,6 +45,7 @@ export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps
           width={size}
           height={size}
           className={`${baseClasses} ${className}`}
+          style={imageStyle}
         />
       );
     case 'R':
@@ -52,6 +56,7 @@ export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps
           width={size}
           height={size}
           className={`${baseClasses} ${className}`}
+          style={imageStyle}
         />
       );
     case 'G':
@@ -62,6 +67,7 @@ export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps
           width={size}
           height={size}
           className={`${baseClasses} ${className}`}
+          style={imageStyle}
         />
       );
     case 'Colorless':

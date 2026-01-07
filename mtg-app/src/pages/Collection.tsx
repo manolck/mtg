@@ -31,6 +31,7 @@ export function Collection() {
   
   const { 
     cards, 
+    allCards, // Toutes les cartes chargées (pour la recherche)
     loading,
     loadingMore,
     error, 
@@ -225,8 +226,9 @@ export function Collection() {
   const deferredSelectedSet = useDeferredValue(selectedSet);
 
   // Filtrer les cartes selon les critères de recherche et filtres
+  // Utiliser allCards pour la recherche afin de chercher dans toutes les cartes, pas seulement celles affichées
   const filteredCards = useMemo(() => {
-    let filtered = [...cards];
+    let filtered = [...allCards];
 
     // Filtre par nom (recherche) et/ou mots-clés
     if (deferredSearchQuery.trim()) {
@@ -359,7 +361,7 @@ export function Collection() {
     }
 
     return filtered;
-  }, [cards, deferredSearchQuery, deferredSelectedColors, deferredExclusiveColors, deferredSelectedRarity, deferredSelectedType, deferredSelectedCreatureType, deferredSelectedLanguage, deferredSelectedSet]);
+  }, [allCards, deferredSearchQuery, deferredSelectedColors, deferredExclusiveColors, deferredSelectedRarity, deferredSelectedType, deferredSelectedCreatureType, deferredSelectedLanguage, deferredSelectedSet]);
 
   // OPTIMISATION : Pré-calculer le Map des cartes par nom pour éviter les recalculs
   const cardsByNameMap = useMemo(() => {
@@ -386,17 +388,17 @@ export function Collection() {
   // Extraire les valeurs uniques pour les filtres
   const availableLanguages = useMemo(() => {
     const langs = new Set<string>();
-    cards.forEach(card => {
+    allCards.forEach(card => {
       if (card.language) {
         langs.add(card.language);
       }
     });
     return Array.from(langs).sort();
-  }, [cards]);
+  }, [allCards]);
 
   const availableRarities = useMemo(() => {
     const rarities = new Set<string>();
-    cards.forEach(card => {
+    allCards.forEach(card => {
       if (card.mtgData?.rarity) {
         rarities.add(card.mtgData.rarity);
       }
@@ -405,30 +407,30 @@ export function Collection() {
       }
     });
     return Array.from(rarities).sort();
-  }, [cards]);
+  }, [allCards]);
 
   const availableTypes = useMemo(() => {
     const types = new Set<string>();
-    cards.forEach(card => {
+    allCards.forEach(card => {
       card.mtgData?.types?.forEach(type => types.add(type));
     });
     return Array.from(types).sort();
-  }, [cards]);
+  }, [allCards]);
 
   const availableCreatureTypes = useMemo(() => {
     const creatureTypes = new Set<string>();
-    cards.forEach(card => {
+    allCards.forEach(card => {
       // Récupérer les sous-types de créature (subtypes)
       if (card.mtgData?.subtypes && card.mtgData.subtypes.length > 0) {
         card.mtgData.subtypes.forEach(subtype => creatureTypes.add(subtype));
       }
     });
     return Array.from(creatureTypes).sort();
-  }, [cards]);
+  }, [allCards]);
 
   const availableSets = useMemo(() => {
     const sets = new Map<string, string>(); // Map<code, name>
-    cards.forEach(card => {
+    allCards.forEach(card => {
       const setCode = card.set || card.setCode || card.mtgData?.set;
       const setName = card.mtgData?.setName;
       if (setCode) {
@@ -445,7 +447,7 @@ export function Collection() {
         }
         return a[0].localeCompare(b[0]);
       });
-  }, [cards]);
+  }, [allCards]);
 
   // IntersectionObserver pour charger plus de cartes au défilement
   useEffect(() => {
@@ -519,7 +521,7 @@ export function Collection() {
                 : isViewingOwnCollection 
                   ? 'Ma Collection' 
                   : `Collection de ${currentOwner?.profile?.pseudonym || 'Utilisateur'}`}
-              {filteredCards.length > 0 && ` (${filteredCards.length}${filteredCards.length !== cards.length ? ` / ${cards.length}` : ''})`}
+              {filteredCards.length > 0 && ` (${filteredCards.length}${filteredCards.length !== allCards.length ? ` / ${allCards.length}` : ''})`}
             </h1>
           </div>
           

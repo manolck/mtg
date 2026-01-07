@@ -15,6 +15,7 @@ import { Wishlist } from './pages/Wishlist';
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
 import { useEffect } from 'react';
+import { initializeMTGJSONPrices } from './services/mtgjsonPriceService';
 
 function ErrorHandlerInitializer() {
   const { showError } = useToast();
@@ -26,11 +27,23 @@ function ErrorHandlerInitializer() {
   return null;
 }
 
+function MTGJSONInitializer() {
+  useEffect(() => {
+    // Initialiser MTGJSON en arrière-plan (ne bloque pas le chargement de l'app)
+    initializeMTGJSONPrices().catch(error => {
+      console.warn('Failed to initialize MTGJSON prices:', error);
+    });
+  }, []);
+
+  return null;
+}
+
 function App() {
   return (
     <AuthProvider>
       <ToastProvider>
         <ErrorHandlerInitializer />
+        <MTGJSONInitializer />
         <BrowserRouter>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Navbar />

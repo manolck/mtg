@@ -1111,6 +1111,7 @@ export function useCollection(userId?: string) {
 
   return {
     cards,
+    allCards, // Exposer toutes les cartes pour la recherche
     loading,
     loadingMore,
     error,

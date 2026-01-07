@@ -32,7 +32,7 @@ export function Wishlist() {
   } = useWishlist(currentUser?.uid);
   
   // Charger toutes les collections de la communauté pour permettre les échanges/achats
-  const { cards: allCommunityCards } = useCollection('all');
+  const { allCards: allCommunityCards } = useCollection('all');
 
   const [searchInput, setSearchInput] = useState('');
   const [selectedRarity, setSelectedRarity] = useState<string | null>(null);

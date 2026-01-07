@@ -159,3 +159,4 @@ Le projet utilise `NODE_OPTIONS=--experimental-vm-modules` pour supporter les mo
 5. **Éviter les tests fragiles** (ne pas tester les détails d'implémentation)
 
 
+

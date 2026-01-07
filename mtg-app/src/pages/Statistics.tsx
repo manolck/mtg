@@ -4,21 +4,21 @@ import { calculateCollectionValue } from '../services/priceService';
 import { Button } from '../components/UI/Button';
 
 export function Statistics() {
-  const { cards, loading } = useCollection();
+  const { allCards, loading } = useCollection();
   const [collectionValue, setCollectionValue] = useState<number | null>(null);
   const [loadingValue, setLoadingValue] = useState(false);
   const [currency, setCurrency] = useState<'usd' | 'eur'>('usd');
 
   useEffect(() => {
-    if (cards.length > 0 && !collectionValue && !loadingValue) {
+    if (allCards.length > 0 && !collectionValue && !loadingValue) {
       loadCollectionValue();
     }
-  }, [cards.length]);
+  }, [allCards.length]);
 
   const loadCollectionValue = async () => {
     setLoadingValue(true);
     try {
-      const { total } = await calculateCollectionValue(cards, currency);
+      const { total } = await calculateCollectionValue(allCards, currency);
       setCollectionValue(total);
     } catch (error) {
       console.error('Error calculating collection value:', error);
@@ -38,7 +38,7 @@ export function Statistics() {
       Colorless: 0,
     };
 
-    cards.forEach((card) => {
+    allCards.forEach((card) => {
       const colors = card.mtgData?.colors || [];
       if (colors.length === 0) {
         colorCounts.Colorless++;
@@ -50,39 +50,39 @@ export function Statistics() {
     });
 
     return colorCounts;
-  }, [cards]);
+  }, [allCards]);
 
   // Statistiques par rareté
   const statsByRarity = useMemo(() => {
     const rarityCounts: Record<string, number> = {};
 
-    cards.forEach((card) => {
+    allCards.forEach((card) => {
       const rarity = card.rarity || card.mtgData?.rarity || 'Unknown';
       rarityCounts[rarity] = (rarityCounts[rarity] || 0) + card.quantity;
     });
 
     return rarityCounts;
-  }, [cards]);
+  }, [allCards]);
 
   // Statistiques par édition
   const statsBySet = useMemo(() => {
     const setCounts: Record<string, number> = {};
 
-    cards.forEach((card) => {
+    allCards.forEach((card) => {
       const set = card.set || card.setCode || 'Unknown';
       setCounts[set] = (setCounts[set] || 0) + card.quantity;
     });
 
     return setCounts;
-  }, [cards]);
+  }, [allCards]);
 
   // Total de cartes
   const totalCards = useMemo(() => {
-    return cards.reduce((sum, card) => sum + card.quantity, 0);
-  }, [cards]);
+    return allCards.reduce((sum, card) => sum + card.quantity, 0);
+  }, [allCards]);
 
   // Nombre de cartes uniques
-  const uniqueCards = cards.length;
+  const uniqueCards = allCards.length;
 
   if (loading) {
     return (
