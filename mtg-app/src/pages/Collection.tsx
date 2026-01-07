@@ -26,6 +26,7 @@ export function Collection() {
   const { currentUser } = useAuth();
   const { profile: currentUserProfile } = useProfile();
   const { owners, loading: loadingOwners } = useAllCollections();
+  const { showSuccess, showError } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   
   const { 
@@ -65,6 +66,9 @@ export function Collection() {
   const [importSuccess, setImportSuccess] = useState(false);
   const [importMode, setImportMode] = useState<'add' | 'update'>('add');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [showUpdateModeConfirm, setShowUpdateModeConfirm] = useState(false);
+  const pendingImportTextRef = useRef<string | null>(null);
   
   // États pour la recherche et les filtres
   const [searchInput, setSearchInput] = useState(''); // Ce qui est tapé dans l'input
@@ -126,6 +130,20 @@ export function Collection() {
       errorHandler.handleAndShowError(err);
     }
   }, [deleteAllCards, showSuccess]);
+
+  const confirmUpdateModeImport = useCallback(async () => {
+    if (!pendingImportTextRef.current) return;
+    
+    try {
+      setImporting(true);
+      await importCSV(pendingImportTextRef.current, true);
+      pendingImportTextRef.current = null;
+      setShowUpdateModeConfirm(false);
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+      setImporting(false);
+    }
+  }, [importCSV]);
 
   const handleAddToDeck = useCallback((cardId: string) => {
     setSelectedCardId(cardId);

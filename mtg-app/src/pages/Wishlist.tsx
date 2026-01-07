@@ -41,6 +41,7 @@ export function Wishlist() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedItemForMenu, setSelectedItemForMenu] = useState<WishlistItem | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const deferredSearch = useDeferredValue(searchInput);
 
