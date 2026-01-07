@@ -169,12 +169,12 @@ export function Statistics() {
                 Colorless: 'Colorless',
               };
               const colorClasses: Record<string, string> = {
-                W: 'bg-yellow-100 dark:bg-yellow-900',
+                W: 'bg-amber-200 dark:bg-amber-800', // Jaune/beige/lait cassé
                 U: 'bg-blue-100 dark:bg-blue-900',
-                B: 'bg-gray-800 dark:bg-gray-600',
+                B: 'bg-black dark:bg-black', // Noir pur
                 R: 'bg-red-100 dark:bg-red-900',
                 G: 'bg-green-100 dark:bg-green-900',
-                Colorless: 'bg-gray-200 dark:bg-gray-700',
+                Colorless: 'bg-gray-800 dark:bg-gray-600', // Reprend la couleur de Black
               };
               
               return (

@@ -29,25 +29,44 @@ function ErrorHandlerInitializer() {
 
 function MTGJSONInitializer() {
   useEffect(() => {
+    let mounted = true;
+    
     // Initialiser MTGJSON au démarrage de l'application
     // Charge d'abord depuis le cache (rapide), puis met à jour en arrière-plan si nécessaire (> 2 mois)
     initializeMTGJSONPrices().then(() => {
+      if (!mounted) return;
+      
       // Après l'initialisation, vérifier si une mise à jour est nécessaire en arrière-plan
       // Cette vérification se fait UNIQUEMENT au démarrage de l'app, pas à chaque accès à Statistics
       if (shouldUpdatePrices()) {
-        console.log('MTGJSON prices update available (last update > 15 days), triggering server update...');
+        // Ne pas afficher de log en développement si l'API n'est pas configurée
+        const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+        if (!isDev || !import.meta.env.VITE_FIREBASE_FUNCTIONS_URL?.includes('YOUR-PROJECT-ID')) {
+          console.log('MTGJSON prices update available (last update > 15 days), triggering server update...');
+        }
         updateMTGJSONPrices().then(success => {
+          if (!mounted) return;
           if (success) {
             localStorage.setItem('mtgjson_last_update', new Date().toISOString());
             console.log('Server price update completed');
           }
         }).catch(error => {
-          console.warn('Background price update failed:', error);
+          if (!mounted) return;
+          // Ne pas afficher d'erreur en développement si c'est juste que l'API n'est pas configurée
+          const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+          if (!isDev || !error.message?.includes('not configured')) {
+            console.warn('Background price update failed:', error);
+          }
         });
       }
     }).catch(error => {
+      if (!mounted) return;
       console.warn('Failed to initialize MTGJSON prices:', error);
     });
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return null;

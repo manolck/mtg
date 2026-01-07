@@ -79,7 +79,7 @@ export async function getCardPriceFromMTGJSON(
     if (!apiAvailable) {
       // En dev, si l'API n'est pas disponible, retourner null
       // Le fallback vers Scryfall se fera automatiquement dans priceService.ts
-      console.log('MTGJSON API not available in development, will use Scryfall fallback');
+      // Ne pas afficher de message, c'est normal en développement
       return null;
     }
   }
@@ -159,6 +159,11 @@ export async function initializeMTGJSONPrices(): Promise<void> {
 export async function updateMTGJSONPrices(): Promise<boolean> {
   // Vérifier que l'URL est configurée correctement
   if (API_BASE_URL.includes('YOUR-PROJECT-ID')) {
+    // En développement, c'est normal que l'URL ne soit pas configurée
+    if (isDevelopment()) {
+      // Ne pas afficher de message en développement, c'est attendu
+      return false;
+    }
     console.warn('Firebase Functions URL not configured. Please set VITE_FIREBASE_FUNCTIONS_URL in your .env file');
     return false;
   }
