@@ -9,6 +9,7 @@ import { Spinner } from './components/UI/Spinner';
 import { Login } from './pages/Login';
 
 // Lazy load des routes principales pour réduire le bundle initial
+// Cela permet de charger uniquement le code nécessaire pour chaque route
 const Collection = lazy(() => import('./pages/Collection').then(module => ({ default: module.Collection })));
 const Decks = lazy(() => import('./pages/Decks').then(module => ({ default: module.Decks })));
 const DeckBuilder = lazy(() => import('./pages/DeckBuilder').then(module => ({ default: module.DeckBuilder })));
@@ -76,6 +77,13 @@ function MTGJSONInitializer() {
   return null;
 }
 
+// Composant de chargement pour les routes lazy
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <Spinner />
+  </div>
+);
+
 function App() {
   return (
     <AuthProvider>
@@ -85,66 +93,68 @@ function App() {
         <BrowserRouter>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Navbar />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/collection"
-              element={
-                <ProtectedRoute>
-                  <Collection />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/decks"
-              element={
-                <ProtectedRoute>
-                  <Decks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/decks/:deckId"
-              element={
-                <ProtectedRoute>
-                  <DeckBuilder />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/wishlist"
-              element={
-                <ProtectedRoute>
-                  <Wishlist />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/statistics"
-              element={
-                <ProtectedRoute>
-                  <Statistics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Admin />
-                </AdminRoute>
-              }
-            />
-            <Route path="/" element={<Navigate to="/collection" replace />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/collection"
+                element={
+                  <ProtectedRoute>
+                    <Collection />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/decks"
+                element={
+                  <ProtectedRoute>
+                    <Decks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/decks/:deckId"
+                element={
+                  <ProtectedRoute>
+                    <DeckBuilder />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/wishlist"
+                element={
+                  <ProtectedRoute>
+                    <Wishlist />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/statistics"
+                element={
+                  <ProtectedRoute>
+                    <Statistics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Admin />
+                  </AdminRoute>
+                }
+              />
+              <Route path="/" element={<Navigate to="/collection" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </BrowserRouter>
       </ToastProvider>
