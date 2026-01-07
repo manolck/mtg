@@ -19,6 +19,7 @@
     "test-scraping": "node scripts/test-scraping.js"
   },
   "dependencies": {
+    "@sentry/react": "^10.32.1",
     "@types/react-window": "^1.8.8",
     "firebase": "^12.7.0",
     "react": "^19.2.0",

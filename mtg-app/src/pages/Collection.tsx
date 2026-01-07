@@ -9,6 +9,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
+import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { SearchInput } from '../components/UI/SearchInput';
@@ -985,26 +986,46 @@ export function Collection() {
           </button>
         </div>
       ) : cardsByNameMap ? (
-        // Grille normale pour les petites collections
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {(cardsByNameMap?.deduplicatedCards || []).map((card) => {
-            // Utiliser le Map pré-calculé au lieu de filter à chaque fois
-            const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
-            
-            return (
-              <CardDisplay
-                key={card.id}
-                card={card}
-                allCardsWithSameName={cardsWithSameName}
-                onAddToDeck={handleAddToDeck}
-                onAddToWishlist={isViewingOwnCollection ? handleAddToWishlist : undefined}
-                onDelete={canModify ? deleteCard : undefined}
-                onUpdateQuantity={canModify ? updateCardQuantity : undefined}
-                showActions={true}
-              />
-            );
-          })}
-        </div>
+        // Utiliser la virtualisation pour les grandes collections (> 100 cartes)
+        (cardsByNameMap?.deduplicatedCards || []).length > 100 ? (
+          <div className="w-full bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>
+            <VirtualizedCardGrid
+              cards={cardsByNameMap.deduplicatedCards}
+              cardsByNameMap={cardsByNameMap}
+              onAddToDeck={handleAddToDeck}
+              onAddToWishlist={isViewingOwnCollection ? handleAddToWishlist : undefined}
+              onDelete={canModify ? deleteCard : undefined}
+              onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+              onEdit={(card) => {
+                // Pour l'édition, on peut ouvrir un modal ou faire autre chose
+                // Pour l'instant, on ne fait rien car l'édition se fait via les actions de la carte
+              }}
+              showActions={true}
+              gap={24}
+            />
+          </div>
+        ) : (
+          // Grille normale pour les petites collections
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {(cardsByNameMap?.deduplicatedCards || []).map((card) => {
+              // Utiliser le Map pré-calculé au lieu de filter à chaque fois
+              const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
+              
+              return (
+                <CardDisplay
+                  key={card.id}
+                  card={card}
+                  allCardsWithSameName={cardsWithSameName}
+                  onAddToDeck={handleAddToDeck}
+                  onAddToWishlist={isViewingOwnCollection ? handleAddToWishlist : undefined}
+                  onDelete={canModify ? deleteCard : undefined}
+                  onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+                  showActions={true}
+                />
+              );
+            })}
+          </div>
+        )
       ) : null}
 
       {/* IntersectionObserver trigger pour charger plus de cartes au défilement */}

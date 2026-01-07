@@ -156,35 +156,85 @@ export function Statistics() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Par Couleur
           </h2>
-          <div className="space-y-2">
-            {Object.entries(statsByColor).map(([color, count]) => (
-              <div key={color} className="flex justify-between items-center">
-                <span className="text-gray-700 dark:text-gray-300 capitalize">
-                  {color === 'W' ? 'White' : color === 'U' ? 'Blue' : color === 'B' ? 'Black' : color === 'R' ? 'Red' : color === 'G' ? 'Green' : color}
-                </span>
-                <span className="font-semibold text-gray-900 dark:text-white">{count}</span>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {Object.entries(statsByColor).map(([color, count]) => {
+              const maxCount = Math.max(...Object.values(statsByColor));
+              const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+              const colorNames: Record<string, string> = {
+                W: 'White',
+                U: 'Blue',
+                B: 'Black',
+                R: 'Red',
+                G: 'Green',
+                Colorless: 'Colorless',
+              };
+              const colorClasses: Record<string, string> = {
+                W: 'bg-yellow-100 dark:bg-yellow-900',
+                U: 'bg-blue-100 dark:bg-blue-900',
+                B: 'bg-gray-800 dark:bg-gray-600',
+                R: 'bg-red-100 dark:bg-red-900',
+                G: 'bg-green-100 dark:bg-green-900',
+                Colorless: 'bg-gray-200 dark:bg-gray-700',
+              };
+              
+              return (
+                <div key={color}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-gray-700 dark:text-gray-300 capitalize text-sm">
+                      {colorNames[color] || color}
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-white text-sm">{count}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${colorClasses[color] || 'bg-blue-500'}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Graphiques (à implémenter avec Chart.js ou Recharts) */}
+      {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Par rareté */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Par Rareté
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {Object.entries(statsByRarity)
               .sort(([, a], [, b]) => b - a)
-              .map(([rarity, count]) => (
-                <div key={rarity} className="flex justify-between items-center">
-                  <span className="text-gray-700 dark:text-gray-300">{rarity}</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{count}</span>
-                </div>
-              ))}
+              .map(([rarity, count]) => {
+                const maxCount = Math.max(...Object.values(statsByRarity));
+                const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                const rarityColors: Record<string, string> = {
+                  'Mythic Rare': 'bg-purple-500',
+                  'Rare': 'bg-blue-500',
+                  'Uncommon': 'bg-green-500',
+                  'Common': 'bg-gray-400',
+                  'Special': 'bg-yellow-500',
+                  'Unknown': 'bg-gray-300',
+                };
+                
+                return (
+                  <div key={rarity}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-gray-700 dark:text-gray-300 text-sm">{rarity}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{count}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${rarityColors[rarity] || 'bg-blue-500'}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
@@ -193,16 +243,37 @@ export function Statistics() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Top 10 Éditions
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {Object.entries(statsBySet)
               .sort(([, a], [, b]) => b - a)
               .slice(0, 10)
-              .map(([set, count]) => (
-                <div key={set} className="flex justify-between items-center">
-                  <span className="text-gray-700 dark:text-gray-300">{set}</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{count}</span>
-                </div>
-              ))}
+              .map(([set, count], index) => {
+                const top10Counts = Object.values(statsBySet)
+                  .sort((a, b) => b - a)
+                  .slice(0, 10);
+                const maxCount = Math.max(...top10Counts);
+                const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                
+                return (
+                  <div key={set}>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-4">
+                          {index + 1}.
+                        </span>
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">{set}</span>
+                      </div>
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{count}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>

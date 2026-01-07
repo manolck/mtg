@@ -32,16 +32,41 @@ export function setErrorToastCallback(callback: (message: string) => void) {
 
 class ErrorHandler {
   private sentryEnabled = false;
+  private sentryInitialized = false;
 
   /**
    * Initialise le handler d'erreurs
    */
-  init(sentryDsn?: string): void {
-    if (sentryDsn && typeof window !== 'undefined') {
-      // Initialiser Sentry si disponible
-      // import * as Sentry from '@sentry/react';
-      // Sentry.init({ dsn: sentryDsn });
-      this.sentryEnabled = true;
+  async init(sentryDsn?: string): Promise<void> {
+    if (sentryDsn && typeof window !== 'undefined' && !this.sentryInitialized) {
+      try {
+        // Lazy load Sentry pour éviter de l'inclure dans le bundle si non utilisé
+        const Sentry = await import('@sentry/react');
+        
+        Sentry.init({
+          dsn: sentryDsn,
+          environment: import.meta.env.MODE || 'development',
+          // Performance monitoring optionnel (10% des transactions)
+          integrations: [
+            Sentry.browserTracingIntegration(),
+          ],
+          tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+          // Capture des erreurs non gérées
+          beforeSend(event, hint) {
+            // Filtrer les erreurs de développement si nécessaire
+            if (import.meta.env.DEV && event.exception) {
+              console.log('Sentry would capture:', event);
+            }
+            return event;
+          },
+        });
+
+        this.sentryEnabled = true;
+        this.sentryInitialized = true;
+      } catch (error) {
+        console.warn('Failed to initialize Sentry:', error);
+        this.sentryEnabled = false;
+      }
     }
   }
 
@@ -147,10 +172,10 @@ class ErrorHandler {
       });
     }
 
-    // Sentry en production
-    if (this.sentryEnabled && import.meta.env.PROD) {
+    // Sentry (si initialisé)
+    if (this.sentryEnabled) {
       try {
-        // Lazy load Sentry pour éviter de l'inclure dans le bundle si non utilisé
+        // Sentry est déjà chargé, on peut l'utiliser directement
         import('@sentry/react').then((Sentry) => {
           Sentry.captureException(error.originalError || new Error(error.message), {
             tags: {
@@ -197,11 +222,14 @@ class ErrorHandler {
 // Instance globale
 export const errorHandler = new ErrorHandler();
 
-// Initialiser avec la config d'environnement
+// Initialiser avec la config d'environnement (async)
 if (typeof window !== 'undefined') {
   const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
   if (sentryDsn) {
-    errorHandler.init(sentryDsn);
+    // Initialiser Sentry de manière asynchrone pour ne pas bloquer le chargement
+    errorHandler.init(sentryDsn).catch((error) => {
+      console.warn('Failed to initialize error handler:', error);
+    });
   }
 }
 
