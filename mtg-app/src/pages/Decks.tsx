@@ -4,6 +4,7 @@ import { useDecks } from '../hooks/useDecks';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
+import { Spinner } from '../components/UI/Spinner';
 
 export function Decks() {
   const { decks, loading, error, createDeck, deleteDeck } = useDecks();
@@ -41,7 +42,9 @@ export function Decks() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Chargement des decks...</p>
+        <div className="flex justify-center py-8">
+          <Spinner size="lg" />
+        </div>
       </div>
     );
   }

@@ -183,3 +183,4 @@ L'application a une base de sécurité solide avec Firebase, mais nécessite des
 - Rate limiting
 - Monitoring sécurité
 
+

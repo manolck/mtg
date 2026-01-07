@@ -5,6 +5,7 @@ import { useCollection } from '../hooks/useCollection';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
+import { Spinner } from '../components/UI/Spinner';
 import { ImportJobCard } from '../components/Import/ImportJobCard';
 import { ImportReportModal } from '../components/Import/ImportReportModal';
 import { Modal } from '../components/UI/Modal';
@@ -179,7 +180,7 @@ export function Profile() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Chargement du profil...</p>
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -324,7 +325,9 @@ export function Profile() {
           </h2>
           
           {loadingImports ? (
-            <p className="text-gray-600 dark:text-gray-400">Chargement des imports...</p>
+            <div className="flex justify-center py-4">
+              <Spinner size="md" />
+            </div>
           ) : (
             <div className="space-y-4">
               {/* Imports actifs */}

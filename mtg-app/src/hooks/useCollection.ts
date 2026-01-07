@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, query, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { parseCSV } from '../services/csvParser';
@@ -56,6 +56,8 @@ export function useCollection(userId?: string) {
   const { currentUser } = useAuth();
   const { createImport, updateImportStatus, updateImportProgress, saveImportReport } = useImports();
   const [cards, setCards] = useState<UserCard[]>([]);
+  const [allCards, setAllCards] = useState<UserCard[]>([]); // Toutes les cartes chargées
+  const [displayedCount, setDisplayedCount] = useState(50); // Nombre de cartes affichées
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,14 +95,13 @@ export function useCollection(userId?: string) {
       setLoadingMore(false);
       const cardsRef = collection(db, 'users', targetUserId, 'collection');
       
-      // OPTIMISATION : Charger d'abord un échantillon de 100 cartes pour un chargement initial rapide
-      const INITIAL_BATCH_SIZE = 100;
-      const initialQuery = query(cardsRef, limit(INITIAL_BATCH_SIZE));
-      const initialSnapshot = await getDocs(initialQuery);
+      // Charger toutes les cartes
+      const cardsQuery = query(cardsRef);
+      const snapshot = await getDocs(cardsQuery);
       
       const cardsMap = new Map<string, UserCard>();
       
-      initialSnapshot.forEach((docSnap) => {
+      snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         const card: UserCard = {
           id: docSnap.id,
@@ -113,37 +114,11 @@ export function useCollection(userId?: string) {
         }
       });
 
-      const initialCards = Array.from(cardsMap.values());
-      setCards(initialCards);
+      const allCardsArray = Array.from(cardsMap.values());
+      setAllCards(allCardsArray);
+      setCards(allCardsArray.slice(0, displayedCount));
       setError(null);
       setLoading(false);
-
-      // Si on a chargé exactement INITIAL_BATCH_SIZE, il y a probablement plus de cartes
-      // Charger le reste en arrière-plan
-      if (initialSnapshot.size === INITIAL_BATCH_SIZE) {
-        setLoadingMore(true);
-        // Charger le reste en arrière-plan
-        const remainingQuery = query(cardsRef);
-        const remainingSnapshot = await getDocs(remainingQuery);
-        
-        const remainingCardsMap = new Map<string, UserCard>(cardsMap);
-        remainingSnapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          const card: UserCard = {
-            id: docSnap.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-          } as UserCard;
-          
-          if (!remainingCardsMap.has(card.id)) {
-            remainingCardsMap.set(card.id, card);
-          }
-        });
-
-        const finalCards = Array.from(remainingCardsMap.values());
-        setCards(finalCards);
-        setLoadingMore(false);
-      }
     } catch (err) {
       console.error('Error loading collection:', err);
       setError('Erreur lors du chargement de la collection');
@@ -158,8 +133,8 @@ export function useCollection(userId?: string) {
       setLoadingMore(false);
       setError(null);
 
-      // OPTIMISATION : Charger d'abord un échantillon de 500 cartes pour un chargement initial rapide
-      const INITIAL_BATCH_SIZE = 500;
+      // OPTIMISATION : Charger d'abord un échantillon de 50 cartes pour un chargement initial rapide
+      const INITIAL_BATCH_SIZE = 50;
       const collectionsGroup = collectionGroup(db, 'collection');
       const initialQuery = query(collectionsGroup, limit(INITIAL_BATCH_SIZE));
       const initialSnapshot = await getDocs(initialQuery);
@@ -256,7 +231,8 @@ export function useCollection(userId?: string) {
       // Attendre que tous les profils soient chargés
       await Promise.all(profilePromises);
 
-      setCards(allCards);
+      setAllCards(allCards);
+      setCards(allCards.slice(0, displayedCount));
       setError(null);
       setLoading(false);
 
@@ -361,7 +337,9 @@ export function useCollection(userId?: string) {
           }
         });
         
-        setCards(Array.from(finalCardsMap.values()));
+        const finalAllCards = Array.from(finalCardsMap.values());
+        setAllCards(finalAllCards);
+        setCards(finalAllCards.slice(0, displayedCount));
         setLoadingMore(false);
       }
     } catch (err) {
@@ -1261,6 +1239,31 @@ export function useCollection(userId?: string) {
     }
   }
 
+  // Fonction pour charger plus de cartes au défilement
+  const loadMoreCards = useCallback(async () => {
+    if (loadingMore || displayedCount >= allCards.length) {
+      return;
+    }
+
+    setLoadingMore(true);
+    
+    // Simuler un petit délai pour le chargement
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Afficher 50 cartes supplémentaires
+    const newCount = Math.min(displayedCount + 50, allCards.length);
+    setDisplayedCount(newCount);
+    setCards(allCards.slice(0, newCount));
+    
+    setLoadingMore(false);
+  }, [allCards, displayedCount, loadingMore]);
+
+  // Réinitialiser displayedCount quand allCards change
+  useEffect(() => {
+    setDisplayedCount(50);
+    setCards(allCards.slice(0, 50));
+  }, [allCards.length]);
+
   return {
     cards,
     loading,
@@ -1281,6 +1284,8 @@ export function useCollection(userId?: string) {
     cancelImport,
     isImportPaused,
     currentImportId,
+    loadMoreCards,
+    hasMoreCards: allCards.length > displayedCount,
   };
 }
 

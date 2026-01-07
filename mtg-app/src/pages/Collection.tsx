@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useDeferredValue, startTransition, useCallback } from 'react';
+import { useState, useRef, useMemo, useDeferredValue, startTransition, useCallback, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useAllCollections } from '../hooks/useAllCollections';
@@ -17,6 +17,7 @@ import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { CollectionSelector } from '../components/UI/CollectionSelector';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
+import { Spinner } from '../components/UI/Spinner';
 
 export function Collection() {
   const { currentUser } = useAuth();
@@ -39,7 +40,9 @@ export function Collection() {
     pauseImport,
     resumeImport,
     cancelImport,
-    isImportPaused
+    isImportPaused,
+    loadMoreCards,
+    hasMoreCards
   } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
   const { decks, createDeck, addCardToDeck } = useDecks();
   
@@ -70,6 +73,7 @@ export function Collection() {
   const [selectedCreatureType, setSelectedCreatureType] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -425,10 +429,57 @@ export function Collection() {
       });
   }, [cards]);
 
+  // IntersectionObserver pour charger plus de cartes au défilement
+  useEffect(() => {
+    if (!hasMoreCards || loadingMore) {
+      return;
+    }
+
+    let observer: IntersectionObserver | null = null;
+    let rafId: number | null = null;
+    let cancelled = false;
+
+    // Attendre que l'élément soit monté dans le DOM
+    const checkAndSetup = () => {
+      if (cancelled) return;
+      
+      if (!loadMoreRef.current) {
+        // Réessayer au prochain frame
+        rafId = requestAnimationFrame(checkAndSetup);
+        return;
+      }
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (cancelled) return;
+          if (entries[0].isIntersecting && hasMoreCards && !loadingMore && loadMoreCards) {
+            loadMoreCards();
+          }
+        },
+        { rootMargin: '200px' } // Déclencher 200px avant d'atteindre l'élément
+      );
+
+      observer.observe(loadMoreRef.current);
+    };
+
+    rafId = requestAnimationFrame(checkAndSetup);
+
+    return () => {
+      cancelled = true;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      if (observer && loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+        observer.disconnect();
+      }
+    };
+  }, [hasMoreCards, loadingMore, loadMoreCards]);
+
   if (loading || loadingOwners) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Chargement de la collection...</p>
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -869,7 +920,8 @@ export function Collection() {
       )}
 
       {showLoadingMore && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-center">
+        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
+          <Spinner size="md" />
           <p className="text-sm text-blue-600 dark:text-blue-400">
             Chargement des cartes restantes... ({cards.length} cartes chargées)
           </p>
@@ -912,9 +964,10 @@ export function Collection() {
             Réinitialiser les filtres
           </button>
         </div>
-      ) : (
+      ) : cardsByNameMap ? (
+        // Grille normale pour les petites collections
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {cardsByNameMap.deduplicatedCards.map((card) => {
+          {(cardsByNameMap?.deduplicatedCards || []).map((card) => {
             // Utiliser le Map pré-calculé au lieu de filter à chaque fois
             const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
             
@@ -932,6 +985,13 @@ export function Collection() {
               />
             );
           })}
+        </div>
+      ) : null}
+
+      {/* IntersectionObserver trigger pour charger plus de cartes au défilement */}
+      {hasMoreCards && (
+        <div ref={loadMoreRef} className="flex justify-center items-center py-8">
+          {loadingMore && <Spinner size="md" />}
         </div>
       )}
 

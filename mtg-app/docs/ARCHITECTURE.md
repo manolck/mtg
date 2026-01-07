@@ -257,3 +257,4 @@ src/
 10. Optimisation bundle size
 11. Tests E2E complets
 
+

@@ -1,78 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { searchCardNames, searchCards } from '../../services/scryfallSearchService';
 import { enrichCardWithFrenchData } from '../../services/magicCorporationService';
-import { ManaSymbol } from '../UI/ManaSymbol';
+import { ManaCostDisplay } from '../UI/ManaCostDisplay';
+import { Spinner } from '../UI/Spinner';
 import { useProfile } from '../../hooks/useProfile';
 import type { MTGCard, UserCard } from '../../types/card';
-
-/**
- * Parse le coût de mana (ex: "{4}{G}{U}") et retourne les éléments à afficher
- */
-function parseManaCost(manaCost: string): Array<{ type: 'number' | 'color'; value: string }> {
-  if (!manaCost) return [];
-  
-  // Pattern pour matcher {X} où X peut être un nombre ou une couleur
-  const pattern = /\{([^}]+)\}/g;
-  const matches = manaCost.matchAll(pattern);
-  const result: Array<{ type: 'number' | 'color'; value: string }> = [];
-  
-  for (const match of matches) {
-    const value = match[1];
-    // Si c'est un nombre, c'est du mana incolore
-    if (/^\d+$/.test(value)) {
-      result.push({ type: 'number', value });
-    } else {
-      // Sinon c'est une couleur (W, U, B, R, G, etc.)
-      result.push({ type: 'color', value: value.toUpperCase() });
-    }
-  }
-  
-  return result;
-}
-
-/**
- * Composant pour afficher le coût de mana avec les images et cercles
- */
-function ManaCostDisplay({ manaCost, size = 16 }: { manaCost: string; size?: number }) {
-  const parsed = parseManaCost(manaCost);
-  
-  return (
-    <div className="flex items-center gap-1">
-      {parsed.map((item, idx) => {
-        if (item.type === 'number') {
-          return (
-            <div
-              key={idx}
-              className="inline-flex items-center justify-center rounded-full bg-gray-400 dark:bg-gray-500"
-              style={{ width: size, height: size }}
-              title={`${item.value} mana incolore`}
-            >
-              <span className="text-xs font-bold text-white" style={{ fontSize: size * 0.6 }}>
-                {item.value}
-              </span>
-            </div>
-          );
-        } else {
-          // Couleur de mana
-          const colorMap: Record<string, 'W' | 'U' | 'B' | 'R' | 'G'> = {
-            'W': 'W',
-            'U': 'U',
-            'B': 'B',
-            'R': 'R',
-            'G': 'G',
-          };
-          
-          const color = colorMap[item.value];
-          if (color) {
-            return <ManaSymbol key={idx} color={color} size={size} className="flex-shrink-0" />;
-          }
-          
-          return null;
-        }
-      })}
-    </div>
-  );
-}
 
 interface CardWithOwner extends MTGCard {
   ownerId?: string;
@@ -113,8 +45,12 @@ export function WishlistSearchInput({
   const [searchingScryfall, setSearchingScryfall] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [searchOnScryfall, setSearchOnScryfall] = useState(true); // Switch pour activer/désactiver la recherche Scryfall
+  const [displayedCollectionCount, setDisplayedCollectionCount] = useState(50);
+  const [displayedScryfallCount, setDisplayedScryfallCount] = useState(50);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadMoreCollectionRef = useRef<HTMLDivElement>(null);
+  const loadMoreScryfallRef = useRef<HTMLDivElement>(null);
 
   // Recherche dans toutes les collections de la communauté
   const localSearchResults = useMemo(() => {
@@ -282,6 +218,68 @@ export function WishlistSearchInput({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Chargement progressif des images au défilement (style TikTok)
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+
+    // Observer pour la collection
+    if (loadMoreCollectionRef.current && collectionResults.length > displayedCollectionCount) {
+      const collectionObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:295',message:'Collection trigger intersecting',data:{displayed:displayedCollectionCount,total:collectionResults.length},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+              setDisplayedCollectionCount((prev) => Math.min(prev + 50, collectionResults.length));
+            }
+          });
+        },
+        {
+          rootMargin: '200px', // Commencer à charger 200px avant d'atteindre le trigger
+          threshold: 0.1,
+        }
+      );
+      collectionObserver.observe(loadMoreCollectionRef.current);
+      observers.push(collectionObserver);
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:310',message:'Collection observer created',data:{displayed:displayedCollectionCount,total:collectionResults.length,hasRef:!!loadMoreCollectionRef.current},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    }
+
+    // Observer pour Scryfall
+    if (loadMoreScryfallRef.current && scryfallResults.length > displayedScryfallCount) {
+      const scryfallObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              setDisplayedScryfallCount((prev) => Math.min(prev + 50, scryfallResults.length));
+            }
+          });
+        },
+        {
+          rootMargin: '200px', // Commencer à charger 200px avant d'atteindre le trigger
+          threshold: 0.1,
+        }
+      );
+      scryfallObserver.observe(loadMoreScryfallRef.current);
+      observers.push(scryfallObserver);
+    }
+
+    return () => {
+      observers.forEach((observer) => observer.disconnect());
+    };
+  }, [collectionResults.length, scryfallResults.length, displayedCollectionCount, displayedScryfallCount]);
+
+  // Réinitialiser les compteurs quand les résultats changent
+  useEffect(() => {
+    setDisplayedCollectionCount(50);
+    setDisplayedScryfallCount(50);
+  }, [collectionResults.length, scryfallResults.length]);
+
+  // Log pour debug
+  useEffect(() => {
+    if (showResults) {
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:340',message:'Results state',data:{collectionCount:collectionResults.length,displayedCollection:displayedCollectionCount,scryfallCount:scryfallResults.length,displayedScryfall:displayedScryfallCount,showResults,hasCollectionTrigger:collectionResults.length > displayedCollectionCount,hasScryfallTrigger:scryfallResults.length > displayedScryfallCount},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    }
+  }, [showResults, collectionResults.length, displayedCollectionCount, scryfallResults.length, displayedScryfallCount]);
 
   // Les cartes sont déjà enrichies avec les données françaises via le service MagicCorporation
   // Plus besoin d'enrichissement supplémentaire ici
@@ -479,7 +477,7 @@ export function WishlistSearchInput({
         )}
       </div>
 
-      {/* Panneau de résultats avec colonnes : Suggestions à gauche, Résultats à droite */}
+      {/* Panneau de résultats avec colonnes : Suggestions à gauche, Résultats à droite - EN DROPDOWN */}
       {(scryfallSuggestions.length > 0 || showResults) && (
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden flex">
           {/* Colonne gauche : Suggestions d'autocomplétion */}
@@ -525,138 +523,158 @@ export function WishlistSearchInput({
           {/* Colonne droite : Résultats de recherche */}
           {showResults && (collectionResults.length > 0 || scryfallResults.length > 0 || searchingScryfall) && (
             <div className={`${scryfallSuggestions.length > 0 ? 'w-1/2' : 'w-full'} overflow-y-auto max-h-96`}>
-          {/* Résultats de la collection locale */}
-          {collectionResults.length > 0 && (
-            <>
-              <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-gray-200 dark:border-gray-700">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  Dans les collections de la communauté ({collectionResults.length})
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">
-                  Cliquez sur une carte pour l'ajouter à votre wishlist et contacter le propriétaire
-                </div>
-              </div>
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {collectionResults.map((card) => (
-                  <button
-                    key={card.id || `collection-${card.name}`}
-                    onClick={() => handleAddCard(card)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      {card.imageUrl && (
-                        <img
-                          src={card.imageUrl}
-                          alt={card.name}
-                          className="w-12 h-16 object-cover rounded flex-shrink-0"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-900 dark:text-white truncate">
-                          {card.name}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {card.type}
-                        </div>
-                        {card.manaCost && (
-                          <div className="mt-1">
-                            <ManaCostDisplay manaCost={card.manaCost} size={16} />
+              {/* Résultats de la collection locale */}
+              {collectionResults.length > 0 && (
+                <>
+                  <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-gray-200 dark:border-gray-700">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      Dans les collections de la communauté ({collectionResults.length})
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      Cliquez sur une carte pour l'ajouter à votre wishlist et contacter le propriétaire
+                    </div>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {collectionResults.slice(0, displayedCollectionCount).map((card) => (
+                      <button
+                        key={card.id || `collection-${card.name}`}
+                        onClick={() => handleAddCard(card)}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          {card.imageUrl && (
+                            <img
+                              src={card.imageUrl}
+                              alt={card.name}
+                              className="w-12 h-16 object-cover rounded flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">
+                              {card.name}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {card.type}
+                            </div>
+                            {card.manaCost && (
+                              <div className="mt-1">
+                                <ManaCostDisplay manaCost={card.manaCost} size={16} />
+                              </div>
+                            )}
+                            {card.set && (
+                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                {card.setName || card.set} ({card.set})
+                              </div>
+                            )}
+                            {(card as CardWithOwner).ownerName && (
+                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                {(card as CardWithOwner).ownerName}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {card.set && (
-                          <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                            {card.setName || card.set} ({card.set})
-                          </div>
-                        )}
-                        {(card as CardWithOwner).ownerName && (
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          <div className="flex-shrink-0">
+                            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            {(card as CardWithOwner).ownerName}
                           </div>
-                        )}
+                        </div>
+                      </button>
+                    ))}
+                    {/* Trigger pour charger plus de cartes de la collection */}
+                    {collectionResults.length > displayedCollectionCount && (
+                      <div 
+                        ref={loadMoreCollectionRef} 
+                        className="w-full flex justify-center items-center py-4"
+                        style={{ minHeight: '60px' }}
+                      >
+                        <Spinner size="md" />
                       </div>
-                      <div className="flex-shrink-0">
-                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+                    )}
+                  </div>
+                </>
+              )}
 
-          {/* Résultats Scryfall */}
-          {searchingScryfall && (
-            <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400">
-              Recherche sur Scryfall en cours...
-            </div>
-          )}
-          {!searchingScryfall && scryfallResults.length > 0 && (
-            <>
-              <div className={`px-4 py-2 bg-blue-50 dark:bg-blue-900/20 ${collectionResults.length > 0 ? 'border-t border-b' : 'border-b'} border-gray-200 dark:border-gray-700`}>
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  Résultats Scryfall ({scryfallResults.length})
+              {/* Résultats Scryfall */}
+              {searchingScryfall && (
+                <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400">
+                  Recherche sur Scryfall en cours...
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">
-                  Recherche dans: nom, type, type de créature, description
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Cliquez sur une carte pour l'ajouter à votre wishlist
-                </div>
-              </div>
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {scryfallResults.map((card) => (
-                  <button
-                    key={card.id}
-                    onClick={() => handleAddCard(card)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      {card.imageUrl && (
-                        <img
-                          src={card.imageUrl}
-                          alt={card.name}
-                          className="w-12 h-16 object-cover rounded flex-shrink-0"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-900 dark:text-white truncate">
-                          {card.name}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {card.type}
-                        </div>
-                        {card.manaCost && (
-                          <div className="mt-1">
-                            <ManaCostDisplay manaCost={card.manaCost} size={16} />
-                          </div>
-                        )}
-                        {card.set && (
-                          <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                            {card.setName || card.set} ({card.set})
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-shrink-0">
-                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </div>
+              )}
+              {!searchingScryfall && scryfallResults.length > 0 && (
+                <>
+                  <div className={`px-4 py-2 bg-blue-50 dark:bg-blue-900/20 ${collectionResults.length > 0 ? 'border-t border-b' : 'border-b'} border-gray-200 dark:border-gray-700`}>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      Résultats Scryfall ({scryfallResults.length})
                     </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {!searchingScryfall && collectionResults.length === 0 && scryfallResults.length === 0 && value.length >= 2 && (
-            <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400">
-              Aucun résultat trouvé. Appuyez sur Entrée pour rechercher sur Scryfall.
-            </div>
-          )}
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      Recherche dans: nom, type, type de créature, description
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Cliquez sur une carte pour l'ajouter à votre wishlist
+                    </div>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {scryfallResults.slice(0, displayedScryfallCount).map((card) => (
+                      <button
+                        key={card.id}
+                        onClick={() => handleAddCard(card)}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          {card.imageUrl && (
+                            <img
+                              src={card.imageUrl}
+                              alt={card.name}
+                              className="w-12 h-16 object-cover rounded flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">
+                              {card.name}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {card.type}
+                            </div>
+                            {card.manaCost && (
+                              <div className="mt-1">
+                                <ManaCostDisplay manaCost={card.manaCost} size={16} />
+                              </div>
+                            )}
+                            {card.set && (
+                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                {card.setName || card.set} ({card.set})
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                    {/* Trigger pour charger plus de cartes Scryfall */}
+                    {scryfallResults.length > displayedScryfallCount && (
+                      <div 
+                        ref={loadMoreScryfallRef} 
+                        className="w-full flex justify-center items-center py-4"
+                        style={{ minHeight: '60px' }}
+                      >
+                        <Spinner size="md" />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {!searchingScryfall && collectionResults.length === 0 && scryfallResults.length === 0 && value.length >= 2 && (
+                <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400">
+                  Aucun résultat trouvé. Appuyez sur Entrée pour rechercher sur Scryfall.
+                </div>
+              )}
             </div>
           )}
 

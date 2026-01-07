@@ -112,3 +112,4 @@ export function downloadWishlist(items: WishlistItem[], format: 'csv' | 'json'):
   downloadFile(content, filename, mimeType);
 }
 
+

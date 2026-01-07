@@ -142,3 +142,4 @@ Si une requête échoue avec l'erreur "The query requires an index", Firebase Co
 - Utiliser avec parcimonie pour les grandes collections
 - Préférer les requêtes sur une collection spécifique quand possible
 
+

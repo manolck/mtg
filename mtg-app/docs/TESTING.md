@@ -158,3 +158,4 @@ Le projet utilise `NODE_OPTIONS=--experimental-vm-modules` pour supporter les mo
 4. **Utiliser les queries de Testing Library** (getByRole, getByText, etc.)
 5. **Éviter les tests fragiles** (ne pas tester les détails d'implémentation)
 
+

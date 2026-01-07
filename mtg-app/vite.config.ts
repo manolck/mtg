@@ -8,6 +8,9 @@ export default defineConfig({
       jsxRuntime: 'automatic',
     }),
   ],
+  optimizeDeps: {
+    exclude: ['react-window'], // Exclure react-window de l'optimisation pour éviter les problèmes de cache
+  },
   server: {
     port: 3000,
     strictPort: false,

@@ -3,7 +3,9 @@ import { useWishlist } from '../hooks/useWishlist';
 import { useCollection } from '../hooks/useCollection';
 import { useAuth } from '../hooks/useAuth';
 import { CardDisplay } from '../components/Card/CardDisplay';
+import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
 import { Button } from '../components/UI/Button';
+import { Spinner } from '../components/UI/Spinner';
 import { Modal } from '../components/UI/Modal';
 import { downloadWishlist } from '../services/wishlistExportService';
 import { WishlistCardMenuModal } from '../components/Wishlist/WishlistCardMenuModal';
@@ -249,7 +251,9 @@ export function Wishlist() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">Chargement de la wishlist...</div>
+        <div className="flex justify-center py-8">
+          <Spinner size="lg" />
+        </div>
       </div>
     );
   }
@@ -420,7 +424,89 @@ export function Wishlist() {
             </p>
           )}
         </div>
+      ) : filteredItems.length > 100 ? (
+        // Utiliser la virtualisation pour les grandes wishlists (> 100 items)
+        <div className="w-full bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>
+          <VirtualizedCardGrid
+            cards={filteredItems.map(item => ({
+              id: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              set: item.set,
+              setCode: item.setCode,
+              collectorNumber: item.collectorNumber,
+              rarity: item.rarity,
+              language: item.language,
+              mtgData: item.mtgData,
+              userId: item.userId,
+              createdAt: item.createdAt,
+            }))}
+            onEdit={(card) => {
+              const wishlistItem = items.find(i => i.id === card.id);
+              if (wishlistItem) {
+                handleOpenMenu(wishlistItem);
+              }
+            }}
+            onDelete={removeItem}
+            showActions={true}
+            gap={24}
+            renderCardWrapper={(card, index) => {
+              // Trouver l'item correspondant par ID
+              const item = filteredItems.find(i => i.id === card.id);
+              if (!item) return null;
+              
+              const inCollection = isCardInCollection(item.name);
+              const itemsWithSameName = filteredItems.filter(i => i.name === item.name);
+              
+              return (
+                <div key={item.id} className="relative">
+                  {inCollection && (
+                    <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 bg-green-500 dark:bg-green-600 text-white text-xs font-medium rounded-full shadow-lg">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Possédée
+                    </div>
+                  )}
+                  {(item.notes || item.targetPrice) && (
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 bg-yellow-500 dark:bg-yellow-600 text-white text-xs font-medium rounded-full shadow-lg">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                  <CardDisplay
+                    card={card}
+                    allCardsWithSameName={itemsWithSameName.map(i => ({
+                      id: i.id,
+                      name: i.name,
+                      quantity: i.quantity,
+                      set: i.set,
+                      setCode: i.setCode,
+                      collectorNumber: i.collectorNumber,
+                      rarity: i.rarity,
+                      language: i.language,
+                      mtgData: i.mtgData,
+                      userId: i.userId,
+                      createdAt: i.createdAt,
+                    }))}
+                    onEdit={(card) => {
+                      const wishlistItem = items.find(i => i.id === card.id);
+                      if (wishlistItem) {
+                        handleOpenMenu(wishlistItem);
+                      }
+                    }}
+                    onDelete={removeItem}
+                    showActions={true}
+                    showQuantity={true}
+                  />
+                </div>
+              );
+            }}
+          />
+        </div>
       ) : (
+        // Grille normale pour les petites wishlists
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {filteredItems.map(item => {
             const inCollection = isCardInCollection(item.name);

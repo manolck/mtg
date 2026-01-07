@@ -146,3 +146,4 @@ Cette liste est basée sur les règles officielles de Magic: The Gathering. Elle
 
 
 
+

@@ -132,3 +132,4 @@ Le script génère un fichier JSON contenant un tableau de cartes. Chaque carte 
 
 Ce script est fourni à des fins éducatives et de recherche. Assurez-vous de respecter les conditions d'utilisation du site MagicCorporation.com lors de l'utilisation de ce script.
 
+

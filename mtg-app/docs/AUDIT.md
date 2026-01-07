@@ -141,3 +141,4 @@ Application fonctionnelle avec architecture solide mais manque de tests, monitor
 
 Voir `ARCHITECTURE.md` pour le plan de refactoring détaillé.
 
+
