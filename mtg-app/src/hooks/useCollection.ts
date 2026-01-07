@@ -10,6 +10,7 @@ import type { ImportReport, CardImportStatus } from '../types/import';
 import { useAuth } from './useAuth';
 import { useImports } from './useImports';
 import type { UserProfile } from '../types/user';
+import { LRUCache } from '../utils/LRUCache';
 
 /**
  * Nettoie un objet en retirant tous les champs undefined pour la compatibilité Firestore
@@ -67,9 +68,10 @@ export function useCollection(userId?: string) {
   const [currentImportId, setCurrentImportId] = useState<string | null>(null);
   const importCancelledRef = useRef(false);
   const importPausedRef = useRef(false);
-  // Cache pour les profils utilisateurs afin d'éviter de les recharger inutilement
-  const profileCacheRef = useRef<Map<string, { profile: UserProfile | null; timestamp: number }>>(new Map());
-  const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  // Cache LRU pour les profils utilisateurs (limite de 100 entrées, TTL de 5 minutes)
+  const profileCacheRef = useRef<LRUCache<string, UserProfile | null>>(
+    new LRUCache<string, UserProfile | null>(100, 5 * 60 * 1000)
+  );
 
   useEffect(() => {
     // Si userId est 'all', charger toutes les collections
@@ -164,19 +166,15 @@ export function useCollection(userId?: string) {
       // Charger les profils pour chaque utilisateur (avec cache)
       const allCards: UserCard[] = [];
       const profilePromises: Promise<void>[] = [];
-      const now = Date.now();
 
       for (const [userId, userData] of userMap) {
         const promise = (async () => {
-          try {
+            try {
             // Vérifier le cache d'abord
-            const cached = profileCacheRef.current.get(userId);
-            let profile: UserProfile | null = null;
+            let profile = profileCacheRef.current.get(userId);
             
-            if (cached && (now - cached.timestamp) < PROFILE_CACHE_TTL) {
-              // Utiliser le profil du cache
-              profile = cached.profile;
-            } else {
+            if (profile === null) {
+              // null signifie soit pas dans le cache, soit expiré
               // Charger le profil depuis Firestore
               const profileRef = doc(db, 'users', userId, 'profile', 'data');
               const profileSnap = await getDoc(profileRef);
@@ -188,13 +186,12 @@ export function useCollection(userId?: string) {
                   createdAt: profileData.createdAt?.toDate() || new Date(),
                   updatedAt: profileData.updatedAt?.toDate() || new Date(),
                 } as UserProfile;
+              } else {
+                profile = null;
               }
               
               // Mettre à jour le cache
-              profileCacheRef.current.set(userId, {
-                profile,
-                timestamp: now,
-              });
+              profileCacheRef.current.set(userId, profile);
             }
 
             // Ajouter les cartes avec le profil du propriétaire
@@ -211,10 +208,7 @@ export function useCollection(userId?: string) {
           } catch (err) {
             console.warn(`Error loading profile for user ${userId}:`, err);
             // Mettre en cache un profil null pour éviter de réessayer immédiatement
-            profileCacheRef.current.set(userId, {
-              profile: null,
-              timestamp: now,
-            });
+            profileCacheRef.current.set(userId, null);
             // Ajouter les cartes sans profil
             userData.cards.forEach(card => {
               allCards.push({
@@ -268,18 +262,15 @@ export function useCollection(userId?: string) {
         // Charger les profils pour les nouvelles cartes
         const remainingAllCards: UserCard[] = [];
         const remainingProfilePromises: Promise<void>[] = [];
-        const remainingNow = Date.now();
 
         for (const [userId, userData] of remainingUserMap) {
           const promise = (async () => {
             try {
               // Vérifier le cache d'abord
-              const cached = profileCacheRef.current.get(userId);
-              let profile: UserProfile | null = null;
+              let profile = profileCacheRef.current.get(userId);
               
-              if (cached && (remainingNow - cached.timestamp) < PROFILE_CACHE_TTL) {
-                profile = cached.profile;
-              } else {
+              if (profile === null) {
+                // null signifie soit pas dans le cache, soit expiré
                 const profileRef = doc(db, 'users', userId, 'profile', 'data');
                 const profileSnap = await getDoc(profileRef);
                 
@@ -290,12 +281,11 @@ export function useCollection(userId?: string) {
                     createdAt: profileData.createdAt?.toDate() || new Date(),
                     updatedAt: profileData.updatedAt?.toDate() || new Date(),
                   } as UserProfile;
+                } else {
+                  profile = null;
                 }
                 
-                profileCacheRef.current.set(userId, {
-                  profile,
-                  timestamp: remainingNow,
-                });
+                profileCacheRef.current.set(userId, profile);
               }
 
               userData.cards.forEach(card => {
@@ -310,10 +300,7 @@ export function useCollection(userId?: string) {
               });
             } catch (err) {
               console.warn(`Error loading profile for user ${userId}:`, err);
-              profileCacheRef.current.set(userId, {
-                profile: null,
-                timestamp: remainingNow,
-              });
+              profileCacheRef.current.set(userId, null);
               userData.cards.forEach(card => {
                 remainingAllCards.push({
                   ...card,
@@ -1097,148 +1084,6 @@ export function useCollection(userId?: string) {
     }
   }
 
-  async function reloadCard(cardId: string) {
-    if (!currentUser || !canModify()) {
-      throw new Error('Vous ne pouvez pas modifier cette collection');
-    }
-
-    try {
-      setError(null);
-      // Trouver la carte dans la collection
-      const card = cards.find(c => c.id === cardId);
-      if (!card) {
-        throw new Error('Carte non trouvée');
-      }
-
-      // Recharger les données depuis l'API
-      const cardLanguage = card.language || 'en';
-      const preferFrench = cardLanguage === 'fr' || cardLanguage === 'French';
-      
-      // PRIORITÉ 1 : Si on a un multiverseid, l'utiliser directement
-      let mtgData: MTGCard | null = null;
-      if (card.mtgData?.multiverseid) {
-        // Essayer d'abord en français si préféré
-        if (preferFrench) {
-          mtgData = await searchCardByMultiverseId(card.mtgData.multiverseid, true);
-          // Si pas de version française, essayer en anglais
-          if (!mtgData || !mtgData.imageUrl) {
-            const englishCard = await searchCardByMultiverseId(card.mtgData.multiverseid, false);
-            if (englishCard) {
-              mtgData = englishCard;
-            }
-          }
-        } else {
-          // Chercher directement en anglais
-          mtgData = await searchCardByMultiverseId(card.mtgData.multiverseid, false);
-        }
-      }
-      
-      // PRIORITÉ 2 : Si pas de multiverseid ou recherche échouée, chercher par nom
-      if (!mtgData) {
-        mtgData = await searchCardByName(card.name, preferFrench ? 'French' : undefined);
-      }
-
-      if (!mtgData) {
-        throw new Error('Carte non trouvée dans l\'API');
-      }
-
-      // Si c'est une carte double-face, chercher aussi la face arrière
-      let backMtgData: MTGCard | null = null;
-      let backImageUrl: string | undefined = undefined;
-      let backMultiverseid: number | undefined = undefined;
-      
-      if (mtgData.layout === 'transform' || card.name.includes(' // ')) {
-        const allCards = await searchCardsByName(card.name);
-        const backFace = allCards.find(c => 
-          !c.manaCost && 
-          (c.layout === 'transform' || c.name.includes(' // '))
-        );
-        
-        if (backFace) {
-          backMtgData = backFace;
-          backImageUrl = backFace.imageUrl;
-          backMultiverseid = backFace.multiverseid;
-          
-          // Si on cherche en français, chercher la version française de la face arrière
-          if (preferFrench && backFace.foreignNames) {
-            const frenchBackVersion = backFace.foreignNames.find(fn => 
-              fn.language === 'French' || fn.language === 'fr'
-            );
-            if (frenchBackVersion) {
-              backImageUrl = frenchBackVersion.imageUrl || backFace.imageUrl;
-              backMultiverseid = frenchBackVersion.multiverseid || backFace.multiverseid;
-            }
-          }
-          
-          // Si on a un multiverseid pour la face arrière mais pas d'image, rechercher par multiverseid
-          if (backMultiverseid && !backImageUrl) {
-            // Essayer d'abord en français si préféré
-            if (preferFrench) {
-              const backByMultiverseId = await searchCardByMultiverseId(backMultiverseid, true);
-              if (backByMultiverseId) {
-                backImageUrl = backByMultiverseId.imageUrl;
-                backMtgData = backByMultiverseId;
-              }
-              // Si toujours pas d'image, essayer en anglais
-              if (!backImageUrl) {
-                const englishBack = await searchCardByMultiverseId(backMultiverseid, false);
-                if (englishBack) {
-                  backImageUrl = englishBack.imageUrl;
-                  backMtgData = englishBack;
-                }
-              }
-            } else {
-              const backByMultiverseId = await searchCardByMultiverseId(backMultiverseid, false);
-              if (backByMultiverseId) {
-                backImageUrl = backByMultiverseId.imageUrl;
-                backMtgData = backByMultiverseId;
-              }
-            }
-          }
-        }
-      }
-
-      // Mettre à jour la carte dans Firestore
-      const cardRef = doc(db, 'users', currentUser.uid, 'collection', cardId);
-      await updateDoc(cardRef, cleanForFirestore({
-        mtgData: mtgData,
-        backImageUrl: backImageUrl || null,
-        backMultiverseid: backMultiverseid || null,
-        backMtgData: backMtgData || null,
-      }));
-
-      // Mettre à jour la carte dans le state local immédiatement pour éviter les doublons
-      setCards(prev => {
-        const updated = prev.map(c => 
-          c.id === cardId 
-            ? {
-                ...c,
-                mtgData: mtgData,
-                backImageUrl: backImageUrl,
-                backMultiverseid: backMultiverseid,
-                backMtgData: backMtgData || undefined,
-              }
-            : c
-        );
-        // Dédupliquer par ID au cas où
-        const uniqueCards = new Map<string, UserCard>();
-        updated.forEach(c => {
-          if (!uniqueCards.has(c.id)) {
-            uniqueCards.set(c.id, c);
-          }
-        });
-        return Array.from(uniqueCards.values());
-      });
-
-      // Recharger la collection pour s'assurer de la synchronisation
-      await loadCollection(currentUser.uid);
-    } catch (err) {
-      console.error('Error reloading card:', err);
-      setError('Erreur lors du rechargement de la carte');
-      throw err;
-    }
-  }
-
   // Fonction pour charger plus de cartes au défilement
   const loadMoreCards = useCallback(async () => {
     if (loadingMore || displayedCount >= allCards.length) {
@@ -1274,7 +1119,6 @@ export function useCollection(userId?: string) {
     deleteAllCards,
     updateCardQuantity,
     updateCard,
-    reloadCard,
     refresh: () => viewingUserId ? loadCollection(viewingUserId) : Promise.resolve(),
     importProgress,
     canModify: canModify(),

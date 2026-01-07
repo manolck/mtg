@@ -24,7 +24,6 @@ interface VirtualizedCardGridProps {
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
   onEdit?: (card: UserCard) => void;
-  onReloadCard?: (cardId: string) => Promise<void>;
   showActions?: boolean;
   gap?: number;
   // Pour les cartes de wishlist avec des props supplémentaires
@@ -51,7 +50,6 @@ export function VirtualizedCardGrid({
   onDelete,
   onUpdateQuantity,
   onEdit,
-  onReloadCard,
   showActions = false,
   gap = 24,
   renderCardWrapper,
@@ -172,7 +170,6 @@ export function VirtualizedCardGrid({
             onDelete={onDelete}
             onUpdateQuantity={onUpdateQuantity}
             onEdit={onEdit}
-            onReloadCard={onReloadCard}
             showActions={showActions}
           />
         );
@@ -205,7 +202,6 @@ export function VirtualizedCardGrid({
       onDelete,
       onUpdateQuantity,
       onEdit,
-      onReloadCard,
       showActions,
       gap,
       renderCardWrapper,
@@ -291,7 +287,6 @@ export function VirtualizedCardGrid({
             onDelete={onDelete}
             onUpdateQuantity={onUpdateQuantity}
             onEdit={onEdit}
-            onReloadCard={onReloadCard}
             showActions={showActions}
           />
         );

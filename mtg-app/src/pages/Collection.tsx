@@ -38,7 +38,6 @@ export function Collection() {
     deleteCard, 
     deleteAllCards, 
     updateCardQuantity,
-    reloadCard,
     importProgress,
     canModify,
     pauseImport,
@@ -999,7 +998,6 @@ export function Collection() {
                 onAddToWishlist={isViewingOwnCollection ? handleAddToWishlist : undefined}
                 onDelete={canModify ? deleteCard : undefined}
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
-                onReloadCard={canModify ? reloadCard : undefined}
                 showActions={true}
               />
             );

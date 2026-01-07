@@ -4,6 +4,7 @@ import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
 import { useToast } from '../../context/ToastContext';
 import { errorHandler } from '../../services/errorHandler';
+import { LazyImage } from '../UI/LazyImage';
 
 interface CardDisplayProps {
   card: UserCard;
@@ -13,7 +14,6 @@ interface CardDisplayProps {
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
   onEdit?: (card: UserCard) => void; // Pour ouvrir un menu d'édition personnalisé
-  onReloadCard?: (cardId: string) => Promise<void>; // Fonction pour recharger la carte depuis l'API
   showQuantity?: boolean;
   showActions?: boolean;
 }
@@ -26,7 +26,6 @@ export const CardDisplay = memo(function CardDisplay({
   onDelete,
   onUpdateQuantity,
   onEdit,
-  onReloadCard,
   showActions = false 
 }: CardDisplayProps) {
   const { showError } = useToast();
@@ -40,7 +39,6 @@ export const CardDisplay = memo(function CardDisplay({
   const [showMenu, setShowMenu] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showEnlarged, setShowEnlarged] = useState(false);
-  const [reloading, setReloading] = useState(false);
 
   // Grouper les cartes par langue pour l'affichage au survol
   const cardGroups = useMemo(() => {
@@ -137,17 +135,13 @@ export const CardDisplay = memo(function CardDisplay({
                   transform: 'rotateY(0deg)',
                 }}
               >
-                <img
+                <LazyImage
                   src={imageUrl}
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
+                  priority="low"
+                  showPlaceholder={false}
                 />
               </div>
               {/* Face arrière */}
@@ -159,17 +153,13 @@ export const CardDisplay = memo(function CardDisplay({
                   transform: 'rotateY(180deg)',
                 }}
               >
-                <img
+                <LazyImage
                   src={backImageUrl}
                   alt={`${cardName} - Face arrière`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
+                  priority="low"
+                  showPlaceholder={false}
                 />
               </div>
             </div>
@@ -179,18 +169,13 @@ export const CardDisplay = memo(function CardDisplay({
             </div>
           </div>
         ) : imageUrl ? (
-          <img
+          <LazyImage
             src={imageUrl}
             alt={cardName}
             className="w-full h-full object-contain"
             style={{ borderRadius: '15px' }}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-            onError={(e) => {
-              // Fallback si l'image ne charge pas
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            priority="low"
+            showPlaceholder={false}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center p-4 relative">
@@ -241,38 +226,6 @@ export const CardDisplay = memo(function CardDisplay({
           </div>
         )}
 
-        {/* Bouton Recharger en haut à gauche - visible au survol */}
-        {onReloadCard && (
-          <div className={`absolute top-2 left-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  setReloading(true);
-                  await onReloadCard(card.id);
-                } catch (err) {
-                  errorHandler.handleAndShowError(err);
-                } finally {
-                  setReloading(false);
-                }
-              }}
-              disabled={reloading}
-              className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Recharger la carte"
-            >
-              {reloading ? (
-                <svg className="w-5 h-5 text-gray-700 dark:text-gray-300 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              )}
-            </button>
-          </div>
-        )}
 
         {/* Boutons d'action en haut à droite - visibles au survol */}
         <div className={`absolute top-2 right-2 flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
@@ -410,14 +363,13 @@ export const CardDisplay = memo(function CardDisplay({
                     transform: 'rotateY(0deg)',
                   }}
                 >
-                  <img
+                  <LazyImage
                     src={imageUrl}
                     alt={`${cardName} - Face avant`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="high"
+                    priority="high"
+                    showPlaceholder={false}
                   />
                 </div>
                 {/* Face arrière */}
@@ -429,14 +381,13 @@ export const CardDisplay = memo(function CardDisplay({
                     transform: 'rotateY(180deg)',
                   }}
                 >
-                  <img
+                  <LazyImage
                     src={backImageUrl}
                     alt={`${cardName} - Face arrière`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="high"
+                    priority="high"
+                    showPlaceholder={false}
                   />
                 </div>
               </div>
@@ -446,14 +397,13 @@ export const CardDisplay = memo(function CardDisplay({
               </div>
             </div>
           ) : imageUrl ? (
-            <img
+            <LazyImage
               src={imageUrl}
               alt={cardName}
               className="w-full h-full object-contain rounded-lg shadow-2xl"
               style={{ borderRadius: '15px' }}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="high"
+              priority="high"
+              showPlaceholder={false}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-lg">
@@ -498,7 +448,6 @@ export const CardDisplay = memo(function CardDisplay({
     prevProps.onAddToWishlist === nextProps.onAddToWishlist &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onUpdateQuantity === nextProps.onUpdateQuantity &&
-    prevProps.onReloadCard === nextProps.onReloadCard &&
     // Comparer allCardsWithSameName par longueur et IDs (simplifié)
     (prevProps.allCardsWithSameName?.length ?? 0) === (nextProps.allCardsWithSameName?.length ?? 0)
   );

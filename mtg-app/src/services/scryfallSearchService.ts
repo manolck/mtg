@@ -12,6 +12,7 @@ import {
   enrichCardWithFrenchData,
   searchInMagicCorporation,
 } from './magicCorporationService';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
@@ -174,11 +175,16 @@ export async function searchCards(
     
     let response: Response;
     try {
-      response = await fetch(searchUrl, {
+      response = await fetchWithRetry(searchUrl, {
         headers: {
           'User-Agent': 'MTGCollectionApp/1.0',
           'Accept': 'application/json',
         },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 16000,
+        retryableStatuses: [429, 500, 502, 503, 504],
       });
     } catch (error) {
       return [];
@@ -187,9 +193,6 @@ export async function searchCards(
     if (!response.ok) {
       if (response.status === 404) {
         return [];
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
       }
       return [];
     }
@@ -270,11 +273,16 @@ export async function searchCardNames(
     
     const url = `${SCRYFALL_API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(englishQuery)}`;
     
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'MTGCollectionApp/1.0',
         'Accept': 'application/json',
       },
+    }, {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 16000,
+      retryableStatuses: [429, 500, 502, 503, 504],
     });
 
     const results: Array<{ name: string; language: 'en' | 'fr' }> = [];
@@ -341,19 +349,21 @@ export async function searchCardByName(
     
     const url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(`!"${englishQuery}"`)}&order=released&dir=desc&unique=prints&limit=1`;
     
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'MTGCollectionApp/1.0',
         'Accept': 'application/json',
       },
+    }, {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 16000,
+      retryableStatuses: [429, 500, 502, 503, 504],
     });
 
     if (!response.ok) {
       if (response.status === 404) {
         return null;
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
       }
       return null;
     }

@@ -3,6 +3,7 @@ import { searchCardNames, searchCards } from '../../services/scryfallSearchServi
 import { enrichCardWithFrenchData } from '../../services/magicCorporationService';
 import { ManaCostDisplay } from '../UI/ManaCostDisplay';
 import { Spinner } from '../UI/Spinner';
+import { LazyImage } from '../UI/LazyImage';
 import { useProfile } from '../../hooks/useProfile';
 import type { MTGCard, UserCard } from '../../types/card';
 
@@ -543,10 +544,12 @@ export function WishlistSearchInput({
                       >
                         <div className="flex items-start gap-3">
                           {card.imageUrl && (
-                            <img
+                            <LazyImage
                               src={card.imageUrl}
                               alt={card.name}
                               className="w-12 h-16 object-cover rounded flex-shrink-0"
+                              priority="low"
+                              showPlaceholder={false}
                             />
                           )}
                           <div className="flex-1 min-w-0">
@@ -625,10 +628,12 @@ export function WishlistSearchInput({
                       >
                         <div className="flex items-start gap-3">
                           {card.imageUrl && (
-                            <img
+                            <LazyImage
                               src={card.imageUrl}
                               alt={card.name}
                               className="w-12 h-16 object-cover rounded flex-shrink-0"
+                              priority="low"
+                              showPlaceholder={false}
                             />
                           )}
                           <div className="flex-1 min-w-0">

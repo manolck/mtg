@@ -1,29 +1,20 @@
 import type { MTGCard } from '../types/card';
 import { enrichCardWithFrenchData } from './magicCorporationService';
+import { LRUCache } from '../utils/LRUCache';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
 
-interface CacheEntry {
-  data: MTGCard | null;
-  timestamp: number;
-}
-
-const cache = new Map<string, CacheEntry>();
+// Cache LRU pour les cartes Scryfall (limite de 500 entrées, TTL de 1 heure)
+const cache = new LRUCache<string, MTGCard | null>(500, CACHE_DURATION);
 
 function getCachedCard(key: string): MTGCard | null {
-  const entry = cache.get(key);
-  if (entry && Date.now() - entry.timestamp < CACHE_DURATION) {
-    return entry.data;
-  }
-  return null;
+  return cache.get(key);
 }
 
 function setCachedCard(key: string, data: MTGCard | null): void {
-  cache.set(key, {
-    data,
-    timestamp: Date.now(),
-  });
+  cache.set(key, data);
 }
 
 // Délai entre les requêtes pour respecter les rate limits (50-100ms)
@@ -124,20 +115,22 @@ export async function searchCardByScryfallId(
     // ÉTAPE 1 : Récupérer d'abord la carte avec son édition précise (par Scryfall ID)
     const url = `${SCRYFALL_API_BASE_URL}/cards/${scryfallId}`;
     
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'MTGCollectionApp/1.0',
         'Accept': 'application/json',
       },
+    }, {
+      maxRetries: 3,
+      initialDelay: 1000, // 1 seconde
+      maxDelay: 16000, // 16 secondes
+      retryableStatuses: [429, 500, 502, 503, 504],
     });
 
     if (!response.ok) {
       if (response.status === 404) {
         setCachedCard(cacheKey, null);
         return null;
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
       }
       throw new Error(`Scryfall API error: ${response.status}`);
     }
@@ -200,11 +193,16 @@ export async function searchCardBySetAndNumber(
     // Cela retourne directement la carte de cette édition précise
     const url = `${SCRYFALL_API_BASE_URL}/cards/${setCode.toLowerCase()}/${collectorNumber}`;
     
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'MTGCollectionApp/1.0',
         'Accept': 'application/json',
       },
+    }, {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 16000,
+      retryableStatuses: [429, 500, 502, 503, 504],
     });
 
     if (!response.ok) {
@@ -212,9 +210,6 @@ export async function searchCardBySetAndNumber(
         // Carte non trouvée avec ce set code et numéro
         setCachedCard(cacheKey, null);
         return null;
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
       }
       throw new Error(`Scryfall API error: ${response.status}`);
     }
@@ -285,11 +280,16 @@ export async function searchCardByNameAndNumberScryfall(
     // ÉTAPE 1 : Chercher d'abord la carte avec son édition précise (set + number) - sans se soucier de la langue
     const englishUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(baseQuery)}`;
     
-    const englishResponse = await fetch(englishUrl, {
+    const englishResponse = await fetchWithRetry(englishUrl, {
       headers: {
         'User-Agent': 'MTGCollectionApp/1.0',
         'Accept': 'application/json',
       },
+    }, {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 16000,
+      retryableStatuses: [429, 500, 502, 503, 504],
     });
 
     if (!englishResponse.ok) {
@@ -297,9 +297,6 @@ export async function searchCardByNameAndNumberScryfall(
         // Aucun résultat trouvé
         setCachedCard(cacheKey, null);
         return null;
-      }
-      if (englishResponse.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
       }
       throw new Error(`Scryfall API error: ${englishResponse.status}`);
     }
