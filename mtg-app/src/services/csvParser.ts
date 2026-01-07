@@ -179,7 +179,8 @@ export function parseCSV(content: string): ParsedCard[] {
         parsedCards.push(validation.data);
       } else {
         // Log l'erreur mais continue le parsing (on ne bloque pas tout l'import pour une carte invalide)
-        console.warn(`Carte invalide à la ligne ${i + 1}: ${validation.error}`, card);
+        const errorMessage = 'error' in validation ? validation.error : 'Erreur de validation inconnue';
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${errorMessage}`, card);
       }
     } else {
       // Format simple sans en-têtes (ancien format)
@@ -208,7 +209,8 @@ export function parseCSV(content: string): ParsedCard[] {
         parsedCards.push(validation.data);
       } else {
         // Log l'erreur mais continue le parsing
-        console.warn(`Carte invalide à la ligne ${i + 1}: ${validation.error}`, card);
+        const errorMessage = 'error' in validation ? validation.error : 'Erreur de validation inconnue';
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${errorMessage}`, card);
       }
     }
   }

@@ -58,7 +58,7 @@ export function validateParsedCard(card: unknown): { success: true; data: z.infe
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const firstError = error.errors[0];
+      const firstError = error.issues[0];
       return { success: false, error: firstError.message };
     }
     return { success: false, error: 'Erreur de validation inconnue' };
@@ -77,7 +77,8 @@ export function validateParsedCards(cards: unknown[]): { success: true; data: z.
     if (result.success) {
       validatedCards.push(result.data);
     } else {
-      errors.push({ index, error: result.error });
+      const errorMessage = 'error' in result ? result.error : 'Erreur de validation inconnue';
+      errors.push({ index, error: errorMessage });
     }
   });
 
@@ -97,7 +98,7 @@ export function validateDeck(deck: unknown): { success: true; data: z.infer<type
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const firstError = error.errors[0];
+      const firstError = error.issues[0];
       return { success: false, error: firstError.message };
     }
     return { success: false, error: 'Erreur de validation inconnue' };
@@ -113,7 +114,7 @@ export function validateUserProfile(profile: unknown): { success: true; data: z.
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const firstError = error.errors[0];
+      const firstError = error.issues[0];
       return { success: false, error: firstError.message };
     }
     return { success: false, error: 'Erreur de validation inconnue' };
@@ -129,7 +130,7 @@ export function validateWishlistItem(item: unknown): { success: true; data: z.in
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const firstError = error.errors[0];
+      const firstError = error.issues[0];
       return { success: false, error: firstError.message };
     }
     return { success: false, error: 'Erreur de validation inconnue' };
