@@ -1,4 +1,5 @@
 import type { ParsedCard } from '../types/card';
+import { validateParsedCard, validateParsedCards } from '../utils/validationSchemas';
 
 interface CSVHeader {
   name?: number;
@@ -172,7 +173,14 @@ export function parseCSV(content: string): ParsedCard[] {
         card.scryfallId = parts[scryfallIdIndex].trim();
       }
 
-      parsedCards.push(card);
+      // Valider la carte avant de l'ajouter
+      const validation = validateParsedCard(card);
+      if (validation.success) {
+        parsedCards.push(validation.data);
+      } else {
+        // Log l'erreur mais continue le parsing (on ne bloque pas tout l'import pour une carte invalide)
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${validation.error}`, card);
+      }
     } else {
       // Format simple sans en-têtes (ancien format)
       const card: ParsedCard = {
@@ -194,13 +202,28 @@ export function parseCSV(content: string): ParsedCard[] {
         card.setCode = parts[2].trim();
       }
 
-      // Validation : le nom ne doit pas être vide
-      if (card.name.length > 0) {
-        parsedCards.push(card);
+      // Valider la carte avant de l'ajouter
+      const validation = validateParsedCard(card);
+      if (validation.success) {
+        parsedCards.push(validation.data);
+      } else {
+        // Log l'erreur mais continue le parsing
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${validation.error}`, card);
       }
     }
   }
 
+  // Validation finale : vérifier qu'on a au moins une carte valide
+  if (parsedCards.length === 0) {
+    throw new Error('Aucune carte valide trouvée dans le fichier CSV');
+  }
+
+  // Limiter à 10000 cartes pour éviter les imports trop volumineux
+  if (parsedCards.length > 10000) {
+    throw new Error(`L'import contient trop de cartes (${parsedCards.length}). Maximum autorisé : 10000 cartes`);
+  }
+
   return parsedCards;
 }
+
 

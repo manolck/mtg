@@ -228,14 +228,14 @@ export const CardDisplay = memo(function CardDisplay({
           </div>
         )}
 
-        {/* Étoile wishlist - toujours visible */}
+        {/* Étoile wishlist - pleine toujours visible, vide uniquement au survol */}
         {onAddToWishlist && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onAddToWishlist(card);
             }}
-            className={`absolute top-2 w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors z-20 ${isInWishlist ? 'left-2' : 'right-2'}`}
+            className={`absolute top-2 w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-200 z-20 ${isInWishlist ? 'left-2 opacity-100' : `right-2 ${showMenu ? 'opacity-100' : 'opacity-0'}`}`}
             title={isInWishlist ? "Retirer de la wishlist" : "Ajouter à la wishlist"}
           >
               {isInWishlist ? (
