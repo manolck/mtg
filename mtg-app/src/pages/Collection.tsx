@@ -6,6 +6,8 @@ import { useDecks } from '../hooks/useDecks';
 import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
+import { useToast } from '../context/ToastContext';
+import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -18,6 +20,7 @@ import { CollectionSelector } from '../components/UI/CollectionSelector';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
 import { Spinner } from '../components/UI/Spinner';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 
 export function Collection() {
   const { currentUser } = useAuth();
@@ -86,17 +89,13 @@ export function Collection() {
       const updateMode = importMode === 'update';
       
       if (updateMode && cards.length > 0) {
-        const confirmed = confirm(
-          '⚠️ Mode Mise à jour : Les cartes existantes seront mises à jour si elles diffèrent, les nouvelles seront ajoutées, et les cartes absentes du CSV seront supprimées.\n\n' +
-          'Êtes-vous sûr de vouloir continuer ?'
-        );
-        if (!confirmed) {
-          setImporting(false);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          return;
+        pendingImportTextRef.current = text;
+        setShowUpdateModeConfirm(true);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
         }
+        setImporting(false);
+        return;
       }
       
       // Fermer la modal dès que l'import commence
@@ -109,23 +108,24 @@ export function Collection() {
         fileInputRef.current.value = '';
       }
     } catch (err) {
-      console.error('Error importing CSV:', err);
+      errorHandler.handleAndShowError(err);
     } finally {
       setImporting(false);
     }
   }, [importMode, cards.length, importCSV]);
 
-  const handleDeleteAll = useCallback(async () => {
-    if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer TOUTE votre collection ?\n\nCette action est irréversible.')) {
-      return;
-    }
+  const handleDeleteAll = useCallback(() => {
+    setShowDeleteAllConfirm(true);
+  }, []);
 
+  const confirmDeleteAll = useCallback(async () => {
     try {
       await deleteAllCards();
+      showSuccess('Collection supprimée');
     } catch (err) {
-      console.error('Error deleting all cards:', err);
+      errorHandler.handleAndShowError(err);
     }
-  }, [deleteAllCards]);
+  }, [deleteAllCards, showSuccess]);
 
   const handleAddToDeck = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
@@ -143,7 +143,7 @@ export function Collection() {
       );
       
       if (alreadyInWishlist) {
-        alert(`${card.name} est déjà dans votre wishlist`);
+        showError(`${card.name} est déjà dans votre wishlist`);
         return;
       }
       
@@ -157,10 +157,9 @@ export function Collection() {
         card.language
       );
       
-      alert(`${card.name} a été ajoutée à votre wishlist`);
+      showSuccess(`${card.name} a été ajoutée à votre wishlist`);
     } catch (error) {
-      console.error('Error adding to wishlist:', error);
-      alert('Erreur lors de l\'ajout à la wishlist');
+      errorHandler.handleAndShowError(error);
     }
   }, [isViewingOwnCollection, addToWishlist, checkIfInWishlist]);
 
@@ -171,8 +170,9 @@ export function Collection() {
       await addCardToDeck(deckId, selectedCardId, 1);
       setShowDeckModal(false);
       setSelectedCardId(null);
+      showSuccess('Carte ajoutée au deck');
     } catch (err) {
-      console.error('Error adding card to deck:', err);
+      errorHandler.handleAndShowError(err);
     }
   }, [selectedCardId, addCardToDeck]);
 
@@ -186,8 +186,9 @@ export function Collection() {
       setShowDeckModal(false);
       setSelectedCardId(null);
       setNewDeckName('');
+      showSuccess('Deck créé et carte ajoutée');
     } catch (err) {
-      console.error('Error creating deck:', err);
+      errorHandler.handleAndShowError(err);
     } finally {
       setIsCreatingDeck(false);
     }
@@ -1118,6 +1119,33 @@ export function Collection() {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         cards={filteredCards}
+      />
+
+      {/* Dialog de confirmation de suppression de toute la collection */}
+      <ConfirmDialog
+        isOpen={showDeleteAllConfirm}
+        title="Supprimer toute la collection"
+        message="⚠️ Êtes-vous sûr de vouloir supprimer TOUTE votre collection ? Cette action est irréversible."
+        confirmText="Supprimer tout"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={confirmDeleteAll}
+        onCancel={() => setShowDeleteAllConfirm(false)}
+      />
+
+      {/* Dialog de confirmation pour le mode mise à jour */}
+      <ConfirmDialog
+        isOpen={showUpdateModeConfirm}
+        title="Mode Mise à jour"
+        message="⚠️ Mode Mise à jour : Les cartes existantes seront mises à jour si elles diffèrent, les nouvelles seront ajoutées, et les cartes absentes du CSV seront supprimées. Êtes-vous sûr de vouloir continuer ?"
+        confirmText="Continuer"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={confirmUpdateModeImport}
+        onCancel={() => {
+          setShowUpdateModeConfirm(false);
+          pendingImportTextRef.current = null;
+        }}
       />
     </div>
   );

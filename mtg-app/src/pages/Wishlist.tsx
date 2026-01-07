@@ -2,11 +2,14 @@ import { useState, useMemo, useDeferredValue } from 'react';
 import { useWishlist } from '../hooks/useWishlist';
 import { useCollection } from '../hooks/useCollection';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
+import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
 import { Modal } from '../components/UI/Modal';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { downloadWishlist } from '../services/wishlistExportService';
 import { WishlistCardMenuModal } from '../components/Wishlist/WishlistCardMenuModal';
 import { WishlistSearchInput } from '../components/Wishlist/WishlistSearchInput';
@@ -169,23 +172,23 @@ export function Wishlist() {
   const handleDelete = async (itemId: string) => {
     try {
       await removeItem(itemId);
+      showSuccess('Item supprimé de la wishlist');
     } catch (error) {
-      console.error('Error deleting wishlist item:', error);
-      alert('Erreur lors de la suppression de l\'item');
+      errorHandler.handleAndShowError(error);
     }
   };
 
   const handleDeleteAll = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer tous les items de votre wishlist ?')) {
-      return;
-    }
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDeleteAll = async () => {
     try {
       await clearWishlist();
       setShowDeleteModal(false);
+      showSuccess('Wishlist vidée avec succès');
     } catch (error) {
-      console.error('Error clearing wishlist:', error);
-      alert('Erreur lors de la suppression de la wishlist');
+      errorHandler.handleAndShowError(error);
     }
   };
 
@@ -197,18 +200,18 @@ export function Wishlist() {
     try {
       await updateItem(itemId, updates);
       setSelectedItemForMenu(null);
+      showSuccess('Item mis à jour');
     } catch (error) {
-      console.error('Error updating wishlist item:', error);
-      alert('Erreur lors de la mise à jour de l\'item');
+      errorHandler.handleAndShowError(error);
     }
   };
 
   const handleExport = (format: 'csv' | 'json') => {
     try {
       downloadWishlist(items, format);
+      showSuccess(`Wishlist exportée en ${format.toUpperCase()}`);
     } catch (error) {
-      console.error('Error exporting wishlist:', error);
-      alert('Erreur lors de l\'export');
+      errorHandler.handleAndShowError(error);
     }
   };
 
@@ -222,7 +225,7 @@ export function Wishlist() {
       );
 
       if (alreadyInWishlist) {
-        alert(`${card.name} est déjà dans votre wishlist`);
+        showError(`${card.name} est déjà dans votre wishlist`);
         return;
       }
 
@@ -237,10 +240,9 @@ export function Wishlist() {
         'en' // Langue par défaut
       );
 
-      alert(`${card.name} a été ajoutée à votre wishlist`);
+      showSuccess(`${card.name} a été ajoutée à votre wishlist`);
     } catch (error) {
-      console.error('Error adding card to wishlist:', error);
-      alert('Erreur lors de l\'ajout à la wishlist');
+      errorHandler.handleAndShowError(error);
     }
   };
 
@@ -611,25 +613,20 @@ export function Wishlist() {
         </div>
       </Modal>
 
-      {/* Modal de suppression */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
         title="Supprimer toute la wishlist"
-      >
-        <p className="mb-4">
-          Êtes-vous sûr de vouloir supprimer tous les items de votre wishlist ?
-          Cette action est irréversible.
-        </p>
-        <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Annuler
-          </Button>
-          <Button variant="danger" onClick={handleDeleteAll}>
-            Supprimer tout
-          </Button>
-        </div>
-      </Modal>
+        message="Êtes-vous sûr de vouloir supprimer tous les items de votre wishlist ? Cette action est irréversible."
+        confirmText="Supprimer tout"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={confirmDeleteAll}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setShowDeleteModal(false);
+        }}
+      />
 
       {/* Modal de menu pour wishlist */}
       {selectedItemForMenu && (

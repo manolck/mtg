@@ -2,6 +2,8 @@ import { useState, useMemo, memo } from 'react';
 import type { UserCard } from '../../types/card';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
+import { useToast } from '../../context/ToastContext';
+import { errorHandler } from '../../services/errorHandler';
 
 interface CardDisplayProps {
   card: UserCard;
@@ -27,6 +29,7 @@ export const CardDisplay = memo(function CardDisplay({
   onReloadCard,
   showActions = false 
 }: CardDisplayProps) {
+  const { showError } = useToast();
   const imageUrl = card.mtgData?.imageUrl;
   const backImageUrl = card.backImageUrl || card.backMtgData?.imageUrl;
   const isDoubleFaced = card.mtgData?.layout === 'transform' || card.name.includes(' // ');
@@ -248,8 +251,7 @@ export const CardDisplay = memo(function CardDisplay({
                   setReloading(true);
                   await onReloadCard(card.id);
                 } catch (err) {
-                  console.error('Error reloading card:', err);
-                  alert('Erreur lors du rechargement de la carte');
+                  errorHandler.handleAndShowError(err);
                 } finally {
                   setReloading(false);
                 }
@@ -331,9 +333,8 @@ export const CardDisplay = memo(function CardDisplay({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`Supprimer "${cardName}" de votre collection ?`)) {
-                  onDelete(card.id);
-                }
+                // La suppression est gérée par CardMenuModal avec ConfirmDialog
+                onDelete(card.id);
               }}
               className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               title="Supprimer"

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
+import { useToast } from '../../context/ToastContext';
+import { errorHandler } from '../../services/errorHandler';
 import { exportCollection, downloadFile, type ExportFormat } from '../../services/exportService';
 import type { UserCard } from '../../types/card';
 
@@ -11,13 +13,14 @@ interface ExportModalProps {
 }
 
 export function ExportModal({ isOpen, onClose, cards }: ExportModalProps) {
+  const { showError, showSuccess } = useToast();
   const [format, setFormat] = useState<ExportFormat>('csv');
   const [includeMetadata, setIncludeMetadata] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = () => {
     if (cards.length === 0) {
-      alert('Aucune carte à exporter');
+      showError('Aucune carte à exporter');
       return;
     }
 
@@ -46,14 +49,14 @@ export function ExportModal({ isOpen, onClose, cards }: ExportModalProps) {
       const mimeType = mimeTypes[format];
 
       downloadFile(content, filename, mimeType);
+      showSuccess(`Collection exportée en ${format.toUpperCase()}`);
 
       setTimeout(() => {
         setExporting(false);
         onClose();
       }, 500);
     } catch (error) {
-      console.error('Error exporting:', error);
-      alert('Erreur lors de l\'export');
+      errorHandler.handleAndShowError(error);
       setExporting(false);
     }
   };

@@ -86,9 +86,11 @@ export function Admin() {
   }
 
   async function handleDeleteUser(uid: string, email: string) {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${email} ?`)) {
-      return;
-    }
+    setShowDeleteUserConfirm({ uid, email });
+  }
+
+  async function confirmDeleteUser() {
+    if (!showDeleteUserConfirm) return;
 
     try {
       setError('');

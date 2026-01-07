@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../UI/Modal';
 import { Input } from '../UI/Input';
 import { Button } from '../UI/Button';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 import type { WishlistItem } from '../../types/card';
 
 interface WishlistCardMenuModalProps {
@@ -22,6 +23,7 @@ export function WishlistCardMenuModal({
   const [quantity, setQuantity] = useState(item.quantity.toString());
   const [notes, setNotes] = useState(item.notes || '');
   const [targetPrice, setTargetPrice] = useState(item.targetPrice?.toString() || '');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleUpdate = () => {
     const qty = parseInt(quantity);
@@ -36,10 +38,12 @@ export function WishlistCardMenuModal({
   };
 
   const handleDelete = () => {
-    if (confirm(`Supprimer "${item.name}" de votre wishlist ?`)) {
-      onDelete?.(item.id);
-      onClose();
-    }
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    onDelete?.(item.id);
+    onClose();
   };
 
   return (
@@ -126,6 +130,17 @@ export function WishlistCardMenuModal({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Supprimer de la wishlist"
+        message={`Supprimer "${item.name}" de votre wishlist ?`}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </Modal>
   );
 }

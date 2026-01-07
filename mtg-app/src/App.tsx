@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/Layout/ProtectedRoute';
 import { AdminRoute } from './components/Layout/AdminRoute';
 import { Navbar } from './components/Layout/Navbar';
@@ -11,11 +12,26 @@ import { Profile } from './pages/Profile';
 import { Admin } from './pages/Admin';
 import { Statistics } from './pages/Statistics';
 import { Wishlist } from './pages/Wishlist';
+import { setErrorToastCallback } from './services/errorHandler';
+import { useToast } from './context/ToastContext';
+import { useEffect } from 'react';
+
+function ErrorHandlerInitializer() {
+  const { showError } = useToast();
+
+  useEffect(() => {
+    setErrorToastCallback(showError);
+  }, [showError]);
+
+  return null;
+}
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <ToastProvider>
+        <ErrorHandlerInitializer />
+        <BrowserRouter>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Navbar />
           <Routes>
@@ -80,6 +96,7 @@ function App() {
           </Routes>
         </div>
       </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

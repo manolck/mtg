@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useProfile } from '../hooks/useProfile';
 import { useImports } from '../hooks/useImports';
 import { useCollection } from '../hooks/useCollection';
+import { useToast } from '../context/ToastContext';
+import { errorHandler } from '../services/errorHandler';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
@@ -9,6 +11,7 @@ import { Spinner } from '../components/UI/Spinner';
 import { ImportJobCard } from '../components/Import/ImportJobCard';
 import { ImportReportModal } from '../components/Import/ImportReportModal';
 import { Modal } from '../components/UI/Modal';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { AVATARS } from '../data/avatars';
 import type { ImportJob } from '../types/import';
 
@@ -16,6 +19,9 @@ export function Profile() {
   const { profile, loading, error, updateProfile } = useProfile();
   const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
   const { importCSV, cancelImport } = useCollection();
+  const { showSuccess, showError } = useToast();
+  const [showCancelImportConfirm, setShowCancelImportConfirm] = useState(false);
+  const [showDeleteImportConfirm, setShowDeleteImportConfirm] = useState<string | null>(null);
   const [pseudonym, setPseudonym] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'fr'>('en');
   const [saving, setSaving] = useState(false);
@@ -36,16 +42,16 @@ export function Profile() {
 
   const handleSavePseudonym = async () => {
     if (!pseudonym.trim()) {
-      alert('Le pseudonyme ne peut pas être vide');
+      showError('Le pseudonyme ne peut pas être vide');
       return;
     }
 
     try {
       setSaving(true);
       await updateProfile({ pseudonym: pseudonym.trim() });
-      alert('Pseudonyme mis à jour avec succès !');
+      showSuccess('Pseudonyme mis à jour avec succès !');
     } catch (err) {
-      console.error('Error saving pseudonym:', err);
+      errorHandler.handleAndShowError(err);
     } finally {
       setSaving(false);
     }
@@ -59,11 +65,11 @@ export function Profile() {
     try {
       setPreferredLanguage(language);
       await updateProfile({ preferredLanguage: language });
+      showSuccess('Langue préférée mise à jour');
     } catch (err) {
-      console.error('Error updating preferred language:', err);
       // Revenir à l'ancienne valeur en cas d'erreur
       setPreferredLanguage(profile?.preferredLanguage || 'en');
-      alert('Erreur lors de la mise à jour de la langue préférée');
+      errorHandler.handleAndShowError(err);
     }
   };
 
@@ -74,9 +80,9 @@ export function Profile() {
 
     try {
       await updateProfile({ avatarId });
+      showSuccess('Avatar mis à jour');
     } catch (err) {
-      console.error('Error updating avatar:', err);
-      alert('Erreur lors de la mise à jour de l\'avatar');
+      errorHandler.handleAndShowError(err);
     }
   };
 
@@ -88,7 +94,7 @@ export function Profile() {
       const importJob = imports.find(imp => imp.id === importId);
       
       if (!importJob) {
-        alert('Import introuvable');
+        showError('Import introuvable');
         return;
       }
 
@@ -102,9 +108,9 @@ export function Profile() {
 
       // Reprendre l'import directement avec le CSV stocké
       await importCSV(importJob.csvContent, importJob.mode === 'update', importId);
+      showSuccess('Import repris avec succès');
     } catch (err) {
-      console.error('Error resuming import:', err);
-      alert('Erreur lors de la reprise de l\'import');
+      errorHandler.handleAndShowError(err);
     } finally {
       setResumeImporting(false);
     }
@@ -132,24 +138,27 @@ export function Profile() {
         fileInputRef.current.value = '';
       }
       setResumeImportId(null);
+      showSuccess('Import repris avec succès');
     } catch (err) {
-      console.error('Error resuming import:', err);
-      alert('Erreur lors de la reprise de l\'import');
+      errorHandler.handleAndShowError(err);
     } finally {
       setResumeImporting(false);
     }
   };
 
   const handleCancelImport = async (importId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir annuler cet import ?')) {
-      return;
-    }
+    setShowCancelImportConfirm(true);
+    setResumeImportId(importId);
+  };
+
+  const confirmCancelImport = async () => {
+    if (!resumeImportId) return;
     try {
-      await updateImportStatus(importId, 'cancelled');
+      await updateImportStatus(resumeImportId, 'cancelled');
       cancelImport();
+      showSuccess('Import annulé');
     } catch (err) {
-      console.error('Error cancelling import:', err);
-      alert('Erreur lors de l\'annulation de l\'import');
+      errorHandler.handleAndShowError(err);
     }
   };
 
@@ -159,14 +168,17 @@ export function Profile() {
   };
 
   const handleDeleteImport = async (importId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet import ?')) {
-      return;
-    }
+    setShowDeleteImportConfirm(importId);
+  };
+
+  const confirmDeleteImport = async () => {
+    if (!showDeleteImportConfirm) return;
     try {
-      await deleteImport(importId);
+      await deleteImport(showDeleteImportConfirm);
+      showSuccess('Import supprimé');
+      setShowDeleteImportConfirm(null);
     } catch (err) {
-      console.error('Error deleting import:', err);
-      alert('Erreur lors de la suppression de l\'import');
+      errorHandler.handleAndShowError(err);
     }
   };
 

@@ -23,6 +23,13 @@ export interface AppError {
   retryable?: boolean;
 }
 
+// Callback pour afficher les erreurs (sera défini par ToastProvider)
+let toastErrorCallback: ((message: string) => void) | null = null;
+
+export function setErrorToastCallback(callback: (message: string) => void) {
+  toastErrorCallback = callback;
+}
+
 class ErrorHandler {
   private sentryEnabled = false;
 
@@ -144,9 +151,22 @@ class ErrorHandler {
    * Affiche un message d'erreur à l'utilisateur
    */
   showError(error: AppError): void {
-    // Cette fonction sera appelée par les composants UI
-    // Pour afficher des toasts ou modals d'erreur
-    console.error('User-facing error:', error.message);
+    // Utiliser le callback toast si disponible
+    if (toastErrorCallback) {
+      toastErrorCallback(error.message);
+    } else {
+      // Fallback vers console si toast n'est pas initialisé
+      console.error('User-facing error:', error.message);
+    }
+  }
+
+  /**
+   * Gère une erreur et l'affiche automatiquement
+   */
+  handleAndShowError(error: unknown): AppError {
+    const appError = this.handleError(error);
+    this.showError(appError);
+    return appError;
   }
 }
 
