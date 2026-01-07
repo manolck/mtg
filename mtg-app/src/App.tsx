@@ -9,6 +9,7 @@ import { Decks } from './pages/Decks';
 import { DeckBuilder } from './pages/DeckBuilder';
 import { Profile } from './pages/Profile';
 import { Admin } from './pages/Admin';
+import { Statistics } from './pages/Statistics';
 
 function App() {
   return (
@@ -47,6 +48,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/statistics"
+              element={
+                <ProtectedRoute>
+                  <Statistics />
                 </ProtectedRoute>
               }
             />

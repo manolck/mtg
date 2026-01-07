@@ -15,6 +15,7 @@ import { ProgressBar } from '../components/UI/ProgressBar';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { CollectionSelector } from '../components/UI/CollectionSelector';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
+import { ExportModal } from '../components/Export/ExportModal';
 
 export function Collection() {
   const { currentUser } = useAuth();
@@ -42,6 +43,7 @@ export function Collection() {
   const { decks, createDeck, addCardToDeck } = useDecks();
   const [showDeckModal, setShowDeckModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [newDeckName, setNewDeckName] = useState('');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
@@ -688,12 +690,20 @@ export function Collection() {
         {isViewingOwnCollection && !isViewingAllCollections && (
           <div className="flex gap-2">
             {cards.length > 0 && (
-              <Button
-                variant="danger"
-                onClick={handleDeleteAll}
-              >
-                Supprimer toute la collection
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowExportModal(true)}
+                >
+                  Exporter
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteAll}
+                >
+                  Supprimer toute la collection
+                </Button>
+              </>
             )}
             <Button
               variant="primary"
@@ -1003,6 +1013,12 @@ export function Collection() {
           )}
         </div>
       </Modal>
+
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        cards={filteredCards}
+      />
     </div>
   );
 }

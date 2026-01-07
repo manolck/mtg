@@ -128,7 +128,10 @@ export function parseCSV(content: string): ParsedCard[] {
       const name = parts[nameIndex]?.trim() || '';
       if (!name) continue;
 
-      const card: ParsedCard = { name };
+      const card: ParsedCard = { 
+        name,
+        quantity: 1, // Par défaut, quantité = 1
+      };
 
       if (quantityIndex !== undefined && parts[quantityIndex]) {
         const quantity = parseInt(parts[quantityIndex], 10);
@@ -174,6 +177,7 @@ export function parseCSV(content: string): ParsedCard[] {
       // Format simple sans en-têtes (ancien format)
       const card: ParsedCard = {
         name: parts[0] || '',
+        quantity: 1, // Par défaut, quantité = 1
       };
 
       // Format 2 : nom, quantité

@@ -1,0 +1,160 @@
+/**
+ * Gestion centralisée des erreurs
+ * Logging et affichage utilisateur-friendly
+ */
+
+export enum ErrorType {
+  NETWORK = 'NETWORK',
+  API = 'API',
+  VALIDATION = 'VALIDATION',
+  AUTH = 'AUTH',
+  FIRESTORE = 'FIRESTORE',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export interface AppError {
+  type: ErrorType;
+  message: string;
+  originalError?: Error;
+  code?: string;
+  retryable?: boolean;
+}
+
+class ErrorHandler {
+  private sentryEnabled = false;
+
+  /**
+   * Initialise le handler d'erreurs
+   */
+  init(sentryDsn?: string): void {
+    if (sentryDsn && typeof window !== 'undefined') {
+      // Initialiser Sentry si disponible
+      // import * as Sentry from '@sentry/react';
+      // Sentry.init({ dsn: sentryDsn });
+      this.sentryEnabled = true;
+    }
+  }
+
+  /**
+   * Traite une erreur et retourne un AppError
+   */
+  handleError(error: unknown): AppError {
+    const appError = this.normalizeError(error);
+
+    // Logger l'erreur
+    this.logError(appError);
+
+    return appError;
+  }
+
+  /**
+   * Normalise une erreur en AppError
+   */
+  private normalizeError(error: unknown): AppError {
+    if (error instanceof Error) {
+      // Erreur réseau
+      if (error.message.includes('fetch') || error.message.includes('network')) {
+        return {
+          type: ErrorType.NETWORK,
+          message: 'Erreur de connexion. Vérifiez votre connexion internet.',
+          originalError: error,
+          retryable: true,
+        };
+      }
+
+      // Erreur Firebase Auth
+      if (error.message.includes('auth/')) {
+        return {
+          type: ErrorType.AUTH,
+          message: this.getAuthErrorMessage(error.message),
+          originalError: error,
+          code: error.message,
+        };
+      }
+
+      // Erreur Firestore
+      if (error.message.includes('firestore') || error.message.includes('permission')) {
+        return {
+          type: ErrorType.FIRESTORE,
+          message: 'Erreur d\'accès aux données. Vérifiez vos permissions.',
+          originalError: error,
+        };
+      }
+
+      // Erreur API
+      if (error.message.includes('API') || error.message.includes('rate limit')) {
+        return {
+          type: ErrorType.API,
+          message: 'Erreur API. Veuillez réessayer plus tard.',
+          originalError: error,
+          retryable: true,
+        };
+      }
+
+      // Erreur générique
+      return {
+        type: ErrorType.UNKNOWN,
+        message: error.message || 'Une erreur est survenue',
+        originalError: error,
+      };
+    }
+
+    // Erreur inconnue
+    return {
+      type: ErrorType.UNKNOWN,
+      message: 'Une erreur inattendue est survenue',
+    };
+  }
+
+  /**
+   * Convertit un message d'erreur Firebase Auth en message utilisateur
+   */
+  private getAuthErrorMessage(errorCode: string): string {
+    const messages: Record<string, string> = {
+      'auth/user-not-found': 'Aucun compte trouvé avec cet email.',
+      'auth/wrong-password': 'Mot de passe incorrect.',
+      'auth/email-already-in-use': 'Cet email est déjà utilisé.',
+      'auth/weak-password': 'Le mot de passe est trop faible.',
+      'auth/invalid-email': 'Email invalide.',
+      'auth/too-many-requests': 'Trop de tentatives. Réessayez plus tard.',
+    };
+
+    return messages[errorCode] || 'Erreur d\'authentification.';
+  }
+
+  /**
+   * Log une erreur
+   */
+  private logError(error: AppError): void {
+    // Console en développement
+    if (import.meta.env.DEV) {
+      console.error('Error:', error);
+    }
+
+    // Sentry en production
+    if (this.sentryEnabled && import.meta.env.PROD) {
+      // Sentry.captureException(error.originalError || new Error(error.message));
+    }
+  }
+
+  /**
+   * Affiche un message d'erreur à l'utilisateur
+   */
+  showError(error: AppError): void {
+    // Cette fonction sera appelée par les composants UI
+    // Pour afficher des toasts ou modals d'erreur
+    console.error('User-facing error:', error.message);
+  }
+}
+
+// Instance globale
+export const errorHandler = new ErrorHandler();
+
+// Initialiser avec la config d'environnement
+if (typeof window !== 'undefined') {
+  const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+  if (sentryDsn) {
+    errorHandler.init(sentryDsn);
+  }
+}
+
