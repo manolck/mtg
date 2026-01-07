@@ -3,7 +3,6 @@ import { db } from './firebase';
 import type { UserProfile, AdminUser } from '../types/user';
 
 const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY;
-const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
 /**
  * Service pour gérer les utilisateurs en tant qu'admin
