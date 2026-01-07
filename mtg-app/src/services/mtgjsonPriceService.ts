@@ -97,9 +97,25 @@ function shouldUpdatePrices(): boolean {
 
 /**
  * Télécharge le fichier AllPrices.json depuis MTGJSON
+ * @param removeOldFirst Si true, supprime l'ancien fichier avant de télécharger le nouveau
  */
-async function downloadPricesFile(): Promise<MTGJSONPriceData | null> {
+async function downloadPricesFile(removeOldFirst: boolean = false): Promise<MTGJSONPriceData | null> {
   try {
+    // Sauvegarder l'ancien fichier en cas d'échec
+    let oldData: string | null = null;
+    let oldUpdateDate: string | null = null;
+    
+    if (removeOldFirst) {
+      // Sauvegarder l'ancien pour pouvoir le restaurer en cas d'échec
+      oldData = localStorage.getItem(MTGJSON_PRICES_FILE_KEY);
+      oldUpdateDate = localStorage.getItem(MTGJSON_LAST_UPDATE_KEY);
+      
+      // Supprimer l'ancien fichier pour libérer de l'espace
+      localStorage.removeItem(MTGJSON_PRICES_FILE_KEY);
+      localStorage.removeItem(MTGJSON_LAST_UPDATE_KEY);
+      console.log('Removed old MTGJSON prices file to free up space');
+    }
+    
     console.log('Downloading MTGJSON prices file...');
     const response = await fetch(MTGJSON_PRICES_URL);
     
@@ -124,6 +140,17 @@ async function downloadPricesFile(): Promise<MTGJSONPriceData | null> {
       localStorage.setItem(MTGJSON_LAST_UPDATE_KEY, new Date().toISOString());
       console.log(`MTGJSON prices file downloaded and cached (${sizeInMB.toFixed(2)} MB)`);
     } catch (storageError: any) {
+      // Si localStorage est plein, restaurer l'ancien fichier si on l'avait supprimé
+      if (removeOldFirst && oldData && oldUpdateDate) {
+        try {
+          localStorage.setItem(MTGJSON_PRICES_FILE_KEY, oldData);
+          localStorage.setItem(MTGJSON_LAST_UPDATE_KEY, oldUpdateDate);
+          console.warn('Restored old MTGJSON prices file due to storage error');
+        } catch (restoreError) {
+          console.error('Failed to restore old file:', restoreError);
+        }
+      }
+      
       // Si localStorage est plein, on ne peut pas stocker le fichier
       if (storageError.name === 'QuotaExceededError') {
         console.warn('LocalStorage full! MTGJSON file is too large. Prices will be loaded from network each time.');
@@ -137,6 +164,18 @@ async function downloadPricesFile(): Promise<MTGJSONPriceData | null> {
     return data;
   } catch (error) {
     console.error('Error downloading MTGJSON prices:', error);
+    
+    // En cas d'échec, restaurer l'ancien fichier si on l'avait supprimé
+    if (removeOldFirst && oldData && oldUpdateDate) {
+      try {
+        localStorage.setItem(MTGJSON_PRICES_FILE_KEY, oldData);
+        localStorage.setItem(MTGJSON_LAST_UPDATE_KEY, oldUpdateDate);
+        console.log('Restored old MTGJSON prices file after download failure');
+      } catch (restoreError) {
+        console.error('Failed to restore old file:', restoreError);
+      }
+    }
+    
     return null;
   }
 }
@@ -147,7 +186,8 @@ async function downloadPricesFile(): Promise<MTGJSONPriceData | null> {
 async function loadPricesData(): Promise<MTGJSONPriceData | null> {
   // Vérifier si une mise à jour est nécessaire
   if (shouldUpdatePrices()) {
-    const downloaded = await downloadPricesFile();
+    // Supprimer l'ancien fichier avant de télécharger le nouveau
+    const downloaded = await downloadPricesFile(true);
     if (downloaded) {
       return downloaded;
     }
@@ -280,9 +320,12 @@ export async function initializeMTGJSONPrices(): Promise<void> {
   // Vérifier en arrière-plan si une mise à jour est nécessaire
   if (shouldUpdatePrices()) {
     // Télécharger en arrière-plan sans bloquer
-    downloadPricesFile().then(data => {
+    // Supprimer l'ancien fichier avant de télécharger le nouveau
+    downloadPricesFile(true).then(data => {
       if (data) {
         cachedPricesData = data;
+        // Vider le cache en mémoire pour forcer le rechargement avec les nouvelles données
+        priceCache.clear();
       }
     }).catch(error => {
       console.warn('Background price update failed:', error);
@@ -330,13 +373,15 @@ export async function getCardPriceFromMTGJSON(
 
 /**
  * Force la mise à jour des prix (appelé manuellement ou automatiquement)
+ * Supprime l'ancien fichier avant de télécharger le nouveau
  */
 export async function updateMTGJSONPrices(): Promise<boolean> {
   try {
-    const data = await downloadPricesFile();
+    // Supprimer l'ancien fichier avant de télécharger le nouveau
+    const data = await downloadPricesFile(true);
     if (data) {
       cachedPricesData = data;
-      priceCache.clear(); // Vider le cache en mémoire
+      priceCache.clear(); // Vider le cache en mémoire pour forcer le rechargement
       return true;
     }
     return false;
