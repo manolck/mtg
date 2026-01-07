@@ -1,17 +1,21 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/Layout/ProtectedRoute';
 import { AdminRoute } from './components/Layout/AdminRoute';
 import { Navbar } from './components/Layout/Navbar';
+import { Spinner } from './components/UI/Spinner';
 import { Login } from './pages/Login';
-import { Collection } from './pages/Collection';
-import { Decks } from './pages/Decks';
-import { DeckBuilder } from './pages/DeckBuilder';
-import { Profile } from './pages/Profile';
-import { Admin } from './pages/Admin';
-import { Statistics } from './pages/Statistics';
-import { Wishlist } from './pages/Wishlist';
+
+// Lazy load des routes principales pour réduire le bundle initial
+const Collection = lazy(() => import('./pages/Collection').then(module => ({ default: module.Collection })));
+const Decks = lazy(() => import('./pages/Decks').then(module => ({ default: module.Decks })));
+const DeckBuilder = lazy(() => import('./pages/DeckBuilder').then(module => ({ default: module.DeckBuilder })));
+const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
+const Statistics = lazy(() => import('./pages/Statistics').then(module => ({ default: module.Statistics })));
+const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default: module.Wishlist })));
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
 import { useEffect } from 'react';
