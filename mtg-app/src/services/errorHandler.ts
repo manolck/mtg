@@ -138,12 +138,36 @@ class ErrorHandler {
   private logError(error: AppError): void {
     // Console en développement
     if (import.meta.env.DEV) {
-      console.error('Error:', error);
+      console.error('Error:', {
+        type: error.type,
+        message: error.message,
+        code: error.code,
+        retryable: error.retryable,
+        originalError: error.originalError,
+      });
     }
 
     // Sentry en production
     if (this.sentryEnabled && import.meta.env.PROD) {
-      // Sentry.captureException(error.originalError || new Error(error.message));
+      try {
+        // Lazy load Sentry pour éviter de l'inclure dans le bundle si non utilisé
+        import('@sentry/react').then((Sentry) => {
+          Sentry.captureException(error.originalError || new Error(error.message), {
+            tags: {
+              errorType: error.type,
+              retryable: error.retryable ? 'true' : 'false',
+            },
+            extra: {
+              code: error.code,
+              message: error.message,
+            },
+          });
+        }).catch(() => {
+          // Sentry non disponible, ignorer silencieusement
+        });
+      } catch {
+        // Ignorer si Sentry n'est pas disponible
+      }
     }
   }
 

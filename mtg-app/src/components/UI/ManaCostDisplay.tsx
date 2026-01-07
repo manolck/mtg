@@ -75,3 +75,4 @@ export function ManaCostDisplay({ manaCost, size = 16 }: ManaCostDisplayProps) {
 }
 
 
+

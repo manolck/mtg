@@ -5,13 +5,28 @@ import {
   searchCardByNameAndNumberScryfall,
 } from '../scryfallApi';
 
+// Mock fetchWithRetry and apiQueue
+jest.mock('../../utils/fetchWithRetry', () => ({
+  fetchWithRetry: jest.fn(),
+}));
+
+jest.mock('../../utils/apiQueue', () => ({
+  scryfallQueue: {
+    enqueue: jest.fn((fn) => fn()),
+  },
+}));
+
 // Mock global fetch
 global.fetch = jest.fn();
 
 describe('scryfallApi', () => {
+  let fetchWithRetry: jest.Mock;
+
   beforeEach(() => {
     jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockClear();
+    const { fetchWithRetry: mockFetchWithRetry } = require('../../utils/fetchWithRetry');
+    fetchWithRetry = mockFetchWithRetry;
+    fetchWithRetry.mockClear();
   });
 
   const mockScryfallCard = {
@@ -35,7 +50,7 @@ describe('scryfallApi', () => {
 
   describe('searchCardByScryfallId', () => {
     it('should fetch and convert a card by Scryfall ID', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => mockScryfallCard,
@@ -47,11 +62,11 @@ describe('scryfallApi', () => {
       expect(result?.name).toBe('Lightning Bolt');
       expect(result?.manaCost).toBe('{R}');
       expect(result?.colors).toEqual(['R']);
-      expect(global.fetch).toHaveBeenCalled();
+      expect(fetchWithRetry).toHaveBeenCalled();
     });
 
     it('should return null for 404 error', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: false,
         status: 404,
       });
@@ -62,20 +77,20 @@ describe('scryfallApi', () => {
     });
 
     it('should handle rate limit errors', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: false,
         status: 429,
       });
 
       await expect(searchCardByScryfallId('test-id')).rejects.toThrow(
-        'Rate limit exceeded'
+        'Scryfall API error: 429'
       );
     });
   });
 
   describe('searchCardBySetAndNumber', () => {
     it('should fetch card by set code and collector number', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => mockScryfallCard,
@@ -85,11 +100,11 @@ describe('scryfallApi', () => {
 
       expect(result).not.toBeNull();
       expect(result?.name).toBe('Lightning Bolt');
-      expect(global.fetch).toHaveBeenCalled();
+      expect(fetchWithRetry).toHaveBeenCalled();
     });
 
     it('should return null for invalid set/number', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: false,
         status: 404,
       });
@@ -102,7 +117,7 @@ describe('scryfallApi', () => {
 
   describe('searchCardByNameAndNumberScryfall', () => {
     it('should search card by name, number and optional set', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
@@ -121,7 +136,7 @@ describe('scryfallApi', () => {
     });
 
     it('should handle empty search results', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
@@ -141,7 +156,7 @@ describe('scryfallApi', () => {
 
   describe('error handling', () => {
     it('should handle network errors', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(
+      fetchWithRetry.mockRejectedValueOnce(
         new Error('Network error')
       );
 

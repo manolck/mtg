@@ -71,3 +71,4 @@ Pour le développement quotidien, **vous n'avez pas besoin de configurer l'API b
 
 Utilisez l'émulateur uniquement si vous développez/testez les functions elles-mêmes.
 
+

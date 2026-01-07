@@ -141,3 +141,4 @@ class APIQueue {
 export const scryfallQueue = new APIQueue(3); // Maximum 3 requêtes simultanées
 
 
+

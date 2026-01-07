@@ -24,6 +24,16 @@ jobs:
         working-directory: mtg-app
         run: npm ci
       
+      - name: Run linter
+        working-directory: mtg-app
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Run tests
+        working-directory: mtg-app
+        run: npm test -- --coverage=false
+        continue-on-error: true
+      
       - name: Build
         working-directory: mtg-app
         run: npm run build

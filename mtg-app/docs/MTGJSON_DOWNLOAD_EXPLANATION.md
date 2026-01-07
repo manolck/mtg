@@ -102,3 +102,4 @@ Pour vérifier que les prix sont bien indexés :
 2. Vérifier la collection `mtgjson_prices`
 3. Vérifier le document `metadata/mtgjson_prices` pour la date de dernière mise à jour
 
+
