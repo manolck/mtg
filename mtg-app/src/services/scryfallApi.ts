@@ -1,4 +1,5 @@
 import type { MTGCard } from '../types/card';
+import { enrichCardWithFrenchData } from './magicCorporationService';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
@@ -27,7 +28,7 @@ function setCachedCard(key: string, data: MTGCard | null): void {
 
 // Délai entre les requêtes pour respecter les rate limits (50-100ms)
 let lastRequestTime = 0;
-const MIN_REQUEST_DELAY = 100; // 100ms = 10 requêtes par seconde max
+const MIN_REQUEST_DELAY = 50; // 50ms = 20 requêtes par seconde max (plus rapide)
 
 async function delayBetweenRequests(): Promise<void> {
   const now = Date.now();
@@ -142,48 +143,23 @@ export async function searchCardByScryfallId(
     }
 
     const scryfallCard = await response.json();
-    let mtgCard: MTGCard | null = null;
-
-    // ÉTAPE 2 : Parmi toutes les occurrences de cette carte dans cette édition, vérifier si elle existe en français
-    if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
-      await delayBetweenRequests();
+    
+    // ÉTAPE 2 : Convertir la carte en MTGCard (toujours en anglais depuis Scryfall)
+    let mtgCard = convertScryfallCardToMTGCard(scryfallCard);
+    
+    // ÉTAPE 3 : Enrichir avec les données françaises si préféré français (via MagicCorporation, pas d'appel Scryfall supplémentaire)
+    if (preferFrench) {
+      mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Rechercher si cette carte existe en français dans le même set avec le même numéro
-      const frenchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=set:${scryfallCard.set}+number:${scryfallCard.collector_number}+lang:fr`;
-      
-      try {
-        const frenchResponse = await fetch(frenchUrl, {
-          headers: {
-            'User-Agent': 'MTGCollectionApp/1.0',
-            'Accept': 'application/json',
-          },
-        });
-
-        if (frenchResponse.ok) {
-          const frenchData = await frenchResponse.json();
-          const frenchCards = frenchData.data || [];
-          
-          if (frenchCards.length > 0) {
-            // Prendre la première carte française trouvée (c'est la même édition, juste en français)
-            const frenchCard = frenchCards[0];
-            mtgCard = convertScryfallCardToMTGCard(frenchCard);
-          }
-        } else if (frenchResponse.status === 404) {
-          // Carte non disponible en français, c'est normal - on utilisera la version anglaise
-          // Ne rien faire, pas besoin de logger
-        }
-      } catch (error) {
-        // Erreur réseau ou autre, on continue avec la version anglaise
-        // Ne pas logger les erreurs 404 car c'est normal
-        if (error instanceof Error && !error.message.includes('404')) {
-          console.warn('Erreur lors de la recherche de la version française, utilisation de la version anglaise:', error);
-        }
+      // Remplacer le nom par la version française si disponible
+      const frenchName = mtgCard.foreignNames?.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName && frenchName.name) {
+        mtgCard.name = frenchName.name;
+        if (frenchName.type) mtgCard.type = frenchName.type;
+        if (frenchName.text) mtgCard.text = frenchName.text;
       }
-    }
-
-    // ÉTAPE 3 : Si pas de version française trouvée, utiliser la version anglaise trouvée initialement
-    if (!mtgCard) {
-      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
     }
     
     // Mettre en cache
@@ -244,48 +220,23 @@ export async function searchCardBySetAndNumber(
     }
 
     const scryfallCard = await response.json();
-    let mtgCard: MTGCard | null = null;
-
-    // ÉTAPE 2 : Parmi toutes les occurrences de cette carte dans cette édition, vérifier si elle existe en français
+    
+    // ÉTAPE 2 : Convertir la carte en MTGCard (toujours en anglais depuis Scryfall)
+    let mtgCard = convertScryfallCardToMTGCard(scryfallCard);
+    
+    // ÉTAPE 3 : Enrichir avec les données françaises si préféré français (via MagicCorporation, pas d'appel Scryfall supplémentaire)
     if (preferFrench) {
-      await delayBetweenRequests();
+      mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Rechercher si cette carte existe en français dans ce set avec ce numéro
-      const frenchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=set:${setCode.toLowerCase()}+number:${collectorNumber}+lang:fr`;
-      
-      try {
-        const frenchResponse = await fetch(frenchUrl, {
-          headers: {
-            'User-Agent': 'MTGCollectionApp/1.0',
-            'Accept': 'application/json',
-          },
-        });
-
-        if (frenchResponse.ok) {
-          const frenchData = await frenchResponse.json();
-          const frenchCards = frenchData.data || [];
-          
-          if (frenchCards.length > 0) {
-            // Prendre la première carte française trouvée (c'est la même édition, juste en français)
-            const frenchCard = frenchCards[0];
-            mtgCard = convertScryfallCardToMTGCard(frenchCard);
-          }
-        } else if (frenchResponse.status === 404) {
-          // Carte non disponible en français, c'est normal - on utilisera la version anglaise
-          // Ne rien faire, pas besoin de logger
-        }
-      } catch (error) {
-        // Erreur réseau ou autre, on continue avec la version anglaise
-        // Ne pas logger les erreurs 404 car c'est normal
-        if (error instanceof Error && !error.message.includes('404')) {
-          console.warn('Erreur lors de la recherche de la version française, utilisation de la version anglaise:', error);
-        }
+      // Remplacer le nom par la version française si disponible
+      const frenchName = mtgCard.foreignNames?.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName && frenchName.name) {
+        mtgCard.name = frenchName.name;
+        if (frenchName.type) mtgCard.type = frenchName.type;
+        if (frenchName.text) mtgCard.text = frenchName.text;
       }
-    }
-
-    // ÉTAPE 3 : Si pas de version française trouvée, utiliser la version anglaise trouvée initialement
-    if (!mtgCard) {
-      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
     }
     
     // Mettre en cache
@@ -362,48 +313,23 @@ export async function searchCardByNameAndNumberScryfall(
     }
 
     const scryfallCard = englishCards[0];
-    let mtgCard: MTGCard | null = null;
-
-    // ÉTAPE 2 : Parmi toutes les occurrences de cette carte dans cette édition, vérifier si elle existe en français
-    if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
-      await delayBetweenRequests();
+    
+    // ÉTAPE 2 : Convertir la carte en MTGCard (toujours en anglais depuis Scryfall)
+    let mtgCard = convertScryfallCardToMTGCard(scryfallCard);
+    
+    // ÉTAPE 3 : Enrichir avec les données françaises si préféré français (via MagicCorporation, pas d'appel Scryfall supplémentaire)
+    if (preferFrench) {
+      mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Rechercher si cette carte existe en français dans le même set avec le même numéro
-      const frenchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=set:${scryfallCard.set}+number:${scryfallCard.collector_number}+lang:fr`;
-      
-      try {
-        const frenchResponse = await fetch(frenchUrl, {
-          headers: {
-            'User-Agent': 'MTGCollectionApp/1.0',
-            'Accept': 'application/json',
-          },
-        });
-
-        if (frenchResponse.ok) {
-          const frenchData = await frenchResponse.json();
-          const frenchCards = frenchData.data || [];
-          
-          if (frenchCards.length > 0) {
-            // Prendre la première carte française trouvée (c'est la même édition, juste en français)
-            const frenchCard = frenchCards[0];
-            mtgCard = convertScryfallCardToMTGCard(frenchCard);
-          }
-        } else if (frenchResponse.status === 404) {
-          // Carte non disponible en français, c'est normal - on utilisera la version anglaise
-          // Ne rien faire, pas besoin de logger
-        }
-      } catch (error) {
-        // Erreur réseau ou autre, on continue avec la version anglaise
-        // Ne pas logger les erreurs 404 car c'est normal
-        if (error instanceof Error && !error.message.includes('404')) {
-          console.warn('Erreur lors de la recherche de la version française, utilisation de la version anglaise:', error);
-        }
+      // Remplacer le nom par la version française si disponible
+      const frenchName = mtgCard.foreignNames?.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName && frenchName.name) {
+        mtgCard.name = frenchName.name;
+        if (frenchName.type) mtgCard.type = frenchName.type;
+        if (frenchName.text) mtgCard.text = frenchName.text;
       }
-    }
-
-    // ÉTAPE 3 : Si pas de version française trouvée, utiliser la version anglaise trouvée initialement
-    if (!mtgCard) {
-      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
     }
     
     // Mettre en cache

@@ -14,7 +14,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "setup-admin": "node scripts/setup-admin.js",
-    "setup-admin-simple": "node scripts/setup-admin-simple.js"
+    "setup-admin-simple": "node scripts/setup-admin-simple.js",
+    "scrape-magiccorporation": "node scripts/scrape-magiccorporation.js",
+    "test-scraping": "node scripts/test-scraping.js"
   },
   "dependencies": {
     "firebase": "^12.7.0",
@@ -34,6 +36,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
+    "cheerio": "^1.0.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",

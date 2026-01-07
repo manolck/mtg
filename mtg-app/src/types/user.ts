@@ -10,6 +10,7 @@ export interface UserProfile {
   avatarId?: string;
   email: string;
   role?: 'admin' | 'user';
+  preferredLanguage?: 'en' | 'fr'; // Langue préférée pour les recherches
   createdAt: Date;
   updatedAt: Date;
 }

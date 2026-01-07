@@ -16,6 +16,7 @@ export function Profile() {
   const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
   const { importCSV, cancelImport } = useCollection();
   const [pseudonym, setPseudonym] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'fr'>('en');
   const [saving, setSaving] = useState(false);
   const [selectedImport, setSelectedImport] = useState<ImportJob | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -24,10 +25,11 @@ export function Profile() {
   const [resumeImporting, setResumeImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialiser le pseudonyme quand le profil est chargé
+  // Initialiser le pseudonyme et la langue quand le profil est chargé
   useEffect(() => {
     if (profile) {
       setPseudonym(profile.pseudonym || '');
+      setPreferredLanguage(profile.preferredLanguage || 'en');
     }
   }, [profile]);
 
@@ -45,6 +47,22 @@ export function Profile() {
       console.error('Error saving pseudonym:', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLanguageChange = async (language: 'en' | 'fr') => {
+    if (language === preferredLanguage) {
+      return; // Déjà sélectionné
+    }
+
+    try {
+      setPreferredLanguage(language);
+      await updateProfile({ preferredLanguage: language });
+    } catch (err) {
+      console.error('Error updating preferred language:', err);
+      // Revenir à l'ancienne valeur en cas d'erreur
+      setPreferredLanguage(profile?.preferredLanguage || 'en');
+      alert('Erreur lors de la mise à jour de la langue préférée');
     }
   };
 
@@ -249,6 +267,38 @@ export function Profile() {
           </div>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Ce pseudonyme sera visible par les autres utilisateurs pour identifier votre collection.
+          </p>
+        </div>
+
+        {/* Preferred Language Section */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Langue de recherche préférée
+          </h2>
+          <div className="flex gap-4">
+            <button
+              onClick={() => handleLanguageChange('fr')}
+              className={`px-6 py-3 rounded-lg border-2 transition-all font-medium ${
+                preferredLanguage === 'fr'
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              🇫🇷 Français
+            </button>
+            <button
+              onClick={() => handleLanguageChange('en')}
+              className={`px-6 py-3 rounded-lg border-2 transition-all font-medium ${
+                preferredLanguage === 'en'
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              🇬🇧 English
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Cette langue sera utilisée par défaut pour toutes les recherches de cartes sur Scryfall.
           </p>
         </div>
 

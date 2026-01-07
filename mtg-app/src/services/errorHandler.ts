@@ -3,14 +3,17 @@
  * Logging et affichage utilisateur-friendly
  */
 
-export enum ErrorType {
-  NETWORK = 'NETWORK',
-  API = 'API',
-  VALIDATION = 'VALIDATION',
-  AUTH = 'AUTH',
-  FIRESTORE = 'FIRESTORE',
-  UNKNOWN = 'UNKNOWN',
-}
+// Utilisation d'un objet const au lieu d'un enum pour compatibilité avec erasableSyntaxOnly
+export const ErrorTypeValues = {
+  NETWORK: 'NETWORK',
+  API: 'API',
+  VALIDATION: 'VALIDATION',
+  AUTH: 'AUTH',
+  FIRESTORE: 'FIRESTORE',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+
+export type ErrorType = typeof ErrorTypeValues[keyof typeof ErrorTypeValues];
 
 export interface AppError {
   type: ErrorType;
@@ -55,7 +58,7 @@ class ErrorHandler {
       // Erreur réseau
       if (error.message.includes('fetch') || error.message.includes('network')) {
         return {
-          type: ErrorType.NETWORK,
+          type: ErrorTypeValues.NETWORK,
           message: 'Erreur de connexion. Vérifiez votre connexion internet.',
           originalError: error,
           retryable: true,
@@ -65,7 +68,7 @@ class ErrorHandler {
       // Erreur Firebase Auth
       if (error.message.includes('auth/')) {
         return {
-          type: ErrorType.AUTH,
+          type: ErrorTypeValues.AUTH,
           message: this.getAuthErrorMessage(error.message),
           originalError: error,
           code: error.message,
@@ -75,7 +78,7 @@ class ErrorHandler {
       // Erreur Firestore
       if (error.message.includes('firestore') || error.message.includes('permission')) {
         return {
-          type: ErrorType.FIRESTORE,
+          type: ErrorTypeValues.FIRESTORE,
           message: 'Erreur d\'accès aux données. Vérifiez vos permissions.',
           originalError: error,
         };
@@ -84,7 +87,7 @@ class ErrorHandler {
       // Erreur API
       if (error.message.includes('API') || error.message.includes('rate limit')) {
         return {
-          type: ErrorType.API,
+          type: ErrorTypeValues.API,
           message: 'Erreur API. Veuillez réessayer plus tard.',
           originalError: error,
           retryable: true,
@@ -93,7 +96,7 @@ class ErrorHandler {
 
       // Erreur générique
       return {
-        type: ErrorType.UNKNOWN,
+        type: ErrorTypeValues.UNKNOWN,
         message: error.message || 'Une erreur est survenue',
         originalError: error,
       };
@@ -101,7 +104,7 @@ class ErrorHandler {
 
     // Erreur inconnue
     return {
-      type: ErrorType.UNKNOWN,
+      type: ErrorTypeValues.UNKNOWN,
       message: 'Une erreur inattendue est survenue',
     };
   }

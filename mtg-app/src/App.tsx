@@ -10,6 +10,7 @@ import { DeckBuilder } from './pages/DeckBuilder';
 import { Profile } from './pages/Profile';
 import { Admin } from './pages/Admin';
 import { Statistics } from './pages/Statistics';
+import { Wishlist } from './pages/Wishlist';
 
 function App() {
   return (
@@ -40,6 +41,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <DeckBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/wishlist"
+              element={
+                <ProtectedRoute>
+                  <Wishlist />
                 </ProtectedRoute>
               }
             />

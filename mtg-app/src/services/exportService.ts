@@ -82,7 +82,7 @@ export function exportToJSON(cards: UserCard[], options: ExportOptions = { forma
     }
 
     if (card.rarity || card.mtgData?.rarity) {
-      cardData.rarity = card.rarity || card.mtgData.rarity;
+      cardData.rarity = card.rarity || card.mtgData?.rarity;
     }
 
     if (card.condition) {

@@ -50,6 +50,12 @@ export function Navbar() {
               Decks
             </Link>
             <Link
+              to="/wishlist"
+              className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Wishlist
+            </Link>
+            <Link
               to="/statistics"
               className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
             >

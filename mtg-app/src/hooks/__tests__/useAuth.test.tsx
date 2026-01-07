@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { useAuth } from '../useAuth';
 import { AuthProvider } from '../../context/AuthContext';
 import { auth } from '../../services/firebase';

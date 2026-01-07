@@ -211,7 +211,9 @@ describe('exportService', () => {
   describe('downloadFile', () => {
     beforeEach(() => {
       // Mock URL.createObjectURL et URL.revokeObjectURL
+      // @ts-ignore
       global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      // @ts-ignore
       global.URL.revokeObjectURL = jest.fn();
       
       // Mock document.createElement et appendChild
@@ -228,10 +230,12 @@ describe('exportService', () => {
     it('should create and trigger download', () => {
       downloadFile('test content', 'test.csv', 'text/csv');
       
+      // @ts-ignore
       expect(global.URL.createObjectURL).toHaveBeenCalled();
       expect(document.createElement).toHaveBeenCalledWith('a');
       expect(document.body.appendChild).toHaveBeenCalled();
       expect(document.body.removeChild).toHaveBeenCalled();
+      // @ts-ignore
       expect(global.URL.revokeObjectURL).toHaveBeenCalled();
     });
   });

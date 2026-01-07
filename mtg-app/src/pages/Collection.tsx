@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useAllCollections } from '../hooks/useAllCollections';
 import { useDecks } from '../hooks/useDecks';
+import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { CardDisplay } from '../components/Card/CardDisplay';
@@ -41,6 +42,13 @@ export function Collection() {
     isImportPaused
   } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
   const { decks, createDeck, addCardToDeck } = useDecks();
+  
+  // Déterminer si on regarde sa propre collection
+  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
+  
+  const { addItem: addToWishlist, checkIfInWishlist } = useWishlist(
+    isViewingOwnCollection ? currentUser?.uid : undefined
+  );
   const [showDeckModal, setShowDeckModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -120,6 +128,38 @@ export function Collection() {
     setShowDeckModal(true);
   }, []);
 
+  const handleAddToWishlist = useCallback(async (card: import('../types/card').UserCard) => {
+    if (!isViewingOwnCollection) return;
+    
+    try {
+      const alreadyInWishlist = await checkIfInWishlist(
+        card.name,
+        card.setCode || card.set,
+        card.collectorNumber
+      );
+      
+      if (alreadyInWishlist) {
+        alert(`${card.name} est déjà dans votre wishlist`);
+        return;
+      }
+      
+      await addToWishlist(
+        card.name,
+        1,
+        card.mtgData,
+        card.setCode || card.set,
+        card.collectorNumber,
+        card.rarity,
+        card.language
+      );
+      
+      alert(`${card.name} a été ajoutée à votre wishlist`);
+    } catch (error) {
+      console.error('Error adding to wishlist:', error);
+      alert('Erreur lors de l\'ajout à la wishlist');
+    }
+  }, [isViewingOwnCollection, addToWishlist, checkIfInWishlist]);
+
   const handleSelectDeck = useCallback(async (deckId: string) => {
     if (!selectedCardId) return;
 
@@ -151,7 +191,6 @@ export function Collection() {
 
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
-  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
 
   // Différer les valeurs des filtres pour permettre à l'UI de se mettre à jour d'abord
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -885,6 +924,7 @@ export function Collection() {
                 card={card}
                 allCardsWithSameName={cardsWithSameName}
                 onAddToDeck={handleAddToDeck}
+                onAddToWishlist={isViewingOwnCollection ? handleAddToWishlist : undefined}
                 onDelete={canModify ? deleteCard : undefined}
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
                 onReloadCard={canModify ? reloadCard : undefined}
