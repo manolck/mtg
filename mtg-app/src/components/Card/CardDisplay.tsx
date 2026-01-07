@@ -322,12 +322,12 @@ export const CardDisplay = memo(function CardDisplay({
         style={{ animation: 'fadeIn 0.2s ease-in-out' }}
       >
         <div
-          className="relative"
+          className="relative overflow-hidden"
           style={{
-            width: '80vw',
+            width: 'min(90vw, calc(90vh * 63 / 88))',
+            height: 'min(90vh, calc(90vw * 88 / 63))',
             aspectRatio: '63/88',
-            maxWidth: '90vw',
-            maxHeight: '90vh',
+            borderRadius: '25px',
           }}
           onClick={(e) => e.stopPropagation()}
         >

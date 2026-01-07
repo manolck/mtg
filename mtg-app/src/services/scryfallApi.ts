@@ -2,6 +2,7 @@ import type { MTGCard } from '../types/card';
 import { enrichCardWithFrenchData } from './magicCorporationService';
 import { LRUCache } from '../utils/LRUCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { scryfallQueue } from '../utils/apiQueue';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
@@ -110,22 +111,23 @@ export async function searchCardByScryfallId(
   }
 
   try {
-    await delayBetweenRequests();
-
     // ÉTAPE 1 : Récupérer d'abord la carte avec son édition précise (par Scryfall ID)
     const url = `${SCRYFALL_API_BASE_URL}/cards/${scryfallId}`;
     
-    const response = await fetchWithRetry(url, {
-      headers: {
-        'User-Agent': 'MTGCollectionApp/1.0',
-        'Accept': 'application/json',
-      },
-    }, {
-      maxRetries: 3,
-      initialDelay: 1000, // 1 seconde
-      maxDelay: 16000, // 16 secondes
-      retryableStatuses: [429, 500, 502, 503, 504],
-    });
+    const response = await scryfallQueue.enqueue(
+      () => fetchWithRetry(url, {
+        headers: {
+          'User-Agent': 'MTGCollectionApp/1.0',
+          'Accept': 'application/json',
+        },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000, // 1 seconde
+        maxDelay: 16000, // 16 secondes
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }),
+      'normal' // Priorité normale pour les recherches de cartes spécifiques
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -186,24 +188,25 @@ export async function searchCardBySetAndNumber(
   }
 
   try {
-    await delayBetweenRequests();
-
     // ÉTAPE 1 : Chercher d'abord la carte avec son édition précise (set + number) - sans se soucier de la langue
     // Endpoint direct Scryfall : /cards/{set}/{collector_number}
     // Cela retourne directement la carte de cette édition précise
     const url = `${SCRYFALL_API_BASE_URL}/cards/${setCode.toLowerCase()}/${collectorNumber}`;
     
-    const response = await fetchWithRetry(url, {
-      headers: {
-        'User-Agent': 'MTGCollectionApp/1.0',
-        'Accept': 'application/json',
-      },
-    }, {
-      maxRetries: 3,
-      initialDelay: 1000,
-      maxDelay: 16000,
-      retryableStatuses: [429, 500, 502, 503, 504],
-    });
+    const response = await scryfallQueue.enqueue(
+      () => fetchWithRetry(url, {
+        headers: {
+          'User-Agent': 'MTGCollectionApp/1.0',
+          'Accept': 'application/json',
+        },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 16000,
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }),
+      'normal' // Priorité normale pour les recherches de cartes spécifiques
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -275,22 +278,23 @@ export async function searchCardByNameAndNumberScryfall(
     }
     baseQuery += ` number:${collectorNumber}`;
 
-    await delayBetweenRequests();
-
     // ÉTAPE 1 : Chercher d'abord la carte avec son édition précise (set + number) - sans se soucier de la langue
     const englishUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(baseQuery)}`;
     
-    const englishResponse = await fetchWithRetry(englishUrl, {
-      headers: {
-        'User-Agent': 'MTGCollectionApp/1.0',
-        'Accept': 'application/json',
-      },
-    }, {
-      maxRetries: 3,
-      initialDelay: 1000,
-      maxDelay: 16000,
-      retryableStatuses: [429, 500, 502, 503, 504],
-    });
+    const englishResponse = await scryfallQueue.enqueue(
+      () => fetchWithRetry(englishUrl, {
+        headers: {
+          'User-Agent': 'MTGCollectionApp/1.0',
+          'Accept': 'application/json',
+        },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 16000,
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }),
+      'normal' // Priorité normale pour les recherches de cartes spécifiques
+    );
 
     if (!englishResponse.ok) {
       if (englishResponse.status === 404) {

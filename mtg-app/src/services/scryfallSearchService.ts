@@ -13,6 +13,7 @@ import {
   searchInMagicCorporation,
 } from './magicCorporationService';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { scryfallQueue } from '../utils/apiQueue';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
@@ -168,24 +169,25 @@ export async function searchCards(
     }
 
     // ÉTAPE 2 : Rechercher sur Scryfall en anglais uniquement
-    await delayBetweenRequests();
-    
     const scryfallQuery = buildEnglishQuery(englishQuery);
     const searchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(scryfallQuery)}&order=released&dir=desc&unique=prints&limit=${limit}`;
     
     let response: Response;
     try {
-      response = await fetchWithRetry(searchUrl, {
-        headers: {
-          'User-Agent': 'MTGCollectionApp/1.0',
-          'Accept': 'application/json',
-        },
-      }, {
-        maxRetries: 3,
-        initialDelay: 1000,
-        maxDelay: 16000,
-        retryableStatuses: [429, 500, 502, 503, 504],
-      });
+      response = await scryfallQueue.enqueue(
+        () => fetchWithRetry(searchUrl, {
+          headers: {
+            'User-Agent': 'MTGCollectionApp/1.0',
+            'Accept': 'application/json',
+          },
+        }, {
+          maxRetries: 3,
+          initialDelay: 1000,
+          maxDelay: 16000,
+          retryableStatuses: [429, 500, 502, 503, 504],
+        }),
+        'high' // Priorité haute pour les recherches utilisateur directes
+      );
     } catch (error) {
       return [];
     }
@@ -269,21 +271,22 @@ export async function searchCardNames(
       }
     }
 
-    await delayBetweenRequests();
-    
     const url = `${SCRYFALL_API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(englishQuery)}`;
     
-    const response = await fetchWithRetry(url, {
-      headers: {
-        'User-Agent': 'MTGCollectionApp/1.0',
-        'Accept': 'application/json',
-      },
-    }, {
-      maxRetries: 3,
-      initialDelay: 1000,
-      maxDelay: 16000,
-      retryableStatuses: [429, 500, 502, 503, 504],
-    });
+    const response = await scryfallQueue.enqueue(
+      () => fetchWithRetry(url, {
+        headers: {
+          'User-Agent': 'MTGCollectionApp/1.0',
+          'Accept': 'application/json',
+        },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 16000,
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }),
+      'high' // Priorité haute pour l'autocomplétion (recherche utilisateur directe)
+    );
 
     const results: Array<{ name: string; language: 'en' | 'fr' }> = [];
 
@@ -345,21 +348,22 @@ export async function searchCardByName(
       }
     }
 
-    await delayBetweenRequests();
-    
     const url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(`!"${englishQuery}"`)}&order=released&dir=desc&unique=prints&limit=1`;
     
-    const response = await fetchWithRetry(url, {
-      headers: {
-        'User-Agent': 'MTGCollectionApp/1.0',
-        'Accept': 'application/json',
-      },
-    }, {
-      maxRetries: 3,
-      initialDelay: 1000,
-      maxDelay: 16000,
-      retryableStatuses: [429, 500, 502, 503, 504],
-    });
+    const response = await scryfallQueue.enqueue(
+      () => fetchWithRetry(url, {
+        headers: {
+          'User-Agent': 'MTGCollectionApp/1.0',
+          'Accept': 'application/json',
+        },
+      }, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 16000,
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }),
+      'high' // Priorité haute pour les recherches par nom exact (recherche utilisateur directe)
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
