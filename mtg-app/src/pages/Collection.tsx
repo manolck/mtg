@@ -2,6 +2,8 @@ import { useState, useRef, useMemo, useDeferredValue, startTransition, useCallba
 import { flushSync } from 'react-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useAllCollections } from '../hooks/useAllCollections';
+import { useDecks } from '../hooks/useDecks';
+import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { useToast } from '../context/ToastContext';
@@ -44,8 +46,17 @@ export function Collection() {
     loadMoreCards,
     hasMoreCards
   } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
+  const { decks, createDeck, addCardToDeck } = useDecks();
+  
+  // Déterminer si on regarde sa propre collection
+  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
+  
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, checkIfInWishlist, items: wishlistItems } = useWishlist(
+    isViewingOwnCollection ? currentUser?.uid : undefined
+  );
   
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showDeckModal, setShowDeckModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -63,9 +74,10 @@ export function Collection() {
   const [selectedCreatureType, setSelectedCreatureType] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [newDeckName, setNewDeckName] = useState('');
+  const [isCreatingDeck, setIsCreatingDeck] = useState(false);
 
-  // Déterminer si on regarde sa propre collection
-  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
 
@@ -98,6 +110,105 @@ export function Collection() {
       errorHandler.handleAndShowError(err);
     }
   }, [deleteAllCards, showSuccess]);
+
+  const handleAddToDeck = useCallback((cardId: string) => {
+    setSelectedCardId(cardId);
+    setShowDeckModal(true);
+  }, []);
+
+  const handleToggleWishlist = useCallback(async (card: import('../types/card').UserCard) => {
+    if (!isViewingOwnCollection) return;
+    
+    try {
+      const alreadyInWishlist = await checkIfInWishlist(
+        card.name,
+        card.setCode || card.set,
+        card.collectorNumber
+      );
+      
+      if (alreadyInWishlist) {
+        // Retirer de la wishlist
+        const wishlistItem = wishlistItems.find(item => 
+          item.name.toLowerCase() === card.name.toLowerCase() &&
+          (item.setCode || item.set || '').toLowerCase() === (card.setCode || card.set || '').toLowerCase() &&
+          (item.collectorNumber || '') === (card.collectorNumber || '')
+        );
+        
+        if (wishlistItem) {
+          await removeFromWishlist(wishlistItem.id);
+          showSuccess(`${card.name} a été retirée de votre wishlist`);
+        }
+      } else {
+        // Ajouter à la wishlist
+        await addToWishlist(
+          card.name,
+          1,
+          card.mtgData,
+          card.setCode || card.set,
+          card.collectorNumber,
+          card.rarity,
+          card.language
+        );
+        
+        showSuccess(`${card.name} a été ajoutée à votre wishlist`);
+      }
+    } catch (error) {
+      errorHandler.handleAndShowError(error);
+    }
+  }, [isViewingOwnCollection, addToWishlist, removeFromWishlist, checkIfInWishlist, wishlistItems, showSuccess]);
+
+  const handleSelectDeck = useCallback(async (deckId: string) => {
+    if (!selectedCardId) return;
+
+    try {
+      await addCardToDeck(deckId, selectedCardId, 1);
+      setShowDeckModal(false);
+      setSelectedCardId(null);
+      showSuccess('Carte ajoutée au deck');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    }
+  }, [selectedCardId, addCardToDeck, showSuccess]);
+
+  const handleCreateDeck = useCallback(async () => {
+    if (!newDeckName.trim() || !selectedCardId) return;
+
+    try {
+      setIsCreatingDeck(true);
+      const deckId = await createDeck(newDeckName.trim());
+      await addCardToDeck(deckId, selectedCardId, 1);
+      setShowDeckModal(false);
+      setSelectedCardId(null);
+      setNewDeckName('');
+      showSuccess('Deck créé et carte ajoutée');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setIsCreatingDeck(false);
+    }
+  }, [newDeckName, selectedCardId, createDeck, addCardToDeck, showSuccess]);
+
+  // Créer un Set des cartes dans la wishlist pour vérification rapide
+  const wishlistCardSet = useMemo(() => {
+    const set = new Set<string>();
+    wishlistItems.forEach(item => {
+      // Utiliser la même logique de clé que dans isCardInWishlist
+      const setCode = (item.setCode || item.set || '').toLowerCase();
+      const key = `${item.name.toLowerCase()}_${setCode}_${item.collectorNumber || ''}`;
+      set.add(key);
+    });
+    return set;
+  }, [wishlistItems]);
+
+  // Fonction pour vérifier si une carte est dans la wishlist
+  const isCardInWishlist = useCallback((card: import('../types/card').UserCard): boolean => {
+    if (!isViewingOwnCollection) {
+      return false;
+    }
+    const setCode = (card.setCode || card.set || '').toLowerCase();
+    const key = `${card.name.toLowerCase()}_${setCode}_${card.collectorNumber || ''}`;
+    return wishlistCardSet.has(key);
+  }, [isViewingOwnCollection, wishlistCardSet]);
 
   // Différer les valeurs des filtres
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -762,6 +873,9 @@ export function Collection() {
                 key={card.id}
                 card={card}
                 allCardsWithSameName={cardsWithSameName}
+                onAddToDeck={isViewingOwnCollection ? handleAddToDeck : undefined}
+                onAddToWishlist={isViewingOwnCollection ? handleToggleWishlist : undefined}
+                isInWishlist={isCardInWishlist(card)}
                 onDelete={canModify ? deleteCard : undefined}
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
                 showActions={true}
@@ -845,6 +959,60 @@ export function Collection() {
               </span>
             </label>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal pour ajouter au deck */}
+      <Modal
+        isOpen={showDeckModal}
+        onClose={() => {
+          setShowDeckModal(false);
+          setSelectedCardId(null);
+          setNewDeckName('');
+        }}
+        title="Ajouter au deck"
+      >
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+              Créer un nouveau deck
+            </h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nom du deck"
+                value={newDeckName}
+                onChange={(e) => setNewDeckName(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              <Button
+                onClick={handleCreateDeck}
+                disabled={!newDeckName.trim() || isCreatingDeck}
+                loading={isCreatingDeck}
+              >
+                Créer
+              </Button>
+            </div>
+          </div>
+
+          {decks.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                Ou sélectionner un deck existant
+              </h3>
+              <div className="space-y-2">
+                {decks.map((deck) => (
+                  <button
+                    key={deck.id}
+                    onClick={() => handleSelectDeck(deck.id)}
+                    className="w-full text-left px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    {deck.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

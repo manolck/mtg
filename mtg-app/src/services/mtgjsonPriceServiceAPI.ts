@@ -157,19 +157,37 @@ export async function initializeMTGJSONPrices(): Promise<void> {
  * Force la mise à jour des prix (appelle la Cloud Function)
  */
 export async function updateMTGJSONPrices(): Promise<boolean> {
+  // Vérifier que l'URL est configurée correctement
+  if (API_BASE_URL.includes('YOUR-PROJECT-ID')) {
+    console.warn('Firebase Functions URL not configured. Please set VITE_FIREBASE_FUNCTIONS_URL in your .env file');
+    return false;
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}/updateMTGJSONPrices`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn('Cloud Function not found. Make sure it is deployed: firebase deploy --only functions');
+        return false;
+      }
       throw new Error(`Failed to update prices: ${response.status}`);
     }
 
     const data = await response.json();
     return data.success === true;
-  } catch (error) {
-    console.error('Error updating prices:', error);
+  } catch (error: any) {
+    // Ne pas afficher d'erreur CORS si c'est juste que la fonction n'existe pas
+    if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+      console.warn('Cloud Function not accessible. Make sure it is deployed and CORS is configured.');
+    } else {
+      console.error('Error updating prices:', error);
+    }
     return false;
   }
 }

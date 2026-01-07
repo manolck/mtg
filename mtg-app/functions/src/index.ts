@@ -164,6 +164,17 @@ async function downloadAndIndexPrices(): Promise<void> {
  * Appelée manuellement ou via un cron job
  */
 export const updateMTGJSONPrices = functions.https.onRequest(async (req, res) => {
+  // Configuration CORS
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Gérer les requêtes OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
   try {
     await downloadAndIndexPrices();
     res.json({ success: true, message: 'Prices updated successfully' });
@@ -196,6 +207,17 @@ export const scheduledUpdateMTGJSONPrices = functions.pubsub
  * GET /getCardPrice?cardName=Lightning Bolt&setCode=LEA
  */
 export const getCardPrice = functions.https.onRequest(async (req, res) => {
+  // Configuration CORS
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Gérer les requêtes OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
   try {
     const cardName = req.query.cardName as string;
     const setCode = req.query.setCode as string | undefined;
