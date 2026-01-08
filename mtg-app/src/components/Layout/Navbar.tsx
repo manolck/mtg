@@ -105,6 +105,13 @@ export function Navbar() {
                 {profile?.pseudonym || currentUser.email}
               </span>
             </Link>
+            <Link
+              to="/privacy-policy"
+              className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+              title="Politique de confidentialité"
+            >
+              Confidentialité
+            </Link>
             <Button variant="secondary" onClick={handleLogout}>
               Déconnexion
             </Button>

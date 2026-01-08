@@ -56,3 +56,25 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
+
+// Mock TextEncoder/TextDecoder for Node.js environment
+if (typeof global.TextEncoder === 'undefined') {
+  const { TextEncoder, TextDecoder } = require('util');
+  global.TextEncoder = TextEncoder;
+  global.TextDecoder = TextDecoder;
+}
+
+// Mock crypto.subtle for Node.js environment
+if (typeof global.crypto === 'undefined' || !global.crypto.subtle) {
+  const crypto = require('crypto');
+  global.crypto = {
+    ...global.crypto,
+    subtle: {
+      digest: jest.fn().mockImplementation(async (algorithm, data) => {
+        const hash = crypto.createHash('sha256');
+        hash.update(data);
+        return Buffer.from(hash.digest('hex'), 'hex');
+      }),
+    },
+  } as any;
+}

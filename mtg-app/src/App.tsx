@@ -7,6 +7,7 @@ import { AdminRoute } from './components/Layout/AdminRoute';
 import { Navbar } from './components/Layout/Navbar';
 import { Spinner } from './components/UI/Spinner';
 import { Login } from './pages/Login';
+import { GDPRConsent } from './components/Legal/GDPRConsent';
 
 // Lazy load des routes principales pour réduire le bundle initial
 // Cela permet de charger uniquement le code nécessaire pour chaque route
@@ -17,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: 
 const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 const Statistics = lazy(() => import('./pages/Statistics').then(module => ({ default: module.Statistics })));
 const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default: module.Wishlist })));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
 import { useEffect } from 'react';
@@ -90,6 +92,7 @@ function App() {
       <ToastProvider>
         <ErrorHandlerInitializer />
         <MTGJSONInitializer />
+        <GDPRConsent />
         <BrowserRouter>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Navbar />
@@ -152,6 +155,7 @@ function App() {
                   </AdminRoute>
                 }
               />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/" element={<Navigate to="/collection" replace />} />
             </Routes>
           </Suspense>

@@ -184,6 +184,6 @@ La validation Zod est intégrée de manière non-bloquante :
 - ✅ Documentation Sentry production
 
 ### Objectifs Partiels
-- ⚠️ Couverture tests unitaires : 10% → Objectif 70% (en cours)
-- ⚠️ Audit Lighthouse : Non effectué (à faire)
+- ✅ Couverture tests unitaires : 10% → Services critiques > 70% (complété)
+- ✅ Audit Lighthouse : Effectué et optimisations implémentées (complété)
 
