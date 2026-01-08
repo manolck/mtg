@@ -88,7 +88,7 @@ export function Collection() {
     try {
       setImporting(true);
       const text = await file.text();
-      setShowImportModal(false);
+      // Ne pas fermer le modal immédiatement, il se fermera automatiquement à 100%
       await importCSV(text, importMode === 'update');
       showSuccess('Import terminé avec succès');
       if (fileInputRef.current) {
@@ -96,10 +96,27 @@ export function Collection() {
       }
     } catch (err) {
       errorHandler.handleAndShowError(err);
+      // Fermer le modal en cas d'erreur
+      setShowImportModal(false);
     } finally {
       setImporting(false);
     }
   }, [importMode, importCSV, showSuccess]);
+
+  // Fermer automatiquement le modal d'import quand l'import est terminé à 100%
+  useEffect(() => {
+    if (importProgress && importProgress.current >= importProgress.total && importProgress.total > 0) {
+      // L'import est terminé, fermer le modal après un court délai pour voir le message de succès
+      const timer = setTimeout(() => {
+        setShowImportModal(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }, 1000); // 1 seconde pour voir le message "Terminé"
+      
+      return () => clearTimeout(timer);
+    }
+  }, [importProgress]);
 
   const handleDeleteAll = useCallback(async () => {
     try {
