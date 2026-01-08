@@ -4,7 +4,6 @@ import { db } from '../../services/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
-import { Link } from 'react-router-dom';
 
 interface GDPRConsentProps {
   onAccept?: () => void;
@@ -129,17 +128,18 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
 
           <p className="mt-4 text-gray-700 dark:text-gray-300">
             Pour plus d'informations, consultez notre{' '}
-            <Link
-              to="/privacy-policy"
+            <a
+              href="/privacy-policy"
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 // Ouvrir dans un nouvel onglet
                 window.open('/privacy-policy', '_blank');
               }}
             >
               Politique de Confidentialité
-            </Link>
+            </a>
             .
           </p>
         </div>
