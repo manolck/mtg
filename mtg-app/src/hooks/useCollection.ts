@@ -101,7 +101,9 @@ export function useCollection(userId?: string) {
       const cardsQuery = query(cardsRef);
       const snapshot = await getDocs(cardsQuery);
       
-      const cardsMap = new Map<string, UserCard>();
+      // Utiliser une Map basée sur la clé logique pour dédupliquer
+      const cardsByKeyMap = new Map<string, UserCard>();
+      const duplicateCardsToDelete: string[] = [];
       
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -111,12 +113,61 @@ export function useCollection(userId?: string) {
           createdAt: data.createdAt?.toDate() || new Date(),
         } as UserCard;
         
-        if (!cardsMap.has(card.id)) {
-          cardsMap.set(card.id, card);
+        const cardKey = getCardKey(card);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:106',message:'Loading card from collection',data:{cardId:card.id,cardName:card.name,setCode:card.setCode,set:card.set,collectorNumber:card.collectorNumber,language:card.language,quantity:card.quantity,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
+        if (cardsByKeyMap.has(cardKey)) {
+          // Doublon détecté : fusionner les quantités
+          const existingCard = cardsByKeyMap.get(cardKey)!;
+          const mergedQuantity = existingCard.quantity + card.quantity;
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:115',message:'DUPLICATE DETECTED in loaded collection - merging',data:{cardKey:cardKey,existingCardId:existingCard.id,duplicateCardId:card.id,existingQuantity:existingCard.quantity,duplicateQuantity:card.quantity,mergedQuantity:mergedQuantity},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+          // Garder la carte existante avec la quantité fusionnée
+          existingCard.quantity = mergedQuantity;
+          // Marquer la carte dupliquée pour suppression
+          duplicateCardsToDelete.push(card.id);
+        } else {
+          cardsByKeyMap.set(cardKey, card);
         }
       });
 
-      const allCardsArray = Array.from(cardsMap.values());
+      // Supprimer les doublons de Firestore en arrière-plan (sans bloquer l'affichage)
+      if (duplicateCardsToDelete.length > 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:127',message:'Deleting duplicate cards from Firestore',data:{duplicateCount:duplicateCardsToDelete.length,cardIds:duplicateCardsToDelete},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        // Supprimer les doublons en arrière-plan
+        Promise.all(duplicateCardsToDelete.map(cardId => {
+          const cardRef = doc(cardsRef, cardId);
+          return deleteDoc(cardRef).catch(err => {
+            console.warn(`Erreur lors de la suppression du doublon ${cardId}:`, err);
+          });
+        })).catch(err => {
+          console.warn('Erreur lors de la suppression des doublons:', err);
+        });
+        
+        // Mettre à jour les quantités fusionnées dans Firestore
+        const updatePromises = Array.from(cardsByKeyMap.values())
+          .filter(card => duplicateCardsToDelete.some(id => {
+            // Trouver si cette carte a été fusionnée
+            const duplicateCard = snapshot.docs.find(d => d.id !== card.id && getCardKey({...d.data(), id: d.id} as UserCard) === getCardKey(card));
+            return duplicateCard && duplicateCardsToDelete.includes(duplicateCard.id);
+          }))
+          .map(card => {
+            const cardRef = doc(cardsRef, card.id);
+            return updateDoc(cardRef, { quantity: card.quantity }).catch(err => {
+              console.warn(`Erreur lors de la mise à jour de la quantité pour ${card.id}:`, err);
+            });
+          });
+        Promise.all(updatePromises).catch(err => {
+          console.warn('Erreur lors de la mise à jour des quantités:', err);
+        });
+      }
+
+      const allCardsArray = Array.from(cardsByKeyMap.values());
       setAllCards(allCardsArray);
       setCards(allCardsArray.slice(0, displayedCount));
       setError(null);
@@ -550,8 +601,20 @@ export function useCollection(userId?: string) {
   }
 
   // Fonction pour générer une clé unique pour une carte
-  function getCardKey(card: { name: string; setCode?: string; collectorNumber?: string }): string {
-    return `${card.name}|${card.setCode || ''}|${card.collectorNumber || ''}`;
+  // Inclut la langue pour éviter les doublons entre cartes de langues différentes
+  function getCardKey(card: { name: string; setCode?: string; collectorNumber?: string; language?: string; set?: string }): string {
+    // Normaliser le nom (trim, lowercase) pour éviter les variations
+    const normalizedName = (card.name || '').trim().toLowerCase();
+    // Utiliser setCode en priorité, sinon set, sinon chaîne vide
+    const setCode = (card.setCode || card.set || '').toLowerCase();
+    const collectorNumber = (card.collectorNumber || '').trim();
+    // Inclure la langue dans la clé (par défaut 'en' si non spécifiée)
+    const language = (card.language || 'en').toLowerCase();
+    const key = `${normalizedName}|${setCode}|${collectorNumber}|${language}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:553',message:'getCardKey called',data:{cardName:card.name,setCode:card.setCode,collectorNumber:card.collectorNumber,language:card.language,generatedKey:key},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    return key;
   }
 
   // Fonction simple pour générer un hash d'une chaîne
@@ -664,26 +727,36 @@ export function useCollection(userId?: string) {
         details: [],
       });
 
-      // Charger la collection existante en mémoire pour le mode update
+      // Charger la collection existante en mémoire pour vérifier les doublons
+      // Maintenant nécessaire aussi en mode "add" pour éviter les doublons
       let existingCardsMap: Map<string, UserCard> = new Map();
-      if (updateMode) {
-        setImportProgress(prev => prev ? {
-          ...prev,
-          currentCard: 'Chargement de la collection existante...',
-        } : null);
+      setImportProgress(prev => prev ? {
+        ...prev,
+        currentCard: 'Chargement de la collection existante...',
+      } : null);
 
-        const existingSnapshot = await getDocs(cardsRef);
-        existingSnapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          const card: UserCard = {
-            id: docSnap.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-          } as UserCard;
-          const key = getCardKey(card);
+      const existingSnapshot = await getDocs(cardsRef);
+      existingSnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const card: UserCard = {
+          id: docSnap.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+        } as UserCard;
+        const key = getCardKey(card);
+        // #region agent log
+        if (existingCardsMap.has(key)) {
+          const existing = existingCardsMap.get(key)!;
+          fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:689',message:'DUPLICATE KEY in existingCardsMap (will merge quantities)',data:{cardKey:key,existingCardId:existing.id,newCardId:card.id,existingName:existing.name,newName:card.name,existingLanguage:existing.language,newLanguage:card.language,existingSetCode:existing.setCode,newSetCode:card.setCode,existingQuantity:existing.quantity,newQuantity:card.quantity},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+          // Si doublon détecté, garder celui avec la plus grande quantité ou le plus récent
+          if (card.quantity > existing.quantity || (card.quantity === existing.quantity && card.createdAt > existing.createdAt)) {
+            existingCardsMap.set(key, card);
+          }
+        } else {
           existingCardsMap.set(key, card);
-        });
-      }
+        }
+        // #endregion
+      });
 
       // Constantes pour l'optimisation
       const PARALLEL_BATCH_SIZE = 8; // Nombre de cartes à traiter en parallèle
@@ -736,52 +809,91 @@ export function useCollection(userId?: string) {
             const cardData = await searchCardData(parsedCard, preferFrench);
             const { mtgData, backMtgData, backImageUrl, backMultiverseid } = cardData;
             
-            // Pour le mode update, vérifier si la carte existe déjà
-            const cardKey = getCardKey(parsedCard);
-            const existingCard = updateMode ? existingCardsMap.get(cardKey) : null;
+            // Vérifier si la carte existe déjà (maintenant aussi en mode "add" pour éviter les doublons)
+            const cardKey = getCardKey({
+              name: parsedCard.name,
+              setCode: parsedCard.setCode,
+              collectorNumber: parsedCard.collectorNumber,
+              language: parsedCard.language || 'en',
+              set: parsedCard.set
+            });
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:768',message:'Checking for existing card',data:{cardName:parsedCard.name,setCode:parsedCard.setCode,collectorNumber:parsedCard.collectorNumber,language:parsedCard.language,updateMode:updateMode,cardKey:cardKey,existingCardFound:existingCardsMap.has(cardKey)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            const existingCard = existingCardsMap.get(cardKey);
             
             if (existingCard) {
-              // Mode update : comparer et mettre à jour seulement si différent
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:774',message:'Existing card found',data:{existingCardId:existingCard.id,existingCardName:existingCard.name,existingLanguage:existingCard.language,newLanguage:parsedCard.language,existingSetCode:existingCard.setCode,newSetCode:parsedCard.setCode,existingQuantity:existingCard.quantity,newQuantity:parsedCard.quantity,updateMode:updateMode},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
+              // Carte existante trouvée : mettre à jour ou fusionner selon le mode
               const targetQuantity = parsedCard.quantity || 1;
-              const needsUpdate = 
-                existingCard.quantity !== targetQuantity ||
-                existingCard.setCode !== parsedCard.setCode ||
-                existingCard.collectorNumber !== parsedCard.collectorNumber ||
-                existingCard.rarity !== parsedCard.rarity ||
-                existingCard.condition !== parsedCard.condition ||
-                existingCard.language !== parsedCard.language ||
-                !existingCard.mtgData ||
-                (mtgData && JSON.stringify(existingCard.mtgData) !== JSON.stringify(mtgData));
               
-              if (needsUpdate) {
+              if (updateMode) {
+                // Mode update : comparer et mettre à jour seulement si différent
+                const needsUpdate = 
+                  existingCard.quantity !== targetQuantity ||
+                  existingCard.setCode !== parsedCard.setCode ||
+                  existingCard.collectorNumber !== parsedCard.collectorNumber ||
+                  existingCard.rarity !== parsedCard.rarity ||
+                  existingCard.condition !== parsedCard.condition ||
+                  existingCard.language !== parsedCard.language ||
+                  !existingCard.mtgData ||
+                  (mtgData && JSON.stringify(existingCard.mtgData) !== JSON.stringify(mtgData));
+                
+                if (needsUpdate) {
+                  return {
+                    type: 'update' as const,
+                    cardId: existingCard.id,
+                    data: {
+                      quantity: targetQuantity,
+                      set: parsedCard.set || parsedCard.setCode || existingCard.set,
+                      setCode: parsedCard.setCode || existingCard.setCode,
+                      collectorNumber: parsedCard.collectorNumber || existingCard.collectorNumber,
+                      rarity: parsedCard.rarity || existingCard.rarity,
+                      condition: parsedCard.condition || existingCard.condition,
+                      language: parsedCard.language || existingCard.language || 'en',
+                      mtgData: mtgData || existingCard.mtgData,
+                      backImageUrl: backImageUrl || existingCard.backImageUrl,
+                      backMultiverseid: backMultiverseid || existingCard.backMultiverseid,
+                      backMtgData: backMtgData || existingCard.backMtgData,
+                    },
+                    status: 'updated' as CardImportStatus,
+                    message: `Mis à jour (quantité: ${existingCard.quantity} → ${targetQuantity})`,
+                  };
+                } else {
+                  return {
+                    type: 'skip' as const,
+                    status: 'skipped' as CardImportStatus,
+                    message: 'Aucun changement',
+                  };
+                }
+              } else {
+                // Mode add : fusionner les quantités pour éviter les doublons
+                const mergedQuantity = existingCard.quantity + targetQuantity;
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:810',message:'Duplicate card found in add mode - merging quantities',data:{cardName:parsedCard.name,existingCardId:existingCard.id,existingQuantity:existingCard.quantity,newQuantity:targetQuantity,mergedQuantity:mergedQuantity,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
                 return {
                   type: 'update' as const,
                   cardId: existingCard.id,
                   data: {
-                    quantity: targetQuantity,
-                    set: parsedCard.set || parsedCard.setCode || existingCard.set,
-                    setCode: parsedCard.setCode || existingCard.setCode,
-                    collectorNumber: parsedCard.collectorNumber || existingCard.collectorNumber,
-                    rarity: parsedCard.rarity || existingCard.rarity,
-                    condition: parsedCard.condition || existingCard.condition,
-                    language: parsedCard.language || existingCard.language || 'en',
+                    quantity: mergedQuantity,
+                    // Garder les autres champs existants sauf si de nouvelles données sont disponibles
                     mtgData: mtgData || existingCard.mtgData,
                     backImageUrl: backImageUrl || existingCard.backImageUrl,
                     backMultiverseid: backMultiverseid || existingCard.backMultiverseid,
                     backMtgData: backMtgData || existingCard.backMtgData,
                   },
                   status: 'updated' as CardImportStatus,
-                  message: `Mis à jour (quantité: ${existingCard.quantity} → ${targetQuantity})`,
-                };
-              } else {
-                return {
-                  type: 'skip' as const,
-                  status: 'skipped' as CardImportStatus,
-                  message: 'Aucun changement',
+                  message: `Quantité fusionnée (${existingCard.quantity} + ${targetQuantity} = ${mergedQuantity})`,
                 };
               }
             } else {
-              // Nouvelle carte à ajouter
+              // Nouvelle carte à ajouter (pas de doublon trouvé)
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:830',message:'Adding new card (no duplicate found)',data:{cardName:parsedCard.name,setCode:parsedCard.setCode,set:parsedCard.set,collectorNumber:parsedCard.collectorNumber,language:parsedCard.language,quantity:parsedCard.quantity,updateMode:updateMode,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+              // #endregion
               return {
                 type: 'add' as const,
                 data: {

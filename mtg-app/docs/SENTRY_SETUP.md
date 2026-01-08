@@ -218,4 +218,3 @@ Pour plus d'informations, voir [Sentry Pricing](https://sentry.io/pricing/).
 - [Documentation Sentry React](https://docs.sentry.io/platforms/javascript/guides/react/)
 - [Sentry Dashboard](https://sentry.io/)
 - [Guide de configuration](https://docs.sentry.io/platforms/javascript/guides/react/configuration/)
-
