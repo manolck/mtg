@@ -1,38 +1,25 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  where,
-  Timestamp,
-  type DocumentData,
-} from 'firebase/firestore';
-import { db } from './firebase';
+// src/services/wishlistService.ts
+import { pb } from './pocketbase';
 import type { WishlistItem } from '../types/card';
 import type { MTGCard } from '../types/card';
 
 /**
- * Nettoie un objet en retirant tous les champs undefined pour la compatibilité Firestore
+ * Nettoie un objet en retirant tous les champs undefined pour PocketBase
  */
-function cleanForFirestore(obj: any): any {
+function cleanForPocketBase(obj: any): any {
   if (obj === null || obj === undefined) {
     return null;
   }
   
   if (Array.isArray(obj)) {
-    return obj.map(item => cleanForFirestore(item));
+    return obj.map(item => cleanForPocketBase(item));
   }
   
   if (typeof obj === 'object' && obj.constructor === Object) {
     const cleaned: any = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value !== undefined) {
-        cleaned[key] = cleanForFirestore(value);
+        cleaned[key] = cleanForPocketBase(value);
       }
     }
     return cleaned;
@@ -42,177 +29,42 @@ function cleanForFirestore(obj: any): any {
 }
 
 /**
- * Convertit un document Firestore en WishlistItem
+ * Convertit un record PocketBase en WishlistItem
  */
-function firestoreToWishlistItem(docData: DocumentData, id: string): WishlistItem {
-  const data = docData;
+function recordToWishlistItem(record: any): WishlistItem {
   return {
-    id,
-    name: data.name || '',
-    quantity: data.quantity || 1,
-    set: data.set,
-    setCode: data.setCode,
-    collectorNumber: data.collectorNumber,
-    rarity: data.rarity,
-    language: data.language,
-    mtgData: data.mtgData,
-    userId: data.userId || '',
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
-    notes: data.notes,
-    targetPrice: data.targetPrice,
-    scryfallId: data.scryfallId,
+    id: record.id,
+    userId: typeof record.userId === 'string' ? record.userId : record.userId?.id || record.userId,
+    name: record.name,
+    quantity: record.quantity || 1,
+    set: record.set,
+    setCode: record.setCode,
+    collectorNumber: record.collectorNumber,
+    rarity: record.rarity,
+    language: record.language || 'en',
+    mtgData: record.mtgData,
+    notes: record.notes,
+    targetPrice: record.targetPrice,
+    scryfallId: record.scryfallId,
+    createdAt: new Date(record.created),
+    updatedAt: new Date(record.updated),
   };
 }
 
 /**
- * Récupère tous les items de la wishlist d'un utilisateur
+ * Récupère tous les items de wishlist d'un utilisateur
  */
 export async function getWishlistItems(userId: string): Promise<WishlistItem[]> {
-  try {
-    const wishlistRef = collection(db, 'users', userId, 'wishlist');
-    const q = query(wishlistRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => firestoreToWishlistItem(doc.data(), doc.id));
-  } catch (error) {
-    console.error('Error fetching wishlist items:', error);
-    throw error;
-  }
+  const records = await pb.collection('wishlist').getFullList({
+    filter: `userId = "${userId}"`,
+    sort: '-created',
+  });
+
+  return records.map(recordToWishlistItem);
 }
 
 /**
- * Récupère un item de wishlist par son ID
- */
-export async function getWishlistItem(userId: string, itemId: string): Promise<WishlistItem | null> {
-  try {
-    const itemRef = doc(db, 'users', userId, 'wishlist', itemId);
-    const itemSnap = await getDoc(itemRef);
-    
-    if (!itemSnap.exists()) {
-      return null;
-    }
-    
-    return firestoreToWishlistItem(itemSnap.data(), itemSnap.id);
-  } catch (error) {
-    console.error('Error fetching wishlist item:', error);
-    throw error;
-  }
-}
-
-/**
- * Ajoute un item à la wishlist
- */
-export async function addWishlistItem(
-  userId: string,
-  item: Omit<WishlistItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
-): Promise<string> {
-  try {
-    const wishlistRef = collection(db, 'users', userId, 'wishlist');
-    const now = Timestamp.now();
-    
-    const itemData = cleanForFirestore({
-      ...item,
-      userId,
-      createdAt: now,
-      updatedAt: now,
-    });
-    
-    const docRef = await addDoc(wishlistRef, itemData);
-    return docRef.id;
-  } catch (error) {
-    console.error('Error adding wishlist item:', error);
-    throw error;
-  }
-}
-
-/**
- * Met à jour un item de wishlist
- */
-export async function updateWishlistItem(
-  userId: string,
-  itemId: string,
-  updates: Partial<Omit<WishlistItem, 'id' | 'userId' | 'createdAt'>> & { updatedAt?: Date }
-): Promise<void> {
-  try {
-    const itemRef = doc(db, 'users', userId, 'wishlist', itemId);
-    const updateData: any = {
-      ...cleanForFirestore(updates),
-      updatedAt: Timestamp.now(),
-    };
-    
-    await updateDoc(itemRef, updateData);
-  } catch (error) {
-    console.error('Error updating wishlist item:', error);
-    throw error;
-  }
-}
-
-/**
- * Supprime un item de wishlist
- */
-export async function deleteWishlistItem(userId: string, itemId: string): Promise<void> {
-  try {
-    const itemRef = doc(db, 'users', userId, 'wishlist', itemId);
-    await deleteDoc(itemRef);
-  } catch (error) {
-    console.error('Error deleting wishlist item:', error);
-    throw error;
-  }
-}
-
-/**
- * Supprime tous les items de la wishlist
- */
-export async function deleteAllWishlistItems(userId: string): Promise<void> {
-  try {
-    const wishlistRef = collection(db, 'users', userId, 'wishlist');
-    const snapshot = await getDocs(wishlistRef);
-    
-    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-    await Promise.all(deletePromises);
-  } catch (error) {
-    console.error('Error deleting all wishlist items:', error);
-    throw error;
-  }
-}
-
-/**
- * Vérifie si une carte est déjà dans la wishlist
- */
-export async function isCardInWishlist(
-  userId: string,
-  cardName: string,
-  setCode?: string,
-  collectorNumber?: string
-): Promise<boolean> {
-  try {
-    const wishlistRef = collection(db, 'users', userId, 'wishlist');
-    let q = query(wishlistRef, where('name', '==', cardName));
-    
-    if (setCode) {
-      q = query(wishlistRef, where('name', '==', cardName), where('setCode', '==', setCode));
-    }
-    
-    if (setCode && collectorNumber) {
-      q = query(
-        wishlistRef,
-        where('name', '==', cardName),
-        where('setCode', '==', setCode),
-        where('collectorNumber', '==', collectorNumber)
-      );
-    }
-    
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
-  } catch (error) {
-    console.error('Error checking if card is in wishlist:', error);
-    return false;
-  }
-}
-
-/**
- * Crée un item de wishlist à partir d'une carte de collection
+ * Crée un item de wishlist à partir d'une carte
  */
 export function createWishlistItemFromCard(
   cardName: string,
@@ -228,7 +80,7 @@ export function createWishlistItemFromCard(
   return {
     name: cardName,
     quantity,
-    set: mtgData?.set,
+    set: mtgData?.set || setCode,
     setCode: setCode || mtgData?.set,
     collectorNumber: collectorNumber || mtgData?.number,
     rarity: rarity || mtgData?.rarity,
@@ -240,6 +92,76 @@ export function createWishlistItemFromCard(
   };
 }
 
+/**
+ * Ajoute un item à la wishlist
+ */
+export async function addWishlistItem(
+  userId: string,
+  item: Omit<WishlistItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const itemData = cleanForPocketBase({
+    userId,
+    ...item,
+  });
 
+  const record = await pb.collection('wishlist').create(itemData);
+  return record.id;
+}
 
+/**
+ * Met à jour un item de wishlist
+ */
+export async function updateWishlistItem(
+  userId: string,
+  itemId: string,
+  updates: Partial<Omit<WishlistItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
+): Promise<void> {
+  const updateData = cleanForPocketBase(updates);
+  await pb.collection('wishlist').update(itemId, updateData);
+}
 
+/**
+ * Supprime un item de wishlist
+ */
+export async function deleteWishlistItem(userId: string, itemId: string): Promise<void> {
+  await pb.collection('wishlist').delete(itemId);
+}
+
+/**
+ * Supprime tous les items de wishlist d'un utilisateur
+ */
+export async function deleteAllWishlistItems(userId: string): Promise<void> {
+  const items = await getWishlistItems(userId);
+  await Promise.all(items.map(item => pb.collection('wishlist').delete(item.id)));
+}
+
+/**
+ * Vérifie si une carte est dans la wishlist
+ */
+export async function isCardInWishlist(
+  userId: string,
+  cardName: string,
+  setCode?: string,
+  collectorNumber?: string
+): Promise<boolean> {
+  let filter = `userId = "${userId}" && name = "${cardName}"`;
+  
+  if (setCode) {
+    filter += ` && setCode = "${setCode}"`;
+  }
+  
+  if (collectorNumber) {
+    filter += ` && collectorNumber = "${collectorNumber}"`;
+  }
+
+  try {
+    const records = await pb.collection('wishlist').getFullList({
+      filter,
+      limit: 1,
+    });
+    return records.length > 0;
+  } catch (error) {
+    console.error('Error checking if card is in wishlist:', error);
+    return false;
+  }
+}

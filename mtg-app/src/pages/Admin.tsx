@@ -25,6 +25,9 @@ export function Admin() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  // État pour la confirmation de suppression
+  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<{ uid: string; email: string } | null>(null);
+
   useEffect(() => {
     loadUsers();
   }, []);
@@ -94,8 +97,9 @@ export function Admin() {
 
     try {
       setError('');
-      await deleteUserAccount(uid);
+      await deleteUserAccount(showDeleteUserConfirm.uid);
       setSuccess('Utilisateur supprimé avec succès');
+      setShowDeleteUserConfirm(null);
       await loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -339,6 +343,18 @@ export function Admin() {
           </div>
         )}
       </Modal>
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={!!showDeleteUserConfirm}
+        onClose={() => setShowDeleteUserConfirm(null)}
+        onConfirm={confirmDeleteUser}
+        title="Supprimer l'utilisateur"
+        message={`Êtes-vous sûr de vouloir supprimer l'utilisateur ${showDeleteUserConfirm?.email} ? Cette action est irréversible et supprimera toutes ses données.`}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
     </div>
   );
 }

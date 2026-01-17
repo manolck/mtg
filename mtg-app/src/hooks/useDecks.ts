@@ -1,14 +1,7 @@
+// src/hooks/useDecks.ts
 import { useState, useEffect } from 'react';
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from 'firebase/firestore';
-import { db } from '../services/firebase';
-import type { Deck, DeckCard } from '../types/deck';
+import * as deckService from '../services/deckService';
+import type { Deck } from '../types/deck';
 import { useAuth } from './useAuth';
 
 export function useDecks() {
@@ -31,19 +24,7 @@ export function useDecks() {
 
     try {
       setLoading(true);
-      const decksRef = collection(db, 'users', currentUser.uid, 'decks');
-      const snapshot = await getDocs(decksRef);
-      const decksData: Deck[] = [];
-
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        decksData.push({
-          id: docSnap.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as Deck);
-      });
-
+      const decksData = await deckService.getDecks(currentUser.uid);
       setDecks(decksData);
       setError(null);
     } catch (err) {
@@ -61,16 +42,9 @@ export function useDecks() {
 
     try {
       setError(null);
-      const decksRef = collection(db, 'users', currentUser.uid, 'decks');
-      const docRef = await addDoc(decksRef, {
-        name,
-        cards: [],
-        userId: currentUser.uid,
-        createdAt: new Date(),
-      });
-
+      const deck = await deckService.createDeck(currentUser.uid, name);
       await loadDecks();
-      return docRef.id;
+      return deck.id;
     } catch (err) {
       console.error('Error creating deck:', err);
       setError('Erreur lors de la création du deck');
@@ -83,33 +57,7 @@ export function useDecks() {
 
     try {
       setError(null);
-      const deckRef = doc(db, 'users', currentUser.uid, 'decks', deckId);
-      const deck = decks.find((d) => d.id === deckId);
-
-      if (!deck) {
-        throw new Error('Deck not found');
-      }
-
-      // Vérifier si la carte existe déjà dans le deck
-      const existingCardIndex = deck.cards.findIndex((c) => c.cardId === cardId);
-
-      let updatedCards: DeckCard[];
-      if (existingCardIndex >= 0) {
-        // Mettre à jour la quantité
-        updatedCards = [...deck.cards];
-        updatedCards[existingCardIndex] = {
-          ...updatedCards[existingCardIndex],
-          quantity: updatedCards[existingCardIndex].quantity + quantity,
-        };
-      } else {
-        // Ajouter la carte
-        updatedCards = [...deck.cards, { cardId, quantity }];
-      }
-
-      await updateDoc(deckRef, {
-        cards: updatedCards,
-      });
-
+      await deckService.addCardToDeck(deckId, cardId, quantity);
       await loadDecks();
     } catch (err) {
       console.error('Error adding card to deck:', err);
@@ -123,19 +71,7 @@ export function useDecks() {
 
     try {
       setError(null);
-      const deckRef = doc(db, 'users', currentUser.uid, 'decks', deckId);
-      const deck = decks.find((d) => d.id === deckId);
-
-      if (!deck) {
-        throw new Error('Deck not found');
-      }
-
-      const updatedCards = deck.cards.filter((c) => c.cardId !== cardId);
-
-      await updateDoc(deckRef, {
-        cards: updatedCards,
-      });
-
+      await deckService.removeCardFromDeck(deckId, cardId);
       await loadDecks();
     } catch (err) {
       console.error('Error removing card from deck:', err);
@@ -149,21 +85,7 @@ export function useDecks() {
 
     try {
       setError(null);
-      const deckRef = doc(db, 'users', currentUser.uid, 'decks', deckId);
-      const deck = decks.find((d) => d.id === deckId);
-
-      if (!deck) {
-        throw new Error('Deck not found');
-      }
-
-      const updatedCards = deck.cards.map((c) =>
-        c.cardId === cardId ? { ...c, quantity } : c
-      );
-
-      await updateDoc(deckRef, {
-        cards: updatedCards,
-      });
-
+      await deckService.updateCardQuantityInDeck(deckId, cardId, quantity);
       await loadDecks();
     } catch (err) {
       console.error('Error updating card quantity:', err);
@@ -176,8 +98,7 @@ export function useDecks() {
     if (!currentUser) return;
 
     try {
-      const deckRef = doc(db, 'users', currentUser.uid, 'decks', deckId);
-      await deleteDoc(deckRef);
+      await deckService.deleteDeck(deckId);
       await loadDecks();
     } catch (err) {
       console.error('Error deleting deck:', err);
@@ -198,4 +119,3 @@ export function useDecks() {
     refresh: loadDecks,
   };
 }
-

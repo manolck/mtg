@@ -1,43 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { collection, query, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit, startAfter, orderBy, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
-import { db } from '../services/firebase';
+// Remplacer ces imports Firebase
+// import { collection, query, getDocs, ... } from 'firebase/firestore';
+// import { db } from '../services/firebase';
+
+// Par ces imports PocketBase
+import { pb } from '../services/pocketbase';
+import * as collectionService from '../services/collectionService';
+import * as importService from '../services/importService';
 import { parseCSV } from '../services/csvParser';
 import { searchCardByName, searchCardsByName, searchCardByMultiverseId, searchCardByNameAndNumber } from '../services/mtgApi';
 import { searchCardByScryfallId, searchCardBySetAndNumber, searchCardByNameAndNumberScryfall } from '../services/scryfallApi';
 import type { MTGCard } from '../types/card';
 import type { UserCard } from '../types/card';
-import type { ImportReport, CardImportStatus } from '../types/import';
+import type { CardImportStatus } from '../types/import';
 import { useAuth } from './useAuth';
-import { useImports } from './useImports';
+// useImports n'est plus nécessaire car on utilise directement importService
 import type { UserProfile } from '../types/user';
 import { LRUCache } from '../utils/LRUCache';
 
-/**
- * Nettoie un objet en retirant tous les champs undefined pour la compatibilité Firestore
- * Firestore n'accepte pas les valeurs undefined
- */
-function cleanForFirestore(obj: any): any {
-  if (obj === null || obj === undefined) {
-    return null;
-  }
-  
-  if (Array.isArray(obj)) {
-    return obj.map(item => cleanForFirestore(item));
-  }
-  
-  if (typeof obj === 'object' && obj.constructor === Object) {
-    const cleaned: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      // Ne pas inclure les champs undefined
-      if (value !== undefined) {
-        cleaned[key] = cleanForFirestore(value);
-      }
-    }
-    return cleaned;
-  }
-  
-  return obj;
-}
 
 export interface ImportProgress {
   current: number;
@@ -48,20 +28,20 @@ export interface ImportProgress {
   skipped: number;
   details: Array<{
     cardName: string;
-    status: 'success' | 'error' | 'skipped';
+    status: CardImportStatus;
     message?: string;
   }>;
 }
 
 export function useCollection(userId?: string) {
   const { currentUser } = useAuth();
-  const { createImport, updateImportStatus, updateImportProgress, saveImportReport } = useImports();
+  // Note: Les imports sont maintenant gérés directement via importService dans importCSV
   const [cards, setCards] = useState<UserCard[]>([]);
   const [allCards, setAllCards] = useState<UserCard[]>([]); // Toutes les cartes chargées
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastVisibleDoc, setLastVisibleDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreCards, setHasMoreCards] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -75,28 +55,16 @@ export function useCollection(userId?: string) {
   );
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:76',message:'useEffect triggered',data:{userId,currentUserId:currentUser?.uid,hasCurrentUser:!!currentUser},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     // Si userId est 'all', charger toutes les collections
     if (userId === 'all') {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:79',message:'Loading all collections',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       loadAllCollections();
       setViewingUserId(null);
     } else {
       const targetUserId = userId || currentUser?.uid;
       if (targetUserId) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:84',message:'Loading collection for user',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         loadCollection(targetUserId);
         setViewingUserId(targetUserId);
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:87',message:'No user ID, clearing collection',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         setCards([]);
         setLoading(false);
         setViewingUserId(null);
@@ -105,148 +73,58 @@ export function useCollection(userId?: string) {
   }, [currentUser, userId]);
 
   async function loadCollection(targetUserId: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:94',message:'loadCollection started',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     try {
       setLoading(true);
       setLoadingMore(false);
-      const cardsRef = collection(db, 'users', targetUserId, 'collection');
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:101',message:'Before getDocs',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      // Charger toutes les cartes
-      const cardsQuery = query(cardsRef);
-      const snapshot = await getDocs(cardsQuery);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:103',message:'After getDocs',data:{docCount:snapshot.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
-      // OPTIMISATION : Créer une Map indexée par ID dès le début pour éviter les recherches linéaires O(n)
-      const docsByIdMap = new Map<string, typeof snapshot.docs[0]>();
-      snapshot.docs.forEach(docSnap => {
-        docsByIdMap.set(docSnap.id, docSnap);
-      });
-
-      // Utiliser une Map basée sur la clé logique pour dédupliquer
+      setError(null);
+  
+      // Utiliser le service PocketBase
+      const cards = await collectionService.getCollection(targetUserId);
+  
+      // Gérer les doublons (même logique qu'avant)
       const cardsByKeyMap = new Map<string, UserCard>();
       const duplicateCardsToDelete: string[] = [];
-      
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const card: UserCard = {
-          id: docSnap.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as UserCard;
-        
+  
+      cards.forEach((card) => {
         const cardKey = getCardKey(card);
         
         if (cardsByKeyMap.has(cardKey)) {
-          // Doublon détecté : fusionner les quantités
           const existingCard = cardsByKeyMap.get(cardKey)!;
           const mergedQuantity = existingCard.quantity + card.quantity;
-          // Garder la carte existante avec la quantité fusionnée
           existingCard.quantity = mergedQuantity;
-          // Marquer la carte dupliquée pour suppression
           duplicateCardsToDelete.push(card.id);
         } else {
           cardsByKeyMap.set(cardKey, card);
         }
       });
-
-      // Supprimer les doublons de Firestore en arrière-plan (sans bloquer l'affichage)
+  
+      // Supprimer les doublons en arrière-plan
       if (duplicateCardsToDelete.length > 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:152',message:'Processing duplicate cards',data:{duplicateCount:duplicateCardsToDelete.length,totalCards:cardsByKeyMap.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        
-        // OPTIMISATION : Utiliser la Map indexée par ID au lieu de find() - O(1) au lieu de O(n)
-        // Identifier les cartes à mettre à jour (celles qui ont été fusionnées)
-        const cardsToUpdate = new Map<string, UserCard>();
-        duplicateCardsToDelete.forEach(duplicateId => {
-          const duplicateDoc = docsByIdMap.get(duplicateId);
-          if (duplicateDoc) {
-            const duplicateData = duplicateDoc.data();
-            const duplicateCardKey = getCardKey({
-              name: duplicateData.name || '',
-              setCode: duplicateData.setCode || duplicateData.set || '',
-              collectorNumber: duplicateData.collectorNumber || '',
-              language: duplicateData.language || 'en',
-            });
-            const existingCard = cardsByKeyMap.get(duplicateCardKey);
-            if (existingCard) {
-              // La carte existante doit être mise à jour avec la nouvelle quantité fusionnée
-              cardsToUpdate.set(existingCard.id, existingCard);
-            }
-          }
-        });
-        
-        // OPTIMISATION : Utiliser des batches Firestore pour réduire le nombre d'appels
-        const FIRESTORE_BATCH_SIZE = 500;
-        const batches: Promise<void>[] = [];
-        
-        // Traiter les suppressions par batches
-        for (let i = 0; i < duplicateCardsToDelete.length; i += FIRESTORE_BATCH_SIZE) {
-          const batch = writeBatch(db);
-          const batchIds = duplicateCardsToDelete.slice(i, i + FIRESTORE_BATCH_SIZE);
-          
-          batchIds.forEach(cardId => {
-            const cardRef = doc(cardsRef, cardId);
-            batch.delete(cardRef);
-          });
-          
-          batches.push(batch.commit().catch(err => {
-            console.warn(`Erreur lors de la suppression du batch de doublons:`, err);
+        // Mettre à jour les quantités fusionnées
+        const cardsToUpdate = Array.from(cardsByKeyMap.values())
+          .filter(card => duplicateCardsToDelete.some(id => {
+            const duplicate = cards.find(c => c.id === id);
+            return duplicate && getCardKey(duplicate) === getCardKey(card);
           }));
-        }
-        
-        // Traiter les mises à jour par batches
-        const cardsToUpdateArray = Array.from(cardsToUpdate.values());
-        for (let i = 0; i < cardsToUpdateArray.length; i += FIRESTORE_BATCH_SIZE) {
-          const batch = writeBatch(db);
-          const batchCards = cardsToUpdateArray.slice(i, i + FIRESTORE_BATCH_SIZE);
-          
-          batchCards.forEach(card => {
-            const cardRef = doc(cardsRef, card.id);
-            batch.update(cardRef, { quantity: card.quantity });
-          });
-          
-          batches.push(batch.commit().catch(err => {
-            console.warn(`Erreur lors de la mise à jour du batch de quantités:`, err);
-          }));
-        }
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:180',message:'After processing duplicates',data:{updateCount:cardsToUpdateArray.length,deleteCount:duplicateCardsToDelete.length,batchCount:batches.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        
-        // Exécuter tous les batches en parallèle
-        Promise.all(batches).catch(err => {
-          console.warn('Erreur lors de la suppression/mise à jour des doublons:', err);
-        });
+  
+        // Supprimer les doublons
+        await collectionService.deleteCards(duplicateCardsToDelete);
+  
+        // Mettre à jour les quantités
+        await Promise.all(
+          cardsToUpdate.map(card => 
+            collectionService.updateCardQuantity(card.id, card.quantity)
+          )
+        );
       }
-
+  
       const allCardsArray = Array.from(cardsByKeyMap.values());
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:161',message:'Before setting cards',data:{allCardsCount:allCardsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       setAllCards(allCardsArray);
       setCards(allCardsArray);
-      setHasMoreCards(false); // Pour une collection spécifique, on charge tout d'un coup
+      setHasMoreCards(false);
       setError(null);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:165',message:'Setting loading to false',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       setLoading(false);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:167',message:'loadCollection completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:169',message:'loadCollection error',data:{errorMessage:err instanceof Error ? err.message : String(err)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       console.error('Error loading collection:', err);
       setError('Erreur lors du chargement de la collection');
       setLoading(false);
@@ -259,87 +137,69 @@ export function useCollection(userId?: string) {
       if (!loadMore) {
         setLoading(true);
         setAllCards([]);
-        setLastVisibleDoc(null);
+        setCurrentPage(1);
         setHasMoreCards(true);
       } else {
         setLoadingMore(true);
       }
       setError(null);
 
+      // Calculer la page à charger
+      const pageToLoad = loadMore ? (currentPage + 1) : 1;
       const BATCH_SIZE = 50;
-      const collectionsGroup = collectionGroup(db, 'collection');
-      
-      let cardsQuery = query(
-        collectionsGroup,
-        orderBy('createdAt', 'desc'),
-        limit(BATCH_SIZE)
-      );
-
-      if (loadMore && lastVisibleDoc) {
-        cardsQuery = query(
-          collectionsGroup,
-          orderBy('createdAt', 'desc'),
-          startAfter(lastVisibleDoc),
-          limit(BATCH_SIZE)
-        );
-      }
-      
-      const snapshot = await getDocs(cardsQuery);
-      
+  
+      // Récupérer les cartes via PocketBase
+      const result = await collectionService.getAllCollections(pageToLoad, BATCH_SIZE);
+  
       // Grouper par userId pour récupérer les profils
       const userMap = new Map<string, { cards: UserCard[]; userId: string }>();
       
-      snapshot.forEach((docSnap) => {
-        const userId = docSnap.ref.parent.parent?.id;
+      result.items.forEach((card) => {
+        const userId = card.userId;
         if (userId) {
           if (!userMap.has(userId)) {
             userMap.set(userId, { userId, cards: [] });
           }
-          
-          const data = docSnap.data();
-          const card: UserCard = {
-            id: docSnap.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
+          userMap.get(userId)!.cards.push({
+            ...card,
             ownerId: userId,
-          } as UserCard;
-          
-          userMap.get(userId)!.cards.push(card);
+          });
         }
       });
-
-      // Charger les profils pour chaque utilisateur (avec cache)
+  
+      // Charger les profils (même logique qu'avant avec cache)
       const allCards: UserCard[] = [];
       const profilePromises: Promise<void>[] = [];
-
+  
       for (const [userId, userData] of userMap) {
         const promise = (async () => {
-            try {
-            // Vérifier le cache d'abord
+          try {
             let profile = profileCacheRef.current.get(userId);
             
             if (profile === null) {
-              // null signifie soit pas dans le cache, soit expiré
-              // Charger le profil depuis Firestore
-              const profileRef = doc(db, 'users', userId, 'profile', 'data');
-              const profileSnap = await getDoc(profileRef);
+              // Charger le profil depuis PocketBase
+              const profileRecord = await pb.collection('users').getOne(userId, {
+                expand: 'profile',
+              });
               
-              if (profileSnap.exists()) {
-                const profileData = profileSnap.data();
+              if (profileRecord) {
                 profile = {
-                  ...profileData,
-                  createdAt: profileData.createdAt?.toDate() || new Date(),
-                  updatedAt: profileData.updatedAt?.toDate() || new Date(),
+                  uid: profileRecord.id,
+                  email: profileRecord.email,
+                  pseudonym: profileRecord.pseudonym,
+                  avatarId: profileRecord.avatarId || 'default',
+                  role: profileRecord.role || 'user',
+                  preferredLanguage: profileRecord.preferredLanguage || 'en',
+                  createdAt: new Date(profileRecord.created),
+                  updatedAt: new Date(profileRecord.updated),
                 } as UserProfile;
               } else {
                 profile = null;
               }
               
-              // Mettre à jour le cache
               profileCacheRef.current.set(userId, profile);
             }
-
-            // Ajouter les cartes avec le profil du propriétaire
+  
             userData.cards.forEach(card => {
               allCards.push({
                 ...card,
@@ -352,9 +212,7 @@ export function useCollection(userId?: string) {
             });
           } catch (err) {
             console.warn(`Error loading profile for user ${userId}:`, err);
-            // Mettre en cache un profil null pour éviter de réessayer immédiatement
             profileCacheRef.current.set(userId, null);
-            // Ajouter les cartes sans profil
             userData.cards.forEach(card => {
               allCards.push({
                 ...card,
@@ -366,41 +224,26 @@ export function useCollection(userId?: string) {
         
         profilePromises.push(promise);
       }
-
-      // Attendre que tous les profils soient chargés
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:268',message:'Before Promise.all for profiles',data:{profilePromisesCount:profilePromises.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
+  
       await Promise.all(profilePromises);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:270',message:'After Promise.all for profiles',data:{allCardsCount:allCards.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-
-      // Mettre à jour les cartes de manière atomique pour éviter le clignotement
+  
+      // Mettre à jour les cartes
       if (loadMore) {
-        // Ajouter les nouvelles cartes aux cartes existantes (éviter les doublons)
         setAllCards(prev => {
           const existingIds = new Set(prev.map(c => c.id));
           const uniqueNewCards = allCards.filter(c => !existingIds.has(c.id));
           const updated = uniqueNewCards.length > 0 ? [...prev, ...uniqueNewCards] : prev;
-          setCards(updated); // Mettre à jour cards aussi
+          setCards(updated);
           return updated;
         });
       } else {
-        // Remplacer les cartes (chargement initial)
         setAllCards(allCards);
         setCards(allCards);
       }
-
-      // Mettre à jour le dernier document visible et vérifier s'il y a plus de cartes
-      if (snapshot.docs.length > 0) {
-        setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1]);
-        setHasMoreCards(snapshot.docs.length === BATCH_SIZE);
-      } else {
-        setLastVisibleDoc(null);
-        setHasMoreCards(false);
-      }
-
+  
+      // Mettre à jour le statut de pagination
+      setCurrentPage(result.page);
+      setHasMoreCards(result.page < result.totalPages);
       setError(null);
       setLoading(false);
       setLoadingMore(false);
@@ -668,262 +511,125 @@ export function useCollection(userId?: string) {
 
   async function importCSV(csvContent: string, updateMode: boolean = false, importId?: string) {
     if (!currentUser) {
-      throw new Error('User not authenticated');
+      throw new Error('Vous devez être connecté pour importer des cartes');
     }
-
-    // Réinitialiser le flag d'annulation et de pause
-    importCancelledRef.current = false;
-    setIsImportPaused(false);
-    importPausedRef.current = false;
-
-    // Déclarer jobId avant le try pour qu'il soit accessible dans le catch
-    let jobId: string = importId || '';
-
+  
     try {
-      setError(null);
-      const cardsRef = collection(db, 'users', currentUser.uid, 'collection');
-
-      // Créer ou récupérer l'import job
-      let startIndex = 0;
-      let storedCsvContent: string | undefined = undefined;
-      let total: number;
-      
-      if (!jobId) {
-        // Nouvel import : parser le CSV et stocker le contenu
-        const parsedCardsForTotal = parseCSV(csvContent);
-        total = parsedCardsForTotal.length;
-        
-        // Générer un hash du CSV pour éviter les doublons
+      // Créer l'import job
+      let actualImportId = importId;
+      if (!actualImportId) {
+        // Calculer le hash du CSV pour identifier les doublons
         const csvHash = await hashString(csvContent);
-        
-        // Nouvel import : stocker le CSV pour permettre la reprise
-        jobId = await createImport(updateMode ? 'update' : 'add', csvHash, total, csvContent);
-        setCurrentImportId(jobId);
-        await updateImportStatus(jobId, 'running', 0);
-      } else {
-        // Reprendre un import existant
-        const importRef = doc(db, 'users', currentUser.uid, 'imports', jobId);
-        const importDoc = await getDoc(importRef);
-        if (importDoc.exists()) {
-          const importData = importDoc.data();
-          startIndex = importData.currentIndex || 0;
-          total = importData.totalCards || 0;
-          storedCsvContent = importData.csvContent; // Récupérer le CSV stocké
-          await updateImportStatus(jobId, 'running', startIndex);
-        } else {
-          throw new Error('Import job introuvable');
-        }
-        setCurrentImportId(jobId);
+        actualImportId = await importService.createImport(
+          currentUser.uid,
+          updateMode ? 'update' : 'add',
+          csvHash,
+          parseCSV(csvContent).length,
+          csvContent
+        );
+        setCurrentImportId(actualImportId);
       }
 
-      // Si on reprend un import et qu'on a le CSV stocké, l'utiliser
-      // Sinon, utiliser le CSV fourni en paramètre
-      const csvToUse = storedCsvContent || csvContent;
-      const parsedCards = parseCSV(csvToUse);
+      // Mettre à jour le statut
+      await importService.updateImportStatus(currentUser.uid, actualImportId, 'running');
+  
+      // Parser le CSV
+      const parsedCards = parseCSV(csvContent);
       
-      // Mettre à jour total si nécessaire (pour les nouveaux imports)
-      if (!total) {
-        total = parsedCards.length;
-      }
-
-      // Initialiser le rapport
-      const report: ImportReport = {
-        success: 0,
-        errors: 0,
-        skipped: 0,
-        updated: 0,
-        added: 0,
-        removed: 0,
-        details: [],
-      };
-
       // Initialiser la progression
-      setImportProgress({
-        current: startIndex,
-        total,
+      const progress: ImportProgress = {
+        current: 0,
+        total: parsedCards.length,
         currentCard: '',
         success: 0,
         errors: 0,
         skipped: 0,
         details: [],
-      });
-
-      // Charger la collection existante en mémoire pour vérifier les doublons
-      // Maintenant nécessaire aussi en mode "add" pour éviter les doublons
-      let existingCardsMap: Map<string, UserCard> = new Map();
-      setImportProgress(prev => prev ? {
-        ...prev,
-        currentCard: 'Chargement de la collection existante...',
-      } : null);
-
-      const existingSnapshot = await getDocs(cardsRef);
-      existingSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const card: UserCard = {
-          id: docSnap.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as UserCard;
-        const key = getCardKey(card);
-        if (existingCardsMap.has(key)) {
-          const existing = existingCardsMap.get(key)!;
-          // Si doublon détecté, garder celui avec la plus grande quantité ou le plus récent
-          if (card.quantity > existing.quantity || (card.quantity === existing.quantity && card.createdAt > existing.createdAt)) {
-            existingCardsMap.set(key, card);
-          }
-        } else {
-          existingCardsMap.set(key, card);
-        }
-      });
-
-      // Constantes pour l'optimisation
-      const PARALLEL_BATCH_SIZE = 8; // Nombre de cartes à traiter en parallèle
-      const FIRESTORE_BATCH_SIZE = 500; // Limite Firestore
-      const SAVE_PROGRESS_INTERVAL = 5; // Sauvegarder la progression tous les N cartes (réduit pour des mises à jour plus fréquentes)
-
-      // Traiter les cartes par lots parallèles
-      const cardsToProcess = parsedCards.slice(startIndex);
-      const writeBatchQueue: Array<{ type: 'add' | 'update' | 'delete'; cardId?: string; data?: any }> = [];
-      
+      };
+      setImportProgress(progress);
+  
+      // Traiter les cartes par lots
+      const PARALLEL_BATCH_SIZE = 5;
+      const cardsToProcess = [...parsedCards];
+  
       for (let i = 0; i < cardsToProcess.length; i += PARALLEL_BATCH_SIZE) {
-        // Vérifier si l'import est annulé ou en pause
         if (importCancelledRef.current) {
-          await updateImportStatus(jobId, 'cancelled', startIndex + i);
-          throw new Error('Import annulé par l\'utilisateur');
+          await importService.updateImportStatus(currentUser.uid, actualImportId, 'cancelled');
+          break;
         }
 
-        // Attendre si l'import est en pause (utiliser le ref pour avoir la valeur à jour)
-        while (importPausedRef.current && !importCancelledRef.current) {
-          await updateImportStatus(jobId, 'paused', startIndex + i);
-          await new Promise(resolve => setTimeout(resolve, 100));
+        if (importPausedRef.current) {
+          await importService.updateImportStatus(currentUser.uid, actualImportId, 'paused');
+          // Attendre la reprise
+          while (importPausedRef.current && !importCancelledRef.current) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          if (importCancelledRef.current) break;
+          await importService.updateImportStatus(currentUser.uid, actualImportId, 'running');
         }
-
-        if (importCancelledRef.current) {
-          await updateImportStatus(jobId, 'cancelled', startIndex + i);
-          throw new Error('Import annulé par l\'utilisateur');
-        }
-
+  
         const batch = cardsToProcess.slice(i, i + PARALLEL_BATCH_SIZE);
         
-        // Traiter le lot en parallèle
         const batchResults = await Promise.all(batch.map(async (parsedCard) => {
           try {
-            // Vérifier la pause avant chaque carte
-            if (importPausedRef.current && !importCancelledRef.current) {
-              // Attendre que la pause soit levée
-              while (importPausedRef.current && !importCancelledRef.current) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-              }
-            }
-            
-            if (importCancelledRef.current) {
-              throw new Error('Import annulé par l\'utilisateur');
-            }
-            
-            const cardLanguage = parsedCard.language || 'en';
-            const preferFrench = cardLanguage === 'fr' || cardLanguage === 'French';
-            
-            // Utiliser la fonction helper pour rechercher la carte
-            const cardData = await searchCardData(parsedCard, preferFrench);
-            const { mtgData, backMtgData, backImageUrl, backMultiverseid } = cardData;
-            
-            // Vérifier si la carte existe déjà (maintenant aussi en mode "add" pour éviter les doublons)
-            const cardKey = getCardKey({
+            progress.current++;
+            progress.currentCard = parsedCard.name;
+            setImportProgress({ ...progress });
+  
+            // Rechercher les données MTG
+            const cardData = await searchCardData(parsedCard, false);
+  
+            // Vérifier si la carte existe déjà
+            const existingCard = await collectionService.findCard(currentUser.uid, {
               name: parsedCard.name,
               setCode: parsedCard.setCode,
               collectorNumber: parsedCard.collectorNumber,
               language: parsedCard.language || 'en',
-              set: parsedCard.set
             });
-            const existingCard = existingCardsMap.get(cardKey);
-            
-            if (existingCard) {
-              // Carte existante trouvée : mettre à jour ou fusionner selon le mode
-              const targetQuantity = parsedCard.quantity || 1;
-              
-              if (updateMode) {
-                // Mode update : comparer et mettre à jour seulement si différent
-                const needsUpdate = 
-                  existingCard.quantity !== targetQuantity ||
-                  existingCard.setCode !== parsedCard.setCode ||
-                  existingCard.collectorNumber !== parsedCard.collectorNumber ||
-                  existingCard.rarity !== parsedCard.rarity ||
-                  existingCard.condition !== parsedCard.condition ||
-                  existingCard.language !== parsedCard.language ||
-                  !existingCard.mtgData ||
-                  (mtgData && JSON.stringify(existingCard.mtgData) !== JSON.stringify(mtgData));
-                
-                if (needsUpdate) {
-                  return {
-                    type: 'update' as const,
-                    cardId: existingCard.id,
-                    data: {
-                      quantity: targetQuantity,
-                      set: parsedCard.set || parsedCard.setCode || existingCard.set,
-                      setCode: parsedCard.setCode || existingCard.setCode,
-                      collectorNumber: parsedCard.collectorNumber || existingCard.collectorNumber,
-                      rarity: parsedCard.rarity || existingCard.rarity,
-                      condition: parsedCard.condition || existingCard.condition,
-                      language: parsedCard.language || existingCard.language || 'en',
-                      mtgData: mtgData || existingCard.mtgData,
-                      backImageUrl: backImageUrl || existingCard.backImageUrl,
-                      backMultiverseid: backMultiverseid || existingCard.backMultiverseid,
-                      backMtgData: backMtgData || existingCard.backMtgData,
-                    },
-                    status: 'updated' as CardImportStatus,
-                    message: `Mis à jour (quantité: ${existingCard.quantity} → ${targetQuantity})`,
-                  };
-                } else {
-                  return {
-                    type: 'skip' as const,
-                    status: 'skipped' as CardImportStatus,
-                    message: 'Aucun changement',
-                  };
-                }
-              } else {
-                // Mode add : fusionner les quantités pour éviter les doublons
-                const mergedQuantity = existingCard.quantity + targetQuantity;
-                return {
-                  type: 'update' as const,
-                  cardId: existingCard.id,
-                  data: {
-                    quantity: mergedQuantity,
-                    // Garder les autres champs existants sauf si de nouvelles données sont disponibles
-                    mtgData: mtgData || existingCard.mtgData,
-                    backImageUrl: backImageUrl || existingCard.backImageUrl,
-                    backMultiverseid: backMultiverseid || existingCard.backMultiverseid,
-                    backMtgData: backMtgData || existingCard.backMtgData,
-                  },
-                  status: 'updated' as CardImportStatus,
-                  message: `Quantité fusionnée (${existingCard.quantity} + ${targetQuantity} = ${mergedQuantity})`,
-                };
-              }
-            } else {
-              // Nouvelle carte à ajouter (pas de doublon trouvé)
+  
+            if (existingCard && updateMode) {
+              // Mettre à jour la quantité
+              const newQuantity = existingCard.quantity + (parsedCard.quantity || 1);
+              await collectionService.updateCardQuantity(existingCard.id, newQuantity);
+              progress.success++;
+              return {
+                type: 'update' as const,
+                status: 'success' as CardImportStatus,
+                message: `Quantité mise à jour: ${existingCard.quantity} → ${newQuantity}`,
+              };
+            } else if (!existingCard) {
+              // Créer une nouvelle carte
+              await collectionService.addCard({
+                userId: currentUser.uid,
+                name: parsedCard.name,
+                quantity: parsedCard.quantity || 1,
+                set: parsedCard.set || parsedCard.setCode || cardData.mtgData?.set,
+                setCode: parsedCard.setCode,
+                collectorNumber: parsedCard.collectorNumber,
+                rarity: parsedCard.rarity || cardData.mtgData?.rarity,
+                condition: parsedCard.condition,
+                language: parsedCard.language || 'en',
+                mtgData: cardData.mtgData || undefined,
+                backImageUrl: cardData.backImageUrl,
+                backMultiverseid: cardData.backMultiverseid,
+                backMtgData: cardData.backMtgData || undefined,
+              });
+              progress.success++;
               return {
                 type: 'add' as const,
-                data: {
-                  name: parsedCard.name,
-                  quantity: parsedCard.quantity || 1,
-                  set: parsedCard.set || parsedCard.setCode || mtgData?.set,
-                  setCode: parsedCard.setCode,
-                  collectorNumber: parsedCard.collectorNumber,
-                  rarity: parsedCard.rarity || mtgData?.rarity,
-                  condition: parsedCard.condition,
-                  language: parsedCard.language || 'en',
-                  mtgData: mtgData || null,
-                  backImageUrl: backImageUrl || null,
-                  backMultiverseid: backMultiverseid || null,
-                  backMtgData: backMtgData || null,
-                  userId: currentUser.uid,
-                  createdAt: new Date(),
-                },
-                status: 'added' as CardImportStatus,
+                status: 'success' as CardImportStatus,
                 message: `Ajoutée (quantité: ${parsedCard.quantity || 1})`,
+              };
+            } else {
+              progress.skipped++;
+              return {
+                type: 'skip' as const,
+                status: 'skipped' as CardImportStatus,
+                message: 'Déjà présente',
               };
             }
           } catch (err: any) {
-            console.error(`Error processing card ${parsedCard.name}:`, err);
+            progress.errors++;
             return {
               type: 'error' as const,
               status: 'error' as CardImportStatus,
@@ -931,179 +637,63 @@ export function useCollection(userId?: string) {
             };
           }
         }));
-
-        // Traiter les résultats du batch
-        batchResults.forEach((result, resultIndex) => {
-          const currentIndex = startIndex + i + resultIndex;
-          const parsedCard = batch[resultIndex];
-          
-          // Mettre à jour les statistiques dans le rapport
-          if (result.type === 'add') {
-            writeBatchQueue.push({ type: 'add', data: result.data });
-            report.added++;
-            report.success++;
-          } else if (result.type === 'update') {
-            writeBatchQueue.push({ type: 'update', cardId: result.cardId, data: result.data });
-            report.updated++;
-            report.success++;
-          } else if (result.type === 'skip') {
-            report.skipped++;
-          } else if (result.type === 'error') {
-            report.errors++;
-          }
-
-          report.details.push({
-            cardName: parsedCard.name,
+  
+        // Ajouter les détails
+        batchResults.forEach((result, index) => {
+          progress.details.push({
+            cardName: batch[index].name,
             status: result.status,
             message: result.message,
           });
-          
-          // Mettre à jour l'état de progression avec les statistiques à jour
-          setImportProgress(prev => prev ? {
-            ...prev,
-            current: currentIndex + 1,
-            currentCard: parsedCard.name,
-            success: report.success,
-            errors: report.errors,
-            skipped: report.skipped,
-          } : null);
         });
-
-        // Exécuter les écritures Firestore par batch
-        if (writeBatchQueue.length >= FIRESTORE_BATCH_SIZE) {
-          await executeWriteBatch(writeBatchQueue.splice(0, FIRESTORE_BATCH_SIZE), cardsRef);
-        }
-
-        // Sauvegarder la progression périodiquement (tous les SAVE_PROGRESS_INTERVAL cartes)
-        const currentProgressIndex = startIndex + i + PARALLEL_BATCH_SIZE;
-        const cardsProcessed = i + PARALLEL_BATCH_SIZE;
-        const shouldSaveProgress = 
-          cardsProcessed % SAVE_PROGRESS_INTERVAL === 0 || 
-          cardsProcessed >= cardsToProcess.length;
+  
+        setImportProgress({ ...progress });
         
-        if (shouldSaveProgress) {
-          await updateImportProgress(jobId, currentProgressIndex, {
-            success: report.success,
-            errors: report.errors,
-            skipped: report.skipped,
-            updated: report.updated,
-            added: report.added,
-          });
-        }
-      }
-
-      // Exécuter les écritures restantes
-      if (writeBatchQueue.length > 0) {
-        await executeWriteBatch(writeBatchQueue, cardsRef);
-      }
-
-      // Pour le mode update, identifier et supprimer les cartes obsolètes
-      if (updateMode) {
-        const csvCardKeys = new Set(parsedCards.map(card => getCardKey(card)));
-        const cardsToRemove: string[] = [];
-        
-        existingCardsMap.forEach((card, key) => {
-          if (!csvCardKeys.has(key)) {
-            cardsToRemove.push(card.id);
+        // Mettre à jour la progression dans PocketBase
+        await importService.updateImportProgress(
+          currentUser.uid,
+          actualImportId,
+          progress.current,
+          {
+            success: progress.success,
+            errors: progress.errors,
+            skipped: progress.skipped,
           }
+        );
+  
+        // Délai entre les lots
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+  
+      // Finaliser l'import
+      const finalStatus = importCancelledRef.current ? 'cancelled' : 'completed';
+      if (finalStatus === 'completed') {
+        await importService.saveImportReport(currentUser.uid, actualImportId, {
+          success: progress.success,
+          errors: progress.errors,
+          skipped: progress.skipped,
+          updated: 0,
+          added: progress.success,
+          removed: 0,
+          details: progress.details,
         });
-
-        if (cardsToRemove.length > 0) {
-          // Supprimer par batches
-          for (let j = 0; j < cardsToRemove.length; j += FIRESTORE_BATCH_SIZE) {
-            const batch = writeBatch(db);
-            const batchIds = cardsToRemove.slice(j, j + FIRESTORE_BATCH_SIZE);
-            
-            batchIds.forEach(cardId => {
-              batch.delete(doc(cardsRef, cardId));
-            });
-            
-            await batch.commit();
-            report.removed += batchIds.length;
-          }
-        }
+      } else {
+        await importService.updateImportStatus(currentUser.uid, actualImportId, finalStatus);
       }
 
-      // Sauvegarder le rapport final
-      await saveImportReport(jobId, report);
-      await updateImportStatus(jobId, 'completed');
-
-      // Mettre à jour la progression finale
-      setImportProgress(prev => prev ? {
-        ...prev,
-        current: total,
-        currentCard: 'Terminé',
-      } : null);
-
-      // Garder la progression quelques secondes pour voir le résumé
-      setTimeout(() => {
-        setImportProgress(null);
-        setCurrentImportId(null);
-      }, 3000);
-    } catch (err) {
-      console.error('Error importing CSV:', err);
-      setError('Erreur lors de l\'import CSV');
+      // Recharger la collection
+      const targetUserId = userId || currentUser.uid;
+      if (targetUserId && targetUserId !== 'all') {
+        await loadCollection(targetUserId);
+      }
+  
       setImportProgress(null);
-      setCurrentImportId(null);
-      
-      if (jobId) {
-        await updateImportStatus(jobId, 'failed', undefined, err instanceof Error ? err.message : 'Erreur inconnue');
+    } catch (err: any) {
+      console.error('Error importing CSV:', err);
+      if (currentImportId && currentUser) {
+        await importService.updateImportStatus(currentUser.uid, currentImportId, 'failed', undefined, err.message);
       }
-      
       throw err;
-    }
-  }
-
-  // Fonction helper pour exécuter un batch d'écritures Firestore
-  async function executeWriteBatch(
-    queue: Array<{ type: 'add' | 'update' | 'delete'; cardId?: string; data?: any }>,
-    cardsRef: any
-  ) {
-    if (queue.length === 0) return;
-
-    const batch = writeBatch(db);
-    const addsToProcess: any[] = [];
-    const localUpdates: UserCard[] = [];
-
-    // Séparer les ajouts des mises à jour/suppressions
-    for (const item of queue) {
-      if (item.type === 'add' && item.data) {
-        addsToProcess.push(item.data);
-      } else if (item.type === 'update' && item.cardId && item.data) {
-        batch.update(doc(cardsRef, item.cardId), cleanForFirestore(item.data));
-        // Mettre à jour localement
-        setCards(prev => prev.map(card => 
-          card.id === item.cardId 
-            ? { ...card, ...item.data }
-            : card
-        ));
-      } else if (item.type === 'delete' && item.cardId) {
-        batch.delete(doc(cardsRef, item.cardId));
-        setCards(prev => prev.filter(card => card.id !== item.cardId));
-      }
-    }
-
-    // Traiter les ajouts avec addDoc pour obtenir les IDs réels
-    for (const data of addsToProcess) {
-      const newCardRef = await addDoc(cardsRef, cleanForFirestore(data));
-      localUpdates.push({
-        id: newCardRef.id,
-        ...data,
-        createdAt: data.createdAt || new Date(),
-      } as UserCard);
-    }
-
-    // Exécuter le batch pour les updates/delete
-    // On commit toujours le batch même s'il est vide (Firestore gère cela)
-    await batch.commit();
-
-    // Ajouter les nouvelles cartes localement
-    if (localUpdates.length > 0) {
-      setCards(prev => {
-        const existingIds = new Set(prev.map(c => c.id));
-        const newCards = localUpdates.filter(c => !existingIds.has(c.id));
-        return [...prev, ...newCards];
-      });
     }
   }
 
@@ -1118,8 +708,7 @@ export function useCollection(userId?: string) {
     }
 
     try {
-      const cardRef = doc(db, 'users', currentUser!.uid, 'collection', cardId);
-      await deleteDoc(cardRef);
+      await collectionService.deleteCard(cardId);
       await loadCollection(currentUser!.uid);
     } catch (err) {
       console.error('Error deleting card:', err);
@@ -1134,31 +723,14 @@ export function useCollection(userId?: string) {
     }
 
     try {
-      const cardsRef = collection(db, 'users', currentUser!.uid, 'collection');
-      const snapshot = await getDocs(cardsRef);
-      
-      // Firestore limite les batches à 500 opérations, mais pour être sûr, utilisons 400
-      const BATCH_SIZE = 400;
-      const docRefs = snapshot.docs.map(docSnap => docSnap.ref);
+      const cards = await collectionService.getCollection(currentUser!.uid);
+      const cardIds = cards.map(c => c.id);
       
       // Mettre à jour l'état local immédiatement pour un feedback rapide
       setCards([]);
       
-      // Diviser en batches et supprimer progressivement
-      for (let i = 0; i < docRefs.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
-        const batchRefs = docRefs.slice(i, i + BATCH_SIZE);
-        
-        batchRefs.forEach((docRef) => {
-          batch.delete(docRef);
-        });
-        
-        // Commit chaque batch individuellement
-        await batch.commit();
-      }
-      
-      // Ne pas recharger la collection car on a déjà mis à jour l'état local
-      // Cela évite une transaction supplémentaire
+      // Supprimer toutes les cartes en parallèle
+      await collectionService.deleteCards(cardIds);
     } catch (err) {
       console.error('Error deleting all cards:', err);
       setError('Erreur lors de la suppression de la collection');
@@ -1174,11 +746,10 @@ export function useCollection(userId?: string) {
     }
 
     try {
-      const cardRef = doc(db, 'users', currentUser!.uid, 'collection', cardId);
-      await updateDoc(cardRef, {
-        quantity,
-      });
-      await loadCollection(currentUser!.uid);
+      await collectionService.updateCardQuantity(cardId, quantity);
+      // Mettre à jour l'état local
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, quantity } : c));
+      setAllCards(prev => prev.map(c => c.id === cardId ? { ...c, quantity } : c));
     } catch (err) {
       console.error('Error updating card quantity:', err);
       setError('Erreur lors de la mise à jour de la quantité');
@@ -1192,8 +763,8 @@ export function useCollection(userId?: string) {
     }
 
     try {
-      const cardRef = doc(db, 'users', currentUser!.uid, 'collection', cardId);
-      await updateDoc(cardRef, cleanForFirestore(updates));
+      await collectionService.updateCard(cardId, updates);
+      // Recharger la collection pour avoir les données à jour
       await loadCollection(currentUser!.uid);
     } catch (err) {
       console.error('Error updating card:', err);

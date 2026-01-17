@@ -3,6 +3,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useImports } from '../hooks/useImports';
 import { useCollection } from '../hooks/useCollection';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { errorHandler } from '../services/errorHandler';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -13,6 +14,7 @@ import { ImportReportModal } from '../components/Import/ImportReportModal';
 import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { AVATARS } from '../data/avatars';
+import { pb } from '../services/pocketbase';
 import type { ImportJob } from '../types/import';
 
 export function Profile() {
@@ -20,6 +22,7 @@ export function Profile() {
   const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
   const { importCSV, cancelImport } = useCollection();
   const { showSuccess, showError } = useToast();
+  const { currentUser } = useAuth();
   const [showCancelImportConfirm, setShowCancelImportConfirm] = useState(false);
   const [showDeleteImportConfirm, setShowDeleteImportConfirm] = useState<string | null>(null);
   const [pseudonym, setPseudonym] = useState('');
@@ -31,6 +34,13 @@ export function Profile() {
   const [resumeImportId, setResumeImportId] = useState<string | null>(null);
   const [resumeImporting, setResumeImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // État pour le changement de mot de passe
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // Initialiser le pseudonyme et la langue quand le profil est chargé
   useEffect(() => {
@@ -182,6 +192,73 @@ export function Profile() {
     }
   };
 
+  const handleChangePassword = async () => {
+    // Validation
+    if (!currentPassword.trim()) {
+      showError('Veuillez entrer votre mot de passe actuel');
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      showError('Veuillez entrer un nouveau mot de passe');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      showError('Le nouveau mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      showError('Les nouveaux mots de passe ne correspondent pas');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      showError('Le nouveau mot de passe doit être différent de l\'actuel');
+      return;
+    }
+
+    if (!currentUser) {
+      showError('Vous devez être connecté pour changer votre mot de passe');
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      // PocketBase nécessite une réauthentification avant de changer le mot de passe
+      // On se reconnecte avec l'email et le mot de passe actuel
+      await pb.collection('users').authWithPassword(currentUser.email!, currentPassword);
+
+      // Mettre à jour le mot de passe via l'API PocketBase
+      await pb.collection('users').update(currentUser.uid, {
+        password: newPassword,
+        passwordConfirm: newPassword,
+      });
+
+      // Réinitialiser le formulaire
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+      showSuccess('Mot de passe modifié avec succès !');
+    } catch (err: any) {
+      console.error('Error changing password:', err);
+      
+      // Gestion des erreurs spécifiques
+      if (err.status === 400 && err.message?.includes('password')) {
+        showError('Mot de passe actuel incorrect');
+      } else if (err.status === 400 && err.message?.includes('weak')) {
+        showError('Le nouveau mot de passe est trop faible');
+      } else {
+        errorHandler.handleAndShowError(err);
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const activeImports = imports.filter(imp => 
     imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
   );
@@ -328,6 +405,86 @@ export function Profile() {
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             L'email ne peut pas être modifié ici.
           </p>
+        </div>
+
+        {/* Change Password Section */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Mot de passe
+          </h2>
+          {!showPasswordForm ? (
+            <div>
+              <Button
+                onClick={() => setShowPasswordForm(true)}
+                variant="secondary"
+              >
+                Changer le mot de passe
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Mot de passe actuel
+                </label>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Entrez votre mot de passe actuel"
+                  disabled={changingPassword}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Nouveau mot de passe
+                </label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Entrez votre nouveau mot de passe (min. 6 caractères)"
+                  disabled={changingPassword}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Confirmer le nouveau mot de passe
+                </label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirmez votre nouveau mot de passe"
+                  disabled={changingPassword}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                  loading={changingPassword}
+                >
+                  Enregistrer le nouveau mot de passe
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                  variant="secondary"
+                  disabled={changingPassword}
+                >
+                  Annuler
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Le mot de passe doit contenir au moins 6 caractères.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Imports Section */}

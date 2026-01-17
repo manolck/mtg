@@ -1,6 +1,6 @@
+// src/components/Legal/GDPRConsent.tsx
 import { useState, useEffect } from 'react';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { pb } from '../../services/pocketbase';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
@@ -27,10 +27,15 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
     }
 
     try {
-      const consentRef = doc(db, 'users', currentUser.uid, 'legal', 'gdpr-consent');
-      const consentSnap = await getDoc(consentRef);
+      // Vérifier si le consentement existe dans la collection 'legal' ou dans le profil utilisateur
+      // Pour PocketBase, on peut stocker le consentement dans une collection séparée ou dans le profil
+      // Ici, on utilise une collection 'legal' avec une relation vers users
+      const consentRecords = await pb.collection('legal').getFullList({
+        filter: `userId = "${currentUser.uid}" && type = "gdpr-consent"`,
+        limit: 1,
+      });
 
-      if (!consentSnap.exists()) {
+      if (consentRecords.length === 0) {
         // Pas de consentement enregistré, afficher le modal
         setShow(true);
       }
@@ -48,10 +53,11 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
 
     try {
       setAccepting(true);
-      const consentRef = doc(db, 'users', currentUser.uid, 'legal', 'gdpr-consent');
-      await setDoc(consentRef, {
+      await pb.collection('legal').create({
+        userId: currentUser.uid,
+        type: 'gdpr-consent',
         accepted: true,
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         version: '1.0', // Version de la politique de confidentialité
       });
 
@@ -170,4 +176,3 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
     </Modal>
   );
 }
-
