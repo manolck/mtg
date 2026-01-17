@@ -531,7 +531,7 @@ export function useCollection(userId?: string) {
       }
 
       // Mettre à jour le statut
-      await importService.updateImportStatus(currentUser.uid, actualImportId, 'running');
+      await importService.updateImportStatus(actualImportId, 'running');
   
       // Parser le CSV
       const parsedCards = parseCSV(csvContent);
@@ -554,18 +554,18 @@ export function useCollection(userId?: string) {
   
       for (let i = 0; i < cardsToProcess.length; i += PARALLEL_BATCH_SIZE) {
         if (importCancelledRef.current) {
-          await importService.updateImportStatus(currentUser.uid, actualImportId, 'cancelled');
+          await importService.updateImportStatus(actualImportId, 'cancelled');
           break;
         }
 
         if (importPausedRef.current) {
-          await importService.updateImportStatus(currentUser.uid, actualImportId, 'paused');
+          await importService.updateImportStatus(actualImportId, 'paused');
           // Attendre la reprise
           while (importPausedRef.current && !importCancelledRef.current) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
           if (importCancelledRef.current) break;
-          await importService.updateImportStatus(currentUser.uid, actualImportId, 'running');
+          await importService.updateImportStatus(actualImportId, 'running');
         }
   
         const batch = cardsToProcess.slice(i, i + PARALLEL_BATCH_SIZE);
@@ -651,13 +651,24 @@ export function useCollection(userId?: string) {
         
         // Mettre à jour la progression dans PocketBase
         await importService.updateImportProgress(
-          currentUser.uid,
           actualImportId,
-          progress.current,
+          {
+            current: progress.current,
+            total: progress.total,
+            currentCard: progress.currentCard,
+            success: progress.success,
+            errors: progress.errors,
+            skipped: progress.skipped,
+            details: progress.details,
+          },
           {
             success: progress.success,
             errors: progress.errors,
             skipped: progress.skipped,
+            updated: 0,
+            added: progress.success,
+            removed: 0,
+            details: progress.details,
           }
         );
   
@@ -668,7 +679,7 @@ export function useCollection(userId?: string) {
       // Finaliser l'import
       const finalStatus = importCancelledRef.current ? 'cancelled' : 'completed';
       if (finalStatus === 'completed') {
-        await importService.saveImportReport(currentUser.uid, actualImportId, {
+        await importService.saveImportReport(actualImportId, {
           success: progress.success,
           errors: progress.errors,
           skipped: progress.skipped,
@@ -678,7 +689,7 @@ export function useCollection(userId?: string) {
           details: progress.details,
         });
       } else {
-        await importService.updateImportStatus(currentUser.uid, actualImportId, finalStatus);
+        await importService.updateImportStatus(actualImportId, finalStatus);
       }
 
       // Recharger la collection
@@ -690,8 +701,8 @@ export function useCollection(userId?: string) {
       setImportProgress(null);
     } catch (err: any) {
       console.error('Error importing CSV:', err);
-      if (currentImportId && currentUser) {
-        await importService.updateImportStatus(currentUser.uid, currentImportId, 'failed', undefined, err.message);
+      if (currentImportId) {
+        await importService.updateImportStatus(currentImportId, 'failed', undefined, err.message);
       }
       throw err;
     }

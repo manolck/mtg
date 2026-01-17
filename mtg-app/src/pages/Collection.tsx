@@ -5,7 +5,6 @@ import { useAllCollections } from '../hooks/useAllCollections';
 import { useDecks } from '../hooks/useDecks';
 import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
-import { useProfile } from '../hooks/useProfile';
 import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
@@ -22,9 +21,8 @@ import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 
 export function Collection() {
   const { currentUser } = useAuth();
-  const { profile: currentUserProfile } = useProfile();
   const { owners, loading: loadingOwners } = useAllCollections();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   
   const { 

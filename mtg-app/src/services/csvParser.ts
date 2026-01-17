@@ -1,5 +1,5 @@
 import type { ParsedCard } from '../types/card';
-import { validateParsedCard, validateParsedCards } from '../utils/validationSchemas';
+import { validateParsedCard } from '../utils/validationSchemas';
 
 interface CSVHeader {
   name?: number;

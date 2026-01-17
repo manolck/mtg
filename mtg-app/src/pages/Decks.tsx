@@ -7,7 +7,6 @@ import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
 import { Spinner } from '../components/UI/Spinner';
-import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 
 export function Decks() {
   const { decks, loading, error, createDeck, deleteDeck } = useDecks();
@@ -40,7 +39,8 @@ export function Decks() {
     setShowDeleteConfirm({ deckId, deckName });
   };
 
-  const confirmDeleteDeck = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _confirmDeleteDeck = async () => {
     if (!showDeleteConfirm) return;
     try {
       await deleteDeck(showDeleteConfirm.deckId);

@@ -11,7 +11,7 @@ const API_BASE_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL ||
   'https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net';
 
 // Cache en mémoire pour les prix recherchés
-const priceCache = new LRUCache<CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
+const priceCache = new LRUCache<string, CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
 
 export interface CardPrice {
   usd?: string;

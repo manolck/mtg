@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
 import { Modal } from '../components/UI/Modal';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { createUser, updateUser, deleteUserAccount, listUsers } from '../services/adminAuth';
 import type { UserProfile, AdminUser } from '../types/user';
 
@@ -347,7 +348,7 @@ export function Admin() {
       {/* Dialog de confirmation de suppression */}
       <ConfirmDialog
         isOpen={!!showDeleteUserConfirm}
-        onClose={() => setShowDeleteUserConfirm(null)}
+        onCancel={() => setShowDeleteUserConfirm(null)}
         onConfirm={confirmDeleteUser}
         title="Supprimer l'utilisateur"
         message={`Êtes-vous sûr de vouloir supprimer l'utilisateur ${showDeleteUserConfirm?.email} ? Cette action est irréversible et supprimera toutes ses données.`}

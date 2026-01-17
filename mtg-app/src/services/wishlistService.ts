@@ -112,7 +112,7 @@ export async function addWishlistItem(
  * Met à jour un item de wishlist
  */
 export async function updateWishlistItem(
-  userId: string,
+  _userId: string,
   itemId: string,
   updates: Partial<Omit<WishlistItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
@@ -123,7 +123,7 @@ export async function updateWishlistItem(
 /**
  * Supprime un item de wishlist
  */
-export async function deleteWishlistItem(userId: string, itemId: string): Promise<void> {
+export async function deleteWishlistItem(_userId: string, itemId: string): Promise<void> {
   await pb.collection('wishlist').delete(itemId);
 }
 

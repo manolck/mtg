@@ -28,7 +28,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+(globalThis as any).IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
@@ -58,21 +58,23 @@ afterAll(() => {
 });
 
 // Mock TextEncoder/TextDecoder for Node.js environment
-if (typeof global.TextEncoder === 'undefined') {
-  const { TextEncoder, TextDecoder } = require('util');
-  global.TextEncoder = TextEncoder;
-  global.TextDecoder = TextDecoder;
+if (typeof (globalThis as any).TextEncoder === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { TextEncoder, TextDecoder } = require('util') as typeof import('util');
+  (globalThis as any).TextEncoder = TextEncoder;
+  (globalThis as any).TextDecoder = TextDecoder;
 }
 
 // Mock crypto.subtle for Node.js environment
-if (typeof global.crypto === 'undefined' || !global.crypto.subtle) {
-  const crypto = require('crypto');
-  global.crypto = {
-    ...global.crypto,
+if (typeof (globalThis as any).crypto === 'undefined' || !(globalThis as any).crypto?.subtle) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const crypto = require('crypto') as typeof import('crypto');
+  (globalThis as any).crypto = {
+    ...(globalThis as any).crypto,
     subtle: {
-      digest: jest.fn().mockImplementation(async (algorithm, data) => {
+      digest: jest.fn().mockImplementation(async (_algorithm: string, data: ArrayBuffer) => {
         const hash = crypto.createHash('sha256');
-        hash.update(data);
+        hash.update(Buffer.from(data));
         return Buffer.from(hash.digest('hex'), 'hex');
       }),
     },

@@ -68,6 +68,7 @@ export async function fetchWithRetry(
   };
 
   let lastError: Error | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let lastStatus: number | undefined;
 
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {

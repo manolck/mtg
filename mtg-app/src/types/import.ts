@@ -19,16 +19,32 @@ export interface ImportReport {
 
 export interface ImportJob {
   id: string;
+  userId?: string; // Optionnel pour compatibilité avec PocketBase
   status: ImportStatus;
   mode: ImportMode;
   csvContentHash: string; // Hash du CSV pour éviter les doublons
   csvContent?: string; // Contenu du CSV stocké pour permettre la reprise
   totalCards: number;
   currentIndex: number;
+  progress?: ImportProgress; // Progression de l'import
   createdAt: Date; // Utilise Date au lieu de Timestamp | Date pour éviter les problèmes d'import
   updatedAt: Date;
   completedAt?: Date;
   report?: ImportReport;
   pausedAt?: Date;
   error?: string; // Message d'erreur si status === 'failed'
+}
+
+export interface ImportProgress {
+  current: number;
+  total: number;
+  currentCard?: string;
+  success: number;
+  errors: number;
+  skipped: number;
+  details?: Array<{
+    cardName: string;
+    status: CardImportStatus;
+    message?: string;
+  }>;
 }
