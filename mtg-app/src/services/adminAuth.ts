@@ -1,73 +1,68 @@
-import { doc, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
-import { db } from './firebase';
+// src/services/adminAuth.ts
+import { pb } from './pocketbase';
 import type { UserProfile, AdminUser } from '../types/user';
 
-const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY;
+/**
+ * Nettoie un objet en retirant tous les champs undefined pour PocketBase
+ */
+function cleanForPocketBase(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanForPocketBase(item));
+  }
+  
+  if (typeof obj === 'object' && obj.constructor === Object) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanForPocketBase(value);
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
 
 /**
- * Service pour gérer les utilisateurs en tant qu'admin
- * Utilise l'API REST Firebase Identity Toolkit
- * 
- * Note: Pour une vraie gestion admin, il faudrait utiliser Firebase Admin SDK
- * Cette implémentation utilise l'API REST avec des limitations
+ * Convertit un record PocketBase en UserProfile
  */
-
-interface CreateUserResponse {
-  uid: string;
-  email: string;
+function recordToUserProfile(record: any): UserProfile {
+  return {
+    uid: record.id,
+    email: record.email,
+    pseudonym: record.pseudonym,
+    avatarId: record.avatarId || 'default',
+    role: record.role || 'user',
+    preferredLanguage: record.preferredLanguage || 'en',
+    createdAt: new Date(record.created),
+    updatedAt: new Date(record.updated),
+  };
 }
 
 /**
  * Créer un nouvel utilisateur
- * Utilise l'API REST Firebase Identity Toolkit
  */
-export async function createUser(userData: AdminUser): Promise<CreateUserResponse> {
-  if (!API_KEY) {
-    throw new Error('Firebase API key is not configured');
-  }
-
+export async function createUser(userData: AdminUser): Promise<{ uid: string; email: string }> {
   try {
-    // Utiliser l'API REST Firebase Identity Toolkit pour créer l'utilisateur
-    const response = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: userData.email,
-          password: userData.password,
-          returnSecureToken: true,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create user');
-    }
-
-    const uid = data.localId;
-    const email = data.email;
-
-    // Créer le profil utilisateur dans Firestore
-    const profileRef = doc(db, 'users', uid, 'profile', 'data');
-    const profile: UserProfile = {
-      uid,
-      email,
+    // Créer l'utilisateur dans PocketBase
+    const record = await pb.collection('users').create({
+      email: userData.email,
+      password: userData.password,
+      passwordConfirm: userData.password,
       role: userData.role || 'user',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      pseudonym: userData.email.split('@')[0],
+      avatarId: 'default',
+      preferredLanguage: 'fr',
+    });
+
+    return {
+      uid: record.id,
+      email: record.email,
     };
-
-    await setDoc(profileRef, profile);
-
-    // Déconnecter l'utilisateur créé (car signUp le connecte automatiquement)
-    // On ne peut pas le faire directement, donc on laisse l'admin gérer cela
-
-    return { uid, email };
   } catch (error: any) {
     console.error('Error creating user:', error);
     throw new Error(error.message || 'Failed to create user');
@@ -76,35 +71,24 @@ export async function createUser(userData: AdminUser): Promise<CreateUserRespons
 
 /**
  * Mettre à jour un utilisateur
- * Note: Cette fonction nécessite que l'utilisateur soit connecté
- * Pour une vraie gestion admin, utiliser Firebase Admin SDK
  */
 export async function updateUser(uid: string, updates: { email?: string; password?: string; role?: 'admin' | 'user' }): Promise<void> {
   try {
-    // Mettre à jour le profil dans Firestore
-    const profileRef = doc(db, 'users', uid, 'profile', 'data');
-    const profileSnap = await getDoc(profileRef);
+    const updateData: any = cleanForPocketBase({
+      role: updates.role,
+    });
 
-    if (!profileSnap.exists()) {
-      throw new Error('User profile not found');
+    // Note: La mise à jour de l'email et du mot de passe nécessite des opérations spéciales dans PocketBase
+    if (updates.email) {
+      updateData.email = updates.email;
     }
 
-    const updateData: any = {
-      updatedAt: new Date(),
-    };
-
-    if (updates.role !== undefined) {
-      updateData.role = updates.role;
+    if (updates.password) {
+      updateData.password = updates.password;
+      updateData.passwordConfirm = updates.password;
     }
 
-    await setDoc(profileRef, updateData, { merge: true });
-
-    // Note: Pour mettre à jour l'email ou le mot de passe via l'API REST,
-    // il faudrait que l'utilisateur soit connecté ou utiliser Admin SDK
-    // Pour l'instant, on ne met à jour que le rôle dans Firestore
-    if (updates.email || updates.password) {
-      console.warn('Email and password updates require Firebase Admin SDK or user authentication');
-    }
+    await pb.collection('users').update(uid, updateData);
   } catch (error: any) {
     console.error('Error updating user:', error);
     throw new Error(error.message || 'Failed to update user');
@@ -113,81 +97,61 @@ export async function updateUser(uid: string, updates: { email?: string; passwor
 
 /**
  * Supprimer un utilisateur
- * Note: Cette fonction nécessite Firebase Admin SDK pour une vraie suppression
- * Cette implémentation supprime seulement le profil Firestore
+ * Note: Cette fonction supprime l'utilisateur et toutes ses données associées
  */
 export async function deleteUserAccount(uid: string): Promise<void> {
   try {
-    // Supprimer le profil dans Firestore
-    const profileRef = doc(db, 'users', uid, 'profile', 'data');
-    await setDoc(profileRef, {}, { merge: false });
+    // Supprimer toutes les données de l'utilisateur
+    // Collections
+    const collections = await pb.collection('collection').getFullList({
+      filter: `userId = "${uid}"`,
+    });
+    await Promise.all(collections.map(c => pb.collection('collection').delete(c.id)));
 
-    // Note: Pour supprimer vraiment l'utilisateur de Firebase Auth,
-    // il faudrait utiliser Firebase Admin SDK
-    // Cette fonction supprime seulement les données Firestore
-    console.warn('User account deletion requires Firebase Admin SDK. Only Firestore data was deleted.');
+    // Decks
+    const decks = await pb.collection('decks').getFullList({
+      filter: `userId = "${uid}"`,
+    });
+    await Promise.all(decks.map(d => pb.collection('decks').delete(d.id)));
+
+    // Imports
+    const imports = await pb.collection('imports').getFullList({
+      filter: `userId = "${uid}"`,
+    });
+    await Promise.all(imports.map(i => pb.collection('imports').delete(i.id)));
+
+    // Wishlist
+    const wishlist = await pb.collection('wishlist').getFullList({
+      filter: `userId = "${uid}"`,
+    });
+    await Promise.all(wishlist.map(w => pb.collection('wishlist').delete(w.id)));
+
+    // Legal (GDPR consent)
+    const legal = await pb.collection('legal').getFullList({
+      filter: `userId = "${uid}"`,
+    });
+    await Promise.all(legal.map(l => pb.collection('legal').delete(l.id)));
+
+    // Supprimer l'utilisateur lui-même
+    await pb.collection('users').delete(uid);
   } catch (error: any) {
-    console.error('Error deleting user:', error);
-    throw new Error(error.message || 'Failed to delete user');
+    console.error('Error deleting user account:', error);
+    throw new Error(error.message || 'Failed to delete user account');
   }
 }
 
 /**
  * Lister tous les utilisateurs
- * Récupère tous les profils depuis Firestore
  */
 export async function listUsers(): Promise<UserProfile[]> {
   try {
-    const usersRef = collection(db, 'users');
-    const usersSnapshot = await getDocs(usersRef);
-    const users: UserProfile[] = [];
-
-    for (const userDoc of usersSnapshot.docs) {
-      const profileRef = doc(db, 'users', userDoc.id, 'profile', 'data');
-      const profileSnap = await getDoc(profileRef);
-
-      if (profileSnap.exists()) {
-        const data = profileSnap.data();
-        users.push({
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as UserProfile);
-      }
-    }
-
-    return users.sort((a, b) => {
-      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
-      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
-      return dateB.getTime() - dateA.getTime();
+    const records = await pb.collection('users').getFullList({
+      sort: '-created',
     });
+
+    return records.map(recordToUserProfile);
   } catch (error: any) {
     console.error('Error listing users:', error);
     throw new Error(error.message || 'Failed to list users');
   }
 }
-
-/**
- * Obtenir les détails d'un utilisateur
- */
-export async function getUser(uid: string): Promise<UserProfile | null> {
-  try {
-    const profileRef = doc(db, 'users', uid, 'profile', 'data');
-    const profileSnap = await getDoc(profileRef);
-
-    if (!profileSnap.exists()) {
-      return null;
-    }
-
-    const data = profileSnap.data();
-    return {
-      ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
-    } as UserProfile;
-  } catch (error: any) {
-    console.error('Error getting user:', error);
-    throw new Error(error.message || 'Failed to get user');
-  }
-}
-

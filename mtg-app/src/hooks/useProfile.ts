@@ -1,6 +1,6 @@
+// src/hooks/useProfile.ts
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import * as profileService from '../services/profileService';
 import type { UserProfile } from '../types/user';
 import { useAuth } from './useAuth';
 import { getDefaultAvatar } from '../data/avatars';
@@ -36,32 +36,26 @@ export function useProfile() {
 
     try {
       setLoading(true);
-      const profileRef = doc(db, 'users', currentUser.uid, 'profile', 'data');
-      const profileSnap = await getDoc(profileRef);
+      let userProfile = await profileService.getProfile(currentUser.uid);
 
-      if (profileSnap.exists()) {
-        const data = profileSnap.data();
-        setProfile({
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as UserProfile);
-      } else {
+      if (!userProfile) {
         // Créer un profil par défaut
         const defaultAvatar = getDefaultAvatar();
-        const defaultProfile: UserProfile = {
-          uid: currentUser.uid,
-          email: currentUser.email || '',
-          pseudonym: currentUser.displayName || currentUser.email?.split('@')[0] || 'Joueur',
-          avatarId: defaultAvatar.id,
-          role: 'user',
-          preferredLanguage: 'fr', // Par défaut en français
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        await setDoc(profileRef, defaultProfile);
-        setProfile(defaultProfile);
+        userProfile = await profileService.createDefaultProfile(
+          currentUser.uid,
+          currentUser.email || ''
+        );
+        // S'assurer que l'avatar par défaut est défini
+        if (!userProfile.avatarId) {
+          userProfile = await profileService.updateProfile(currentUser.uid, {
+            avatarId: defaultAvatar.id,
+            pseudonym: currentUser.displayName || currentUser.email?.split('@')[0] || 'Joueur',
+            preferredLanguage: 'fr',
+          });
+        }
       }
+
+      setProfile(userProfile);
       setError(null);
     } catch (err) {
       console.error('Error loading profile:', err);
@@ -78,18 +72,12 @@ export function useProfile() {
 
     try {
       setError(null);
-      const profileRef = doc(db, 'users', currentUser.uid, 'profile', 'data');
-      
-      await updateDoc(profileRef, {
-        ...updates,
-        updatedAt: new Date(),
-      });
+      const updatedProfile = await profileService.updateProfile(currentUser.uid, updates);
 
       // Mettre à jour l'état local directement pour éviter un rechargement inutile
       setProfile(prev => prev ? {
         ...prev,
-        ...updates,
-        updatedAt: new Date(),
+        ...updatedProfile,
       } : null);
     } catch (err) {
       console.error('Error updating profile:', err);
@@ -97,7 +85,6 @@ export function useProfile() {
       throw err;
     }
   }
-
 
   return {
     profile,
@@ -107,4 +94,3 @@ export function useProfile() {
     refresh: loadProfile,
   };
 }
-

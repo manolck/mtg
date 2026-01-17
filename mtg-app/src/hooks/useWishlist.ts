@@ -1,6 +1,5 @@
+// src/hooks/useWishlist.ts
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, onSnapshot, orderBy, type Unsubscribe } from 'firebase/firestore';
-import { db } from '../services/firebase';
 import {
   getWishlistItems,
   addWishlistItem,
@@ -25,8 +24,6 @@ export function useWishlist(userId?: string) {
       return;
     }
 
-    let unsubscribe: Unsubscribe | null = null;
-
     const loadWishlist = async () => {
       try {
         setLoading(true);
@@ -35,43 +32,7 @@ export function useWishlist(userId?: string) {
         // Charger les items initiaux
         const initialItems = await getWishlistItems(userId);
         setItems(initialItems);
-
-        // Écouter les changements en temps réel
-        const wishlistRef = collection(db, 'users', userId, 'wishlist');
-        const q = query(wishlistRef, orderBy('createdAt', 'desc'));
-        
-        unsubscribe = onSnapshot(
-          q,
-          (snapshot) => {
-            const updatedItems = snapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                name: data.name || '',
-                quantity: data.quantity || 1,
-                set: data.set,
-                setCode: data.setCode,
-                collectorNumber: data.collectorNumber,
-                rarity: data.rarity,
-                language: data.language,
-                mtgData: data.mtgData,
-                userId: data.userId || '',
-                createdAt: data.createdAt?.toDate() || new Date(),
-                updatedAt: data.updatedAt?.toDate() || new Date(),
-                notes: data.notes,
-                targetPrice: data.targetPrice,
-                scryfallId: data.scryfallId,
-              } as WishlistItem;
-            });
-            setItems(updatedItems);
-            setLoading(false);
-          },
-          (err) => {
-            console.error('Error in wishlist snapshot:', err);
-            setError(err as Error);
-            setLoading(false);
-          }
-        );
+        setLoading(false);
       } catch (err) {
         console.error('Error loading wishlist:', err);
         setError(err as Error);
@@ -81,11 +42,8 @@ export function useWishlist(userId?: string) {
 
     loadWishlist();
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+    // Note: PocketBase ne supporte pas les subscriptions en temps réel comme Firestore
+    // Il faudrait implémenter un polling ou utiliser WebSockets si nécessaire
   }, [userId]);
 
   const addItem = useCallback(
@@ -116,7 +74,11 @@ export function useWishlist(userId?: string) {
           notes,
           targetPrice
         );
-        return await addWishlistItem(userId, item);
+        const itemId = await addWishlistItem(userId, item);
+        // Recharger la liste
+        const updatedItems = await getWishlistItems(userId);
+        setItems(updatedItems);
+        return itemId;
       } catch (err) {
         console.error('Error adding wishlist item:', err);
         throw err;
@@ -128,7 +90,7 @@ export function useWishlist(userId?: string) {
   const updateItem = useCallback(
     async (
       itemId: string,
-      updates: Partial<Omit<WishlistItem, 'id' | 'userId' | 'createdAt'>>
+      updates: Partial<Omit<WishlistItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
     ): Promise<void> => {
       if (!userId) {
         throw new Error('User ID is required');
@@ -136,6 +98,9 @@ export function useWishlist(userId?: string) {
 
       try {
         await updateWishlistItem(userId, itemId, updates);
+        // Recharger la liste
+        const updatedItems = await getWishlistItems(userId);
+        setItems(updatedItems);
       } catch (err) {
         console.error('Error updating wishlist item:', err);
         throw err;
@@ -152,6 +117,8 @@ export function useWishlist(userId?: string) {
 
       try {
         await deleteWishlistItem(userId, itemId);
+        // Mettre à jour localement
+        setItems(prev => prev.filter(item => item.id !== itemId));
       } catch (err) {
         console.error('Error removing wishlist item:', err);
         throw err;
@@ -167,6 +134,7 @@ export function useWishlist(userId?: string) {
 
     try {
       await deleteAllWishlistItems(userId);
+      setItems([]);
     } catch (err) {
       console.error('Error clearing wishlist:', err);
       throw err;
@@ -204,7 +172,3 @@ export function useWishlist(userId?: string) {
     checkIfInWishlist,
   };
 }
-
-
-
-

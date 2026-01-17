@@ -1,6 +1,6 @@
+// src/hooks/useImports.ts
 import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import * as importService from '../services/importService';
 import { useAuth } from './useAuth';
 import type { ImportJob, ImportStatus } from '../types/import';
 
@@ -24,26 +24,8 @@ export function useImports() {
 
     try {
       setLoading(true);
-      const importsRef = collection(db, 'users', currentUser.uid, 'imports');
+      const importsData = await importService.getImports(currentUser.uid);
       
-      // Récupérer sans orderBy pour éviter les problèmes d'index
-      // On triera côté client
-      const snapshot = await getDocs(importsRef);
-      
-      const importsData: ImportJob[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        importsData.push({
-          id: docSnap.id,
-          ...data,
-          csvContent: data.csvContent, // Inclure le CSV stocké
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          completedAt: data.completedAt?.toDate(),
-          pausedAt: data.pausedAt?.toDate(),
-        } as ImportJob);
-      });
-
       // Trier par date de création (plus récent en premier)
       importsData.sort((a, b) => {
         const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
@@ -51,10 +33,7 @@ export function useImports() {
         return dateB - dateA;
       });
 
-      // Limiter à 50 résultats
-      const limitedImports = importsData.slice(0, 50);
-
-      setImports(limitedImports);
+      setImports(importsData);
       setError(null);
     } catch (err: any) {
       console.error('Error loading imports:', err);
@@ -70,31 +49,15 @@ export function useImports() {
     }
 
     try {
-      const importsRef = collection(db, 'users', currentUser.uid, 'imports');
-      const now = Timestamp.now();
-      
-      // Pour Firestore, on utilise Timestamp, mais le type ImportJob utilise Date
-      // On convertira lors de la lecture avec .toDate()
-      // Stocker le CSV seulement s'il est fourni et pas trop volumineux (< 1MB)
-      const newImport: any = {
-        status: 'pending' as const,
+      const importId = await importService.createImport(
+        currentUser.uid,
         mode,
         csvContentHash,
         totalCards,
-        currentIndex: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      // Stocker le CSV si fourni et raisonnablement petit (limite Firestore: 1MB par document)
-      if (csvContent && csvContent.length < 900000) { // ~900KB pour laisser de la marge
-        newImport.csvContent = csvContent;
-      }
-
-      const docRef = await addDoc(importsRef, newImport);
-
+        csvContent
+      );
       await loadImports();
-      return docRef.id;
+      return importId;
     } catch (err) {
       console.error('Error creating import:', err);
       throw err;
@@ -107,29 +70,7 @@ export function useImports() {
     }
 
     try {
-      const importRef = doc(db, 'users', currentUser.uid, 'imports', importId);
-      const updateData: any = {
-        status,
-        updatedAt: Timestamp.now(),
-      };
-
-      if (currentIndex !== undefined) {
-        updateData.currentIndex = currentIndex;
-      }
-
-      if (status === 'paused') {
-        updateData.pausedAt = Timestamp.now();
-      }
-
-      if (status === 'completed') {
-        updateData.completedAt = Timestamp.now();
-      }
-
-      if (status === 'failed' && error) {
-        updateData.error = error;
-      }
-
-      await updateDoc(importRef, updateData);
+      await importService.updateImportStatus(currentUser.uid, importId, status, currentIndex, error);
       await loadImports();
     } catch (err) {
       console.error('Error updating import status:', err);
@@ -143,51 +84,23 @@ export function useImports() {
     }
 
     try {
-      const importRef = doc(db, 'users', currentUser.uid, 'imports', importId);
-      const updateData: any = {
-        currentIndex,
-        updatedAt: Timestamp.now(),
-      };
-
-      if (report) {
-        // Mettre à jour le rapport partiel
-        const importDoc = imports.find(imp => imp.id === importId);
-        const existingReport = importDoc?.report || {
-          success: 0,
-          errors: 0,
-          skipped: 0,
-          updated: 0,
-          added: 0,
-          removed: 0,
-          details: [],
-        };
-
-        updateData.report = {
-          ...existingReport,
-          ...report,
-          details: report.details 
-            ? [...(existingReport.details || []), ...report.details]
-            : existingReport.details,
-        };
-      }
-
-      await updateDoc(importRef, updateData);
-      // Ne pas recharger toute la liste à chaque mise à jour pour éviter les ralentissements
-      // On met à jour localement avec conversion correcte des données
+      await importService.updateImportProgress(currentUser.uid, importId, currentIndex, report);
+      
+      // Mettre à jour localement sans recharger toute la liste
       setImports(prev => prev.map(imp => {
         if (imp.id === importId) {
-          const updated: ImportJob = {
+          return {
             ...imp,
-            currentIndex: updateData.currentIndex,
+            currentIndex,
             updatedAt: new Date(),
-            report: updateData.report ? {
+            report: report ? {
               ...imp.report,
-              ...updateData.report,
-              // S'assurer que les détails sont correctement fusionnés
-              details: updateData.report.details || imp.report?.details || [],
+              ...report,
+              details: report.details 
+                ? [...(imp.report?.details || []), ...report.details]
+                : imp.report?.details,
             } : imp.report,
           };
-          return updated;
         }
         return imp;
       }));
@@ -203,13 +116,7 @@ export function useImports() {
     }
 
     try {
-      const importRef = doc(db, 'users', currentUser.uid, 'imports', importId);
-      await updateDoc(importRef, {
-        report,
-        status: 'completed',
-        completedAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
+      await importService.saveImportReport(currentUser.uid, importId, report);
       await loadImports();
     } catch (err) {
       console.error('Error saving import report:', err);
@@ -223,8 +130,7 @@ export function useImports() {
     }
 
     try {
-      const importRef = doc(db, 'users', currentUser.uid, 'imports', importId);
-      await deleteDoc(importRef);
+      await importService.deleteImport(currentUser.uid, importId);
       await loadImports();
     } catch (err) {
       console.error('Error deleting import:', err);
@@ -244,4 +150,3 @@ export function useImports() {
     loadImports,
   };
 }
-

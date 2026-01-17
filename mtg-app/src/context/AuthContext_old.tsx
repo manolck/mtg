@@ -1,6 +1,11 @@
-// src/context/AuthContext.tsx (version PocketBase)
 import { createContext, useContext, useEffect, useState } from 'react';
-import { pb } from '../services/pocketbase';
+import {
+  type User as FirebaseUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import { auth } from '../services/firebase';
 import type { User } from '../types/user';
 
 interface AuthContextType {
@@ -25,25 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est déjà authentifié
-    if (pb.authStore.isValid) {
-      const authModel = pb.authStore.model;
-      if (authModel) {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
         setCurrentUser({
-          uid: authModel.id,
-          email: authModel.email,
-          displayName: authModel.pseudonym || undefined,
-        });
-      }
-    }
-
-    // Écouter les changements d'authentification
-    pb.authStore.onChange((_token, model) => {
-      if (model) {
-        setCurrentUser({
-          uid: model.id,
-          email: model.email,
-          displayName: model.pseudonym || undefined,
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || undefined,
         });
       } else {
         setCurrentUser(null);
@@ -51,21 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    setLoading(false);
+    return unsubscribe;
   }, []);
 
   async function login(email: string, password: string) {
-    try {
-      await pb.collection('users').authWithPassword(email, password);
-      // currentUser sera mis à jour automatiquement via onChange
-    } catch (error: any) {
-      throw new Error(error.message || 'Erreur de connexion');
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   }
 
   async function logout() {
-    pb.authStore.clear();
-    setCurrentUser(null);
+    await signOut(auth);
   }
 
   const value: AuthContextType = {
@@ -77,3 +63,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+

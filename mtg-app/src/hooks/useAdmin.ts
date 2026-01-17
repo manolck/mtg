@@ -1,6 +1,6 @@
+// src/hooks/useAdmin.ts
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { pb } from '../services/pocketbase';
 import { useAuth } from './useAuth';
 
 export function useAdmin() {
@@ -19,12 +19,10 @@ export function useAdmin() {
       }
 
       try {
-        const profileRef = doc(db, 'users', currentUser.uid, 'profile', 'data');
-        const profileSnap = await getDoc(profileRef);
+        const profileRecord = await pb.collection('users').getOne(currentUser.uid);
 
-        if (profileSnap.exists()) {
-          const data = profileSnap.data();
-          const adminStatus = data.role === 'admin';
+        if (profileRecord) {
+          const adminStatus = profileRecord.role === 'admin';
           if (isMounted) {
             setIsAdmin(adminStatus);
           }
@@ -54,5 +52,3 @@ export function useAdmin() {
 
   return { isAdmin, loading };
 }
-
-

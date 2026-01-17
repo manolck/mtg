@@ -1,7 +1,7 @@
+// src/hooks/useAllCollections.ts
 import { useState, useEffect } from 'react';
-import { collection, getDocs, collectionGroup } from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { pb } from '../services/pocketbase';
+import * as collectionService from '../services/collectionService';
 import type { UserProfile } from '../types/user';
 import { useAuth } from './useAuth';
 
@@ -26,46 +26,41 @@ export function useAllCollections() {
       setLoading(true);
       setError(null);
 
-      // Utiliser collectionGroup pour récupérer toutes les collections
-      // Cela récupère toutes les sous-collections 'collection' de tous les utilisateurs
-      const collectionsGroup = collectionGroup(db, 'collection');
-      const snapshot = await getDocs(collectionsGroup);
+      // Récupérer toutes les cartes
+      const result = await collectionService.getAllCollections(1, 1000); // Récupérer beaucoup pour compter
       
       // Grouper par userId pour compter les cartes par utilisateur
-      const userMap = new Map<string, { cardCount: number; userId: string }>();
+      const userMap = new Map<string, number>();
       
-      snapshot.forEach((docSnap) => {
-        const userId = docSnap.ref.parent.parent?.id;
+      result.items.forEach((card) => {
+        const userId = card.userId;
         if (userId) {
-          if (!userMap.has(userId)) {
-            userMap.set(userId, { userId, cardCount: 0 });
-          }
-          userMap.get(userId)!.cardCount++;
+          userMap.set(userId, (userMap.get(userId) || 0) + 1);
         }
       });
 
       const ownersData: CollectionOwner[] = [];
 
       // Pour chaque utilisateur trouvé, récupérer le profil
-      for (const [userId, data] of userMap) {
+      for (const [userId, cardCount] of userMap) {
         try {
-          const profileRef = doc(db, 'users', userId, 'profile', 'data');
-          const profileSnap = await getDoc(profileRef);
+          const profileRecord = await pb.collection('users').getOne(userId);
           
-          let profile: UserProfile | null = null;
-          if (profileSnap.exists()) {
-            const profileData = profileSnap.data();
-            profile = {
-              ...profileData,
-              createdAt: profileData.createdAt?.toDate() || new Date(),
-              updatedAt: profileData.updatedAt?.toDate() || new Date(),
-            } as UserProfile;
-          }
+          const profile: UserProfile = {
+            uid: profileRecord.id,
+            email: profileRecord.email,
+            pseudonym: profileRecord.pseudonym,
+            avatarId: profileRecord.avatarId || 'default',
+            role: profileRecord.role || 'user',
+            preferredLanguage: profileRecord.preferredLanguage || 'en',
+            createdAt: new Date(profileRecord.created),
+            updatedAt: new Date(profileRecord.updated),
+          };
 
           ownersData.push({
             userId,
             profile,
-            cardCount: data.cardCount,
+            cardCount,
           });
         } catch (err) {
           console.warn(`Error loading profile for user ${userId}:`, err);
@@ -73,7 +68,7 @@ export function useAllCollections() {
           ownersData.push({
             userId,
             profile: null,
-            cardCount: data.cardCount,
+            cardCount,
           });
         }
       }
@@ -87,22 +82,21 @@ export function useAllCollections() {
       // Si c'est une erreur de permissions, on retourne au moins l'utilisateur actuel
       if (currentUser) {
         try {
-          const collectionRef = collection(db, 'users', currentUser.uid, 'collection');
-          const snapshot = await getDocs(collectionRef);
-          const cardCount = snapshot.size;
+          const cards = await collectionService.getCollection(currentUser.uid);
+          const cardCount = cards.length;
           
-          const profileRef = doc(db, 'users', currentUser.uid, 'profile', 'data');
-          const profileSnap = await getDoc(profileRef);
+          const profileRecord = await pb.collection('users').getOne(currentUser.uid);
           
-          let profile: UserProfile | null = null;
-          if (profileSnap.exists()) {
-            const data = profileSnap.data();
-            profile = {
-              ...data,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              updatedAt: data.updatedAt?.toDate() || new Date(),
-            } as UserProfile;
-          }
+          const profile: UserProfile = {
+            uid: profileRecord.id,
+            email: profileRecord.email,
+            pseudonym: profileRecord.pseudonym,
+            avatarId: profileRecord.avatarId || 'default',
+            role: profileRecord.role || 'user',
+            preferredLanguage: profileRecord.preferredLanguage || 'en',
+            createdAt: new Date(profileRecord.created),
+            updatedAt: new Date(profileRecord.updated),
+          };
 
           setOwners([{
             userId: currentUser.uid,
@@ -126,4 +120,3 @@ export function useAllCollections() {
     refresh: loadAllCollections,
   };
 }
-

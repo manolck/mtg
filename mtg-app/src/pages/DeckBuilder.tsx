@@ -5,8 +5,8 @@ import { useCollection } from '../hooks/useCollection';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { pb } from '../services/pocketbase';
+import * as collectionService from '../services/collectionService';
 import type { UserCard } from '../types/card';
 
 export function DeckBuilder() {
@@ -41,19 +41,14 @@ export function DeckBuilder() {
               quantity: deckCard.quantity,
             });
           } else {
-            // Si la carte n'est pas dans la collection, essayer de la charger depuis Firestore
+            // Si la carte n'est pas dans la collection, essayer de la charger depuis PocketBase
             try {
-              const cardDoc = await getDoc(
-                doc(db, 'users', deck.userId, 'collection', deckCard.cardId)
-              );
-              if (cardDoc.exists()) {
-                const data = cardDoc.data();
-                deckCardsData.push({
-                  id: cardDoc.id,
-                  ...data,
-                  quantity: deckCard.quantity,
-                  createdAt: data.createdAt?.toDate() || new Date(),
-                } as UserCard);
+              const cardRecord = await pb.collection('collection').getOne(deckCard.cardId);
+              if (cardRecord) {
+                const data = cardRecord;
+                const card = collectionService.recordToUserCard(cardRecord);
+                card.quantity = deckCard.quantity; // Utiliser la quantité du deck
+                deckCardsData.push(card);
               }
             } catch (err) {
               console.error(`Error loading card ${deckCard.cardId}:`, err);
