@@ -2,14 +2,17 @@ import { useState, useMemo, memo } from 'react';
 import type { UserCard } from '../../types/card';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
+import { LazyImage } from '../UI/LazyImage';
 
 interface CardDisplayProps {
   card: UserCard;
   allCardsWithSameName?: UserCard[]; // Toutes les cartes avec le même nom
   onAddToDeck?: (cardId: string) => void;
+  onAddToWishlist?: (card: UserCard) => void;
+  isInWishlist?: boolean; // Indique si la carte est déjà dans la wishlist
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
-  onReloadCard?: (cardId: string) => Promise<void>; // Fonction pour recharger la carte depuis l'API
+  onEdit?: (card: UserCard) => void; // Pour ouvrir un menu d'édition personnalisé
   showQuantity?: boolean;
   showActions?: boolean;
 }
@@ -17,10 +20,12 @@ interface CardDisplayProps {
 export const CardDisplay = memo(function CardDisplay({ 
   card, 
   allCardsWithSameName,
-  onAddToDeck, 
+  onAddToDeck,
+  onAddToWishlist,
+  isInWishlist = false,
   onDelete,
   onUpdateQuantity,
-  onReloadCard,
+  onEdit,
   showActions = false 
 }: CardDisplayProps) {
   const imageUrl = card.mtgData?.imageUrl;
@@ -33,7 +38,6 @@ export const CardDisplay = memo(function CardDisplay({
   const [showMenu, setShowMenu] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showEnlarged, setShowEnlarged] = useState(false);
-  const [reloading, setReloading] = useState(false);
 
   // Grouper les cartes par langue pour l'affichage au survol
   const cardGroups = useMemo(() => {
@@ -130,17 +134,13 @@ export const CardDisplay = memo(function CardDisplay({
                   transform: 'rotateY(0deg)',
                 }}
               >
-                <img
-                  src={imageUrl}
+                <LazyImage
+                  src={imageUrl || ''}
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
+                  priority="low"
+                  showPlaceholder={false}
                 />
               </div>
               {/* Face arrière */}
@@ -152,17 +152,13 @@ export const CardDisplay = memo(function CardDisplay({
                   transform: 'rotateY(180deg)',
                 }}
               >
-                <img
+                <LazyImage
                   src={backImageUrl}
                   alt={`${cardName} - Face arrière`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  loading="lazy"
-                  decoding="async"
-                  fetchPriority="low"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
+                  priority="low"
+                  showPlaceholder={false}
                 />
               </div>
             </div>
@@ -172,18 +168,13 @@ export const CardDisplay = memo(function CardDisplay({
             </div>
           </div>
         ) : imageUrl ? (
-          <img
+          <LazyImage
             src={imageUrl}
             alt={cardName}
             className="w-full h-full object-contain"
             style={{ borderRadius: '15px' }}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-            onError={(e) => {
-              // Fallback si l'image ne charge pas
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            priority="low"
+            showPlaceholder={false}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center p-4 relative">
@@ -234,42 +225,41 @@ export const CardDisplay = memo(function CardDisplay({
           </div>
         )}
 
-        {/* Bouton Recharger en haut à gauche - visible au survol */}
-        {onReloadCard && (
-          <div className={`absolute top-2 left-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  setReloading(true);
-                  await onReloadCard(card.id);
-                } catch (err) {
-                  console.error('Error reloading card:', err);
-                  alert('Erreur lors du rechargement de la carte');
-                } finally {
-                  setReloading(false);
-                }
-              }}
-              disabled={reloading}
-              className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Recharger la carte"
-            >
-              {reloading ? (
-                <svg className="w-5 h-5 text-gray-700 dark:text-gray-300 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        {/* Étoile wishlist - pleine toujours visible, vide uniquement au survol */}
+        {onAddToWishlist && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToWishlist(card);
+            }}
+            className={`absolute top-2 w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-200 z-20 ${isInWishlist ? 'left-2 opacity-100' : `right-2 ${showMenu ? 'opacity-100' : 'opacity-0'}`}`}
+            title={isInWishlist ? "Retirer de la wishlist" : "Ajouter à la wishlist"}
+          >
+              {isInWishlist ? (
+                // Étoile pleine (remplie) - en haut à gauche
+                <svg 
+                  className="w-5 h-5 text-yellow-600 dark:text-yellow-400" 
+                  fill="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
               ) : (
-                <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                // Étoile vide (contour seulement) - en haut à droite
+                <svg 
+                  className="w-5 h-5 text-yellow-600 dark:text-yellow-400" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
               )}
             </button>
-          </div>
         )}
 
         {/* Boutons d'action en haut à droite - visibles au survol */}
-        <div className={`absolute top-2 right-2 flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`absolute top-2 ${onAddToWishlist ? 'right-12' : 'right-2'} flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
           {/* Bouton Ajouter au deck */}
           {onAddToDeck && (
             <button
@@ -277,7 +267,7 @@ export const CardDisplay = memo(function CardDisplay({
                 e.stopPropagation();
                 onAddToDeck(card.id);
               }}
-              className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors"
+              className="w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors"
               title="Ajouter au deck"
             >
               <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -287,13 +277,17 @@ export const CardDisplay = memo(function CardDisplay({
           )}
 
           {/* Bouton Crayon pour modifier */}
-          {showActions && (onUpdateQuantity || onDelete) && (
+          {showActions && (onEdit || onUpdateQuantity || onDelete) && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setShowMenuModal(true);
+                if (onEdit) {
+                  onEdit(card);
+                } else {
+                  setShowMenuModal(true);
+                }
               }}
-              className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-700 transition-colors"
+              className="w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors"
               title="Modifier"
             >
               <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -307,11 +301,10 @@ export const CardDisplay = memo(function CardDisplay({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`Supprimer "${cardName}" de votre collection ?`)) {
-                  onDelete(card.id);
-                }
+                // La suppression est gérée par CardMenuModal avec ConfirmDialog
+                onDelete(card.id);
               }}
-              className="w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors"
               title="Supprimer"
             >
               <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -344,12 +337,12 @@ export const CardDisplay = memo(function CardDisplay({
         style={{ animation: 'fadeIn 0.2s ease-in-out' }}
       >
         <div
-          className="relative"
+          className="relative overflow-hidden"
           style={{
-            width: '80vw',
+            width: 'min(90vw, calc(90vh * 63 / 88))',
+            height: 'min(90vh, calc(90vw * 88 / 63))',
             aspectRatio: '63/88',
-            maxWidth: '90vw',
-            maxHeight: '90vh',
+            borderRadius: '25px',
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -385,14 +378,13 @@ export const CardDisplay = memo(function CardDisplay({
                     transform: 'rotateY(0deg)',
                   }}
                 >
-                  <img
-                    src={imageUrl}
+                  <LazyImage
+                    src={imageUrl || ''}
                     alt={`${cardName} - Face avant`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="high"
+                    priority="high"
+                    showPlaceholder={false}
                   />
                 </div>
                 {/* Face arrière */}
@@ -404,14 +396,13 @@ export const CardDisplay = memo(function CardDisplay({
                     transform: 'rotateY(180deg)',
                   }}
                 >
-                  <img
+                  <LazyImage
                     src={backImageUrl}
                     alt={`${cardName} - Face arrière`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="high"
+                    priority="high"
+                    showPlaceholder={false}
                   />
                 </div>
               </div>
@@ -421,14 +412,13 @@ export const CardDisplay = memo(function CardDisplay({
               </div>
             </div>
           ) : imageUrl ? (
-            <img
+            <LazyImage
               src={imageUrl}
               alt={cardName}
               className="w-full h-full object-contain rounded-lg shadow-2xl"
               style={{ borderRadius: '15px' }}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="high"
+              priority="high"
+              showPlaceholder={false}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-lg">
@@ -468,11 +458,12 @@ export const CardDisplay = memo(function CardDisplay({
     prevProps.card.ownerProfile?.pseudonym === nextProps.card.ownerProfile?.pseudonym &&
     prevProps.showActions === nextProps.showActions &&
     prevProps.showQuantity === nextProps.showQuantity &&
+    prevProps.isInWishlist === nextProps.isInWishlist &&
     // Comparer les références des fonctions (elles ne devraient pas changer)
     prevProps.onAddToDeck === nextProps.onAddToDeck &&
+    prevProps.onAddToWishlist === nextProps.onAddToWishlist &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onUpdateQuantity === nextProps.onUpdateQuantity &&
-    prevProps.onReloadCard === nextProps.onReloadCard &&
     // Comparer allCardsWithSameName par longueur et IDs (simplifié)
     (prevProps.allCardsWithSameName?.length ?? 0) === (nextProps.allCardsWithSameName?.length ?? 0)
   );

@@ -44,6 +44,7 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 VITE_FIREBASE_APP_ID=your-app-id
+
 ```
 
 Vous pouvez trouver ces valeurs dans Firebase Console > Project Settings > General > Your apps.

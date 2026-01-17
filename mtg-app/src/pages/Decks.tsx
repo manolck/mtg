@@ -1,47 +1,62 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDecks } from '../hooks/useDecks';
+import { useToast } from '../context/ToastContext';
+import { errorHandler } from '../services/errorHandler';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
+import { Spinner } from '../components/UI/Spinner';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 
 export function Decks() {
   const { decks, loading, error, createDeck, deleteDeck } = useDecks();
+  const { showSuccess, showError } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ deckId: string; deckName: string } | null>(null);
 
   const handleCreateDeck = async () => {
-    if (!newDeckName.trim()) return;
+    if (!newDeckName.trim()) {
+      showError('Le nom du deck ne peut pas être vide');
+      return;
+    }
 
     try {
       setIsCreating(true);
       await createDeck(newDeckName.trim());
       setShowCreateModal(false);
       setNewDeckName('');
+      showSuccess('Deck créé avec succès');
     } catch (err) {
-      console.error('Error creating deck:', err);
+      errorHandler.handleAndShowError(err);
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleDeleteDeck = async (deckId: string, deckName: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le deck "${deckName}" ?`)) {
-      return;
-    }
+    setShowDeleteConfirm({ deckId, deckName });
+  };
 
+  const confirmDeleteDeck = async () => {
+    if (!showDeleteConfirm) return;
     try {
-      await deleteDeck(deckId);
+      await deleteDeck(showDeleteConfirm.deckId);
+      showSuccess(`Deck "${showDeleteConfirm.deckName}" supprimé`);
+      setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('Error deleting deck:', err);
+      errorHandler.handleAndShowError(err);
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Chargement des decks...</p>
+        <div className="flex justify-center py-8">
+          <Spinner size="lg" />
+        </div>
       </div>
     );
   }
