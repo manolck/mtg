@@ -3,6 +3,7 @@ import type { UserCard } from '../../types/card';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
 import { LazyImage } from '../UI/LazyImage';
+import { useProfile } from '../../hooks/useProfile';
 
 interface CardDisplayProps {
   card: UserCard;
@@ -28,10 +29,50 @@ export const CardDisplay = memo(function CardDisplay({
   onEdit,
   showActions = false 
 }: CardDisplayProps) {
-  const imageUrl = card.mtgData?.imageUrl;
-  const backImageUrl = card.backImageUrl || card.backMtgData?.imageUrl;
-  const isDoubleFaced = card.mtgData?.layout === 'transform' || card.name.includes(' // ');
-  const cardName = card.name;
+  const { profile } = useProfile();
+  const preferredLanguage = profile?.preferredLanguage || 'en';
+  
+  // Déterminer le nom et l'image de la carte à afficher selon la langue préférée
+  const { cardName, imageUrl: displayImageUrl, backImageUrl: displayBackImageUrl } = useMemo(() => {
+    let name = card.name;
+    let image = card.mtgData?.imageUrl;
+    let backImage = card.backImageUrl || card.backMtgData?.imageUrl;
+    
+    // Si la langue préférée est le français et que des données françaises sont disponibles
+    if (preferredLanguage === 'fr' && card.mtgData?.foreignNames) {
+      const frenchName = card.mtgData.foreignNames.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName) {
+        // Utiliser le nom français si disponible
+        if (frenchName.name) {
+          name = frenchName.name;
+        }
+        // Utiliser l'image française si disponible
+        if (frenchName.imageUrl) {
+          image = frenchName.imageUrl;
+        }
+      }
+    }
+    
+    // Pour les cartes double-face, vérifier aussi les données françaises du verso
+    if (preferredLanguage === 'fr' && card.backMtgData?.foreignNames) {
+      const frenchBackName = card.backMtgData.foreignNames.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchBackName?.imageUrl) {
+        backImage = frenchBackName.imageUrl;
+      }
+    }
+    
+    return {
+      cardName: name,
+      imageUrl: image,
+      backImageUrl: backImage,
+    };
+  }, [card.name, card.mtgData?.foreignNames, card.mtgData?.imageUrl, card.backImageUrl, card.backMtgData?.foreignNames, card.backMtgData?.imageUrl, preferredLanguage]);
+  
+  const isDoubleFaced = card.mtgData?.layout === 'transform' || cardName.includes(' // ');
   
   const [showBackFace, setShowBackFace] = useState(false);
 
@@ -101,7 +142,7 @@ export const CardDisplay = memo(function CardDisplay({
     >
       {/* Image de la carte en entier */}
       <div className="relative w-full aspect-[63/88] bg-gray-100 dark:bg-gray-900">
-        {isDoubleFaced && backImageUrl ? (
+        {isDoubleFaced && displayBackImageUrl ? (
           // Carte double-face : animation de retournement 3D
           <div 
             className="relative w-full h-full cursor-pointer"
@@ -135,7 +176,7 @@ export const CardDisplay = memo(function CardDisplay({
                 }}
               >
                 <LazyImage
-                  src={imageUrl || ''}
+                  src={displayImageUrl || ''}
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
@@ -153,7 +194,7 @@ export const CardDisplay = memo(function CardDisplay({
                 }}
               >
                 <LazyImage
-                  src={backImageUrl}
+                  src={displayBackImageUrl}
                   alt={`${cardName} - Face arrière`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
@@ -167,9 +208,9 @@ export const CardDisplay = memo(function CardDisplay({
               {showBackFace ? 'Face arrière' : 'Face avant'}
             </div>
           </div>
-        ) : imageUrl ? (
+        ) : displayImageUrl ? (
           <LazyImage
-            src={imageUrl}
+            src={displayImageUrl}
             alt={cardName}
             className="w-full h-full object-contain"
             style={{ borderRadius: '15px' }}
@@ -346,7 +387,7 @@ export const CardDisplay = memo(function CardDisplay({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {isDoubleFaced && backImageUrl ? (
+          {isDoubleFaced && displayBackImageUrl ? (
             // Carte double-face en grand
             <div 
               className="relative w-full h-full cursor-pointer"
@@ -379,7 +420,7 @@ export const CardDisplay = memo(function CardDisplay({
                   }}
                 >
                   <LazyImage
-                    src={imageUrl || ''}
+                    src={displayImageUrl || ''}
                     alt={`${cardName} - Face avant`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
@@ -397,7 +438,7 @@ export const CardDisplay = memo(function CardDisplay({
                   }}
                 >
                   <LazyImage
-                    src={backImageUrl}
+                    src={displayBackImageUrl}
                     alt={`${cardName} - Face arrière`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}
@@ -411,9 +452,9 @@ export const CardDisplay = memo(function CardDisplay({
                 {showBackFace ? 'Face arrière' : 'Face avant'}
               </div>
             </div>
-          ) : imageUrl ? (
+          ) : displayImageUrl ? (
             <LazyImage
-              src={imageUrl}
+              src={displayImageUrl}
               alt={cardName}
               className="w-full h-full object-contain rounded-lg shadow-2xl"
               style={{ borderRadius: '15px' }}
@@ -453,7 +494,9 @@ export const CardDisplay = memo(function CardDisplay({
     prevProps.card.id === nextProps.card.id &&
     prevProps.card.quantity === nextProps.card.quantity &&
     prevProps.card.mtgData?.imageUrl === nextProps.card.mtgData?.imageUrl &&
+    prevProps.card.mtgData?.foreignNames === nextProps.card.mtgData?.foreignNames &&
     prevProps.card.backImageUrl === nextProps.card.backImageUrl &&
+    prevProps.card.backMtgData?.foreignNames === nextProps.card.backMtgData?.foreignNames &&
     prevProps.card.ownerProfile?.avatarId === nextProps.card.ownerProfile?.avatarId &&
     prevProps.card.ownerProfile?.pseudonym === nextProps.card.ownerProfile?.pseudonym &&
     prevProps.showActions === nextProps.showActions &&

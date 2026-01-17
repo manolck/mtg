@@ -222,17 +222,18 @@ export async function searchCards(
         allCards.map(card => enrichCardWithFrenchData(card, true))
       );
       
-      // Remplacer les noms par les versions françaises si disponibles
-      for (const card of enrichedCards) {
-        const frenchName = card.foreignNames?.find(
-          fn => fn.language === 'French' || fn.language === 'fr'
-        );
-        if (frenchName && frenchName.name) {
-          card.name = frenchName.name;
-          if (frenchName.type) card.type = frenchName.type;
-          if (frenchName.text) card.text = frenchName.text;
+        // Remplacer les noms et images par les versions françaises si disponibles
+        for (const card of enrichedCards) {
+          const frenchName = card.foreignNames?.find(
+            fn => fn.language === 'French' || fn.language === 'fr'
+          );
+          if (frenchName) {
+            if (frenchName.name) card.name = frenchName.name;
+            if (frenchName.type) card.type = frenchName.type;
+            if (frenchName.text) card.text = frenchName.text;
+            if (frenchName.imageUrl) card.imageUrl = frenchName.imageUrl; // Utiliser l'image française
+          }
         }
-      }
       
       return enrichedCards.slice(0, limit);
     }
@@ -389,10 +390,11 @@ export async function searchCardByName(
       const frenchName = mtgCard.foreignNames?.find(
         fn => fn.language === 'French' || fn.language === 'fr'
       );
-      if (frenchName && frenchName.name) {
-        mtgCard.name = frenchName.name;
+      if (frenchName) {
+        if (frenchName.name) mtgCard.name = frenchName.name;
         if (frenchName.type) mtgCard.type = frenchName.type;
         if (frenchName.text) mtgCard.text = frenchName.text;
+        if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl; // Utiliser l'image française
       }
     }
 

@@ -147,14 +147,15 @@ export async function searchCardByScryfallId(
     if (preferFrench) {
       mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Remplacer le nom par la version française si disponible
+      // Remplacer le nom et l'image par la version française si disponible
       const frenchName = mtgCard.foreignNames?.find(
         fn => fn.language === 'French' || fn.language === 'fr'
       );
-      if (frenchName && frenchName.name) {
-        mtgCard.name = frenchName.name;
+      if (frenchName) {
+        if (frenchName.name) mtgCard.name = frenchName.name;
         if (frenchName.type) mtgCard.type = frenchName.type;
         if (frenchName.text) mtgCard.text = frenchName.text;
+        if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl; // Utiliser l'image française
       }
     }
     
@@ -227,14 +228,15 @@ export async function searchCardBySetAndNumber(
     if (preferFrench) {
       mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Remplacer le nom par la version française si disponible
+      // Remplacer le nom et l'image par la version française si disponible
       const frenchName = mtgCard.foreignNames?.find(
         fn => fn.language === 'French' || fn.language === 'fr'
       );
-      if (frenchName && frenchName.name) {
-        mtgCard.name = frenchName.name;
+      if (frenchName) {
+        if (frenchName.name) mtgCard.name = frenchName.name;
         if (frenchName.type) mtgCard.type = frenchName.type;
         if (frenchName.text) mtgCard.text = frenchName.text;
+        if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl; // Utiliser l'image française
       }
     }
     
@@ -323,14 +325,15 @@ export async function searchCardByNameAndNumberScryfall(
     if (preferFrench) {
       mtgCard = await enrichCardWithFrenchData(mtgCard, true);
       
-      // Remplacer le nom par la version française si disponible
+      // Remplacer le nom et l'image par la version française si disponible
       const frenchName = mtgCard.foreignNames?.find(
         fn => fn.language === 'French' || fn.language === 'fr'
       );
-      if (frenchName && frenchName.name) {
-        mtgCard.name = frenchName.name;
+      if (frenchName) {
+        if (frenchName.name) mtgCard.name = frenchName.name;
         if (frenchName.type) mtgCard.type = frenchName.type;
         if (frenchName.text) mtgCard.text = frenchName.text;
+        if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl; // Utiliser l'image française
       }
     }
     
