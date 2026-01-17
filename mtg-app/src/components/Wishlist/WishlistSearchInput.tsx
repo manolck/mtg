@@ -599,7 +599,8 @@ export function WishlistSearchInput({
                           </div>
                         </div>
                       </button>
-                    ))}
+                      );
+                    })}
                     {/* Trigger pour charger plus de cartes de la collection */}
                     {collectionResults.length > displayedCollectionCount && (
                       <div 
@@ -697,7 +698,8 @@ export function WishlistSearchInput({
                           </div>
                         </div>
                       </button>
-                    ))}
+                      );
+                    })}
                     {/* Trigger pour charger plus de cartes Scryfall */}
                     {scryfallResults.length > displayedScryfallCount && (
                       <div 
