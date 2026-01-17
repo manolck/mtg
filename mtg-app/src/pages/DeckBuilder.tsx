@@ -45,7 +45,6 @@ export function DeckBuilder() {
             try {
               const cardRecord = await pb.collection('collection').getOne(deckCard.cardId);
               if (cardRecord) {
-                const data = cardRecord;
                 const card = collectionService.recordToUserCard(cardRecord);
                 card.quantity = deckCard.quantity; // Utiliser la quantité du deck
                 deckCardsData.push(card);

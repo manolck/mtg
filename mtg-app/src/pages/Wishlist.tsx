@@ -33,12 +33,14 @@ export function Wishlist() {
   
   // Charger toutes les collections de la communauté pour permettre les échanges/achats
   const { allCards: allCommunityCards } = useCollection('all');
+  
+  const { showSuccess, showError } = useToast();
 
   const [searchInput, setSearchInput] = useState('');
   const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('date');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [_showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedItemForMenu, setSelectedItemForMenu] = useState<WishlistItem | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -179,8 +181,9 @@ export function Wishlist() {
     }
   };
 
-  const handleDeleteAll = async () => {
-    setShowDeleteConfirm(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleDeleteAll = async () => {
+    setShowDeleteModal(true);
   };
 
   const confirmDeleteAll = async () => {
@@ -453,7 +456,7 @@ export function Wishlist() {
             onDelete={removeItem}
             showActions={true}
             gap={24}
-            renderCardWrapper={(card, index) => {
+            renderCardWrapper={(card) => {
               // Trouver l'item correspondant par ID
               const item = filteredItems.find(i => i.id === card.id);
               if (!item) return null;

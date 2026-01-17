@@ -1,6 +1,6 @@
 // src/services/importService.ts
 import { pb } from './pocketbase';
-import type { ImportJob, ImportStatus } from '../types/import';
+import type { ImportJob, ImportStatus, ImportReport } from '../types/import';
 
 /**
  * Nettoie un objet en retirant tous les champs undefined pour PocketBase
@@ -92,7 +92,6 @@ export async function createImport(
  * Met à jour le statut d'un import
  */
 export async function updateImportStatus(
-  userId: string,
   importId: string,
   status: ImportStatus,
   currentIndex?: number,
@@ -119,13 +118,12 @@ export async function updateImportStatus(
  * Met à jour la progression d'un import
  */
 export async function updateImportProgress(
-  userId: string,
   importId: string,
-  currentIndex: number,
-  report?: Partial<ImportJob['report']>
+  progress: Partial<ImportJob['progress']>,
+  report?: Partial<ImportReport>
 ): Promise<void> {
   const updateData: any = cleanForPocketBase({
-    currentIndex,
+    progress,
     report,
   });
 
@@ -135,7 +133,7 @@ export async function updateImportProgress(
 /**
  * Sauvegarde le rapport final d'un import
  */
-export async function saveImportReport(userId: string, importId: string, report: ImportJob['report']): Promise<void> {
+export async function saveImportReport(importId: string, report: ImportReport): Promise<void> {
   await pb.collection('imports').update(importId, {
     report,
     status: 'completed',
@@ -146,6 +144,6 @@ export async function saveImportReport(userId: string, importId: string, report:
 /**
  * Supprime un import
  */
-export async function deleteImport(userId: string, importId: string): Promise<void> {
+export async function deleteImport(importId: string): Promise<void> {
   await pb.collection('imports').delete(importId);
 }

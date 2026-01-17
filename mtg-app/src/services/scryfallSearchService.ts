@@ -20,7 +20,8 @@ const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
 
 let lastRequestTime = 0;
 
-async function delayBetweenRequests(): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _delayBetweenRequests(): Promise<void> {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
   if (timeSinceLastRequest < MIN_REQUEST_DELAY) {

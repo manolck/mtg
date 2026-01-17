@@ -12,7 +12,6 @@ import { Spinner } from '../components/UI/Spinner';
 import { ImportJobCard } from '../components/Import/ImportJobCard';
 import { ImportReportModal } from '../components/Import/ImportReportModal';
 import { Modal } from '../components/UI/Modal';
-import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { AVATARS } from '../data/avatars';
 import { pb } from '../services/pocketbase';
 import type { ImportJob } from '../types/import';
@@ -23,7 +22,7 @@ export function Profile() {
   const { importCSV, cancelImport } = useCollection();
   const { showSuccess, showError } = useToast();
   const { currentUser } = useAuth();
-  const [showCancelImportConfirm, setShowCancelImportConfirm] = useState(false);
+  const [_showCancelImportConfirm, _setShowCancelImportConfirm] = useState(false);
   const [showDeleteImportConfirm, setShowDeleteImportConfirm] = useState<string | null>(null);
   const [pseudonym, setPseudonym] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'fr'>('en');
@@ -157,11 +156,12 @@ export function Profile() {
   };
 
   const handleCancelImport = async (importId: string) => {
-    setShowCancelImportConfirm(true);
+    _setShowCancelImportConfirm(true);
     setResumeImportId(importId);
   };
 
-  const confirmCancelImport = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _confirmCancelImport = async () => {
     if (!resumeImportId) return;
     try {
       await updateImportStatus(resumeImportId, 'cancelled');
@@ -181,7 +181,8 @@ export function Profile() {
     setShowDeleteImportConfirm(importId);
   };
 
-  const confirmDeleteImport = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _confirmDeleteImport = async () => {
     if (!showDeleteImportConfirm) return;
     try {
       await deleteImport(showDeleteImportConfirm);

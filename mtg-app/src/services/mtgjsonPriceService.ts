@@ -18,7 +18,7 @@ const MTGJSON_LAST_UPDATE_KEY = 'mtgjson_last_update';
 const UPDATE_INTERVAL_DAYS = 60; // Mise à jour tous les 2 mois (60 jours)
 
 // Cache en mémoire pour les prix recherchés
-const priceCache = new LRUCache<CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
+const priceCache = new LRUCache<string, CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
 
 export interface CardPrice {
   usd?: string;

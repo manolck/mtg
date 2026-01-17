@@ -52,7 +52,7 @@ class ErrorHandler {
           ],
           tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
           // Capture des erreurs non gérées
-          beforeSend(event, hint) {
+          beforeSend(event) {
             // Filtrer les erreurs de développement si nécessaire
             if (import.meta.env.DEV && event.exception) {
               console.log('Sentry would capture:', event);

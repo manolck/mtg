@@ -45,6 +45,11 @@ async function loadCardsDatabase(): Promise<MagicCorporationCard[]> {
     cardsByFrenchName = new Map();
     cardsByEnglishName = new Map();
     
+    if (!cardsDatabase || !Array.isArray(cardsDatabase)) {
+      cardsDatabase = [];
+      return cardsDatabase;
+    }
+    
     for (const card of cardsDatabase) {
       // Index par nom français
       if (card.nameVf) {

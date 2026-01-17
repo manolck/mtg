@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import * as importService from '../services/importService';
 import { useAuth } from './useAuth';
-import type { ImportJob, ImportStatus } from '../types/import';
+import type { ImportJob, ImportStatus, ImportReport } from '../types/import';
 
 export function useImports() {
   const { currentUser } = useAuth();
@@ -70,7 +70,7 @@ export function useImports() {
     }
 
     try {
-      await importService.updateImportStatus(currentUser.uid, importId, status, currentIndex, error);
+      await importService.updateImportStatus(importId, status, currentIndex, error);
       await loadImports();
     } catch (err) {
       console.error('Error updating import status:', err);
@@ -78,28 +78,60 @@ export function useImports() {
     }
   }
 
-  async function updateImportProgress(importId: string, currentIndex: number, report?: Partial<ImportJob['report']>) {
+  async function updateImportProgress(importId: string, progress: Partial<ImportJob['progress']>, report?: Partial<ImportJob['report']>) {
     if (!currentUser) {
       throw new Error('User not authenticated');
     }
 
     try {
-      await importService.updateImportProgress(currentUser.uid, importId, currentIndex, report);
+      await importService.updateImportProgress(importId, progress, report);
       
       // Mettre à jour localement sans recharger toute la liste
       setImports(prev => prev.map(imp => {
         if (imp.id === importId) {
+          const updatedReport: ImportReport | undefined = report && imp.report ? {
+            success: report.success ?? imp.report.success,
+            errors: report.errors ?? imp.report.errors,
+            skipped: report.skipped ?? imp.report.skipped,
+            updated: report.updated ?? imp.report.updated,
+            added: report.added ?? imp.report.added,
+            removed: report.removed ?? imp.report.removed,
+            details: report.details 
+              ? [...(imp.report.details || []), ...report.details]
+              : imp.report.details,
+          } : (report ? {
+            success: report.success ?? 0,
+            errors: report.errors ?? 0,
+            skipped: report.skipped ?? 0,
+            updated: report.updated ?? 0,
+            added: report.added ?? 0,
+            removed: report.removed ?? 0,
+            details: report.details ?? [],
+          } : imp.report);
+          
+          const updatedProgress: ImportJob['progress'] | undefined = progress && imp.progress ? {
+            current: progress.current ?? imp.progress.current,
+            total: progress.total ?? imp.progress.total,
+            currentCard: progress.currentCard ?? imp.progress.currentCard,
+            success: progress.success ?? imp.progress.success,
+            errors: progress.errors ?? imp.progress.errors,
+            skipped: progress.skipped ?? imp.progress.skipped,
+            details: progress.details ?? imp.progress.details,
+          } : (progress ? {
+            current: progress.current ?? 0,
+            total: progress.total ?? 0,
+            currentCard: progress.currentCard,
+            success: progress.success ?? 0,
+            errors: progress.errors ?? 0,
+            skipped: progress.skipped ?? 0,
+            details: progress.details,
+          } : imp.progress);
+          
           return {
             ...imp,
-            currentIndex,
+            progress: updatedProgress,
             updatedAt: new Date(),
-            report: report ? {
-              ...imp.report,
-              ...report,
-              details: report.details 
-                ? [...(imp.report?.details || []), ...report.details]
-                : imp.report?.details,
-            } : imp.report,
+            report: updatedReport,
           };
         }
         return imp;
@@ -115,8 +147,12 @@ export function useImports() {
       throw new Error('User not authenticated');
     }
 
+    if (!report) {
+      throw new Error('Report is required');
+    }
+
     try {
-      await importService.saveImportReport(currentUser.uid, importId, report);
+      await importService.saveImportReport(importId, report);
       await loadImports();
     } catch (err) {
       console.error('Error saving import report:', err);
@@ -130,7 +166,7 @@ export function useImports() {
     }
 
     try {
-      await importService.deleteImport(currentUser.uid, importId);
+      await importService.deleteImport(importId);
       await loadImports();
     } catch (err) {
       console.error('Error deleting import:', err);

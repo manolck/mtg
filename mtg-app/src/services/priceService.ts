@@ -35,7 +35,7 @@ const priceCache = new Map<string, { data: CardPrice; timestamp: number }>();
  */
 export async function getCardPrice(
   card: UserCard,
-  currency: 'usd' | 'eur' = 'usd'
+  _currency: 'usd' | 'eur' = 'usd'
 ): Promise<CardPrice | null> {
   // 1. Essayer MTGJSON en premier (fichiers statiques)
   try {
