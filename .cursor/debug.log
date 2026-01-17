@@ -84,3 +84,55 @@
 {"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652161353,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
 {"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652161354,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
 {"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652161354,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"userId":"all","currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652398769,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398769,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398770,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398770,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"userId":"all","currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652398770,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:79","message":"Loading all collections","data":{},"timestamp":1768652398770,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"userId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652398771,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398771,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398771,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652398771,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:79","message":"Loading all collections","data":{},"timestamp":1768652398769,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"userId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652398769,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652400769,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652400873,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652400873,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652400874,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652400874,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652400932,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652400933,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652400933,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652402970,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402970,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402970,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402970,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652402971,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402971,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402971,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652402971,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652405098,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652405215,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652405215,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652405216,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652405216,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652405282,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652405283,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652405283,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652417739,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417739,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417739,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417739,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:76","message":"useEffect triggered","data":{"currentUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2","hasCurrentUser":true},"timestamp":1768652417740,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:84","message":"Loading collection for user","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417740,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"useCollection.ts:94","message":"loadCollection started","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417740,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:101","message":"Before getDocs","data":{"targetUserId":"1Oyn7C6h3lNU4p7cbZQK8e0yzGj2"},"timestamp":1768652417740,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652418569,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652418644,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652418644,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652418644,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:103","message":"After getDocs","data":{"docCount":4335},"timestamp":1768652418645,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:161","message":"Before setting cards","data":{"allCardsCount":4335},"timestamp":1768652418710,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:165","message":"Setting loading to false","data":{},"timestamp":1768652418710,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}
+{"location":"useCollection.ts:167","message":"loadCollection completed successfully","data":{},"timestamp":1768652418710,"sessionId":"debug-session","runId":"run1","hypothesisId":"B"}

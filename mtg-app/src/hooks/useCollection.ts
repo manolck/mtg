@@ -123,6 +123,12 @@ export function useCollection(userId?: string) {
       fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:103',message:'After getDocs',data:{docCount:snapshot.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
       
+      // OPTIMISATION : Créer une Map indexée par ID dès le début pour éviter les recherches linéaires O(n)
+      const docsByIdMap = new Map<string, typeof snapshot.docs[0]>();
+      snapshot.docs.forEach(docSnap => {
+        docsByIdMap.set(docSnap.id, docSnap);
+      });
+
       // Utiliser une Map basée sur la clé logique pour dédupliquer
       const cardsByKeyMap = new Map<string, UserCard>();
       const duplicateCardsToDelete: string[] = [];
@@ -156,11 +162,11 @@ export function useCollection(userId?: string) {
         fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:152',message:'Processing duplicate cards',data:{duplicateCount:duplicateCardsToDelete.length,totalCards:cardsByKeyMap.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
         
-        // Créer une Map pour trouver rapidement les cartes à mettre à jour
-        // On utilise les clés des cartes dupliquées pour identifier les cartes à mettre à jour
-        const duplicateKeysMap = new Map<string, string>();
+        // OPTIMISATION : Utiliser la Map indexée par ID au lieu de find() - O(1) au lieu de O(n)
+        // Identifier les cartes à mettre à jour (celles qui ont été fusionnées)
+        const cardsToUpdate = new Map<string, UserCard>();
         duplicateCardsToDelete.forEach(duplicateId => {
-          const duplicateDoc = snapshot.docs.find(d => d.id === duplicateId);
+          const duplicateDoc = docsByIdMap.get(duplicateId);
           if (duplicateDoc) {
             const duplicateData = duplicateDoc.data();
             const duplicateCardKey = getCardKey({
@@ -169,34 +175,55 @@ export function useCollection(userId?: string) {
               collectorNumber: duplicateData.collectorNumber || '',
               language: duplicateData.language || 'en',
             });
-            duplicateKeysMap.set(duplicateCardKey, duplicateId);
+            const existingCard = cardsByKeyMap.get(duplicateCardKey);
+            if (existingCard) {
+              // La carte existante doit être mise à jour avec la nouvelle quantité fusionnée
+              cardsToUpdate.set(existingCard.id, existingCard);
+            }
           }
         });
         
-        // Mettre à jour uniquement les cartes qui ont été fusionnées
-        const updatePromises = Array.from(cardsByKeyMap.entries())
-          .filter(([cardKey, card]) => duplicateKeysMap.has(cardKey))
-          .map(([cardKey, card]) => {
-            const cardRef = doc(cardsRef, card.id);
-            return updateDoc(cardRef, { quantity: card.quantity }).catch(err => {
-              console.warn(`Erreur lors de la mise à jour de la quantité pour ${card.id}:`, err);
-            });
+        // OPTIMISATION : Utiliser des batches Firestore pour réduire le nombre d'appels
+        const FIRESTORE_BATCH_SIZE = 500;
+        const batches: Promise<void>[] = [];
+        
+        // Traiter les suppressions par batches
+        for (let i = 0; i < duplicateCardsToDelete.length; i += FIRESTORE_BATCH_SIZE) {
+          const batch = writeBatch(db);
+          const batchIds = duplicateCardsToDelete.slice(i, i + FIRESTORE_BATCH_SIZE);
+          
+          batchIds.forEach(cardId => {
+            const cardRef = doc(cardsRef, cardId);
+            batch.delete(cardRef);
           });
+          
+          batches.push(batch.commit().catch(err => {
+            console.warn(`Erreur lors de la suppression du batch de doublons:`, err);
+          }));
+        }
+        
+        // Traiter les mises à jour par batches
+        const cardsToUpdateArray = Array.from(cardsToUpdate.values());
+        for (let i = 0; i < cardsToUpdateArray.length; i += FIRESTORE_BATCH_SIZE) {
+          const batch = writeBatch(db);
+          const batchCards = cardsToUpdateArray.slice(i, i + FIRESTORE_BATCH_SIZE);
+          
+          batchCards.forEach(card => {
+            const cardRef = doc(cardsRef, card.id);
+            batch.update(cardRef, { quantity: card.quantity });
+          });
+          
+          batches.push(batch.commit().catch(err => {
+            console.warn(`Erreur lors de la mise à jour du batch de quantités:`, err);
+          }));
+        }
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:180',message:'After processing duplicates',data:{updatePromisesCount:updatePromises.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:180',message:'After processing duplicates',data:{updateCount:cardsToUpdateArray.length,deleteCount:duplicateCardsToDelete.length,batchCount:batches.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
         
-        // Supprimer les doublons et mettre à jour les quantités en arrière-plan
-        Promise.all([
-          ...duplicateCardsToDelete.map(cardId => {
-            const cardRef = doc(cardsRef, cardId);
-            return deleteDoc(cardRef).catch(err => {
-              console.warn(`Erreur lors de la suppression du doublon ${cardId}:`, err);
-            });
-          }),
-          ...updatePromises
-        ]).catch(err => {
+        // Exécuter tous les batches en parallèle
+        Promise.all(batches).catch(err => {
           console.warn('Erreur lors de la suppression/mise à jour des doublons:', err);
         });
       }
