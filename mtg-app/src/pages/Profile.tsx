@@ -244,9 +244,13 @@ export function Profile() {
       }
 
       // Mettre à jour le mot de passe via l'API PocketBase
-      // PocketBase nécessite que l'utilisateur soit authentifié et que passwordConfirm corresponde
+      // PocketBase nécessite :
+      // - oldPassword : le mot de passe actuel
+      // - password : le nouveau mot de passe
+      // - passwordConfirm : confirmation du nouveau mot de passe
       // Utiliser l'ID de l'utilisateur authentifié
       await pb.collection('users').update(authenticatedUserId, {
+        oldPassword: currentPassword,
         password: newPassword,
         passwordConfirm: newPassword,
       });
