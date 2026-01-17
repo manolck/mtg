@@ -69,10 +69,8 @@ export function CardMenuModal({
   };
 
   const handleDelete = () => {
-    if (confirm(`Supprimer "${card.name}" de votre collection ?`)) {
-      onDelete?.(card.id);
-      onClose();
-    }
+    onDelete?.(card.id);
+    onClose();
   };
 
   const getLanguageCode = (code: string): string => {
@@ -115,10 +113,8 @@ export function CardMenuModal({
                   {onDelete && group.cardIds.length === 1 && (
                     <button
                       onClick={() => {
-                        if (confirm(`Supprimer cette instance de "${card.name}" ?`)) {
-                          onDelete(group.cardIds[0]);
-                          onClose();
-                        }
+                        onDelete(group.cardIds[0]);
+                        onClose();
                       }}
                       className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                       title="Supprimer cette instance"
@@ -164,10 +160,8 @@ export function CardMenuModal({
             <Button
               variant="danger"
               onClick={() => {
-                if (confirm(`Supprimer TOUTES les instances de "${card.name}" (${cardGroups.totalQuantity} cartes) ?`)) {
-                  allCardsWithSameName.forEach((c) => onDelete?.(c.id));
-                  onClose();
-                }
+                allCardsWithSameName.forEach(c => onDelete?.(c.id));
+                onClose();
               }}
               className="w-full"
             >

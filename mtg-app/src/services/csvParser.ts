@@ -1,4 +1,5 @@
 import type { ParsedCard } from '../types/card';
+import { validateParsedCard, validateParsedCards } from '../utils/validationSchemas';
 
 interface CSVHeader {
   name?: number;
@@ -128,7 +129,10 @@ export function parseCSV(content: string): ParsedCard[] {
       const name = parts[nameIndex]?.trim() || '';
       if (!name) continue;
 
-      const card: ParsedCard = { name };
+      const card: ParsedCard = { 
+        name,
+        quantity: 1, // Par défaut, quantité = 1
+      };
 
       if (quantityIndex !== undefined && parts[quantityIndex]) {
         const quantity = parseInt(parts[quantityIndex], 10);
@@ -169,11 +173,20 @@ export function parseCSV(content: string): ParsedCard[] {
         card.scryfallId = parts[scryfallIdIndex].trim();
       }
 
-      parsedCards.push(card);
+      // Valider la carte avant de l'ajouter
+      const validation = validateParsedCard(card);
+      if (validation.success) {
+        parsedCards.push(validation.data);
+      } else {
+        // Log l'erreur mais continue le parsing (on ne bloque pas tout l'import pour une carte invalide)
+        const errorMessage = 'error' in validation ? validation.error : 'Erreur de validation inconnue';
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${errorMessage}`, card);
+      }
     } else {
       // Format simple sans en-têtes (ancien format)
       const card: ParsedCard = {
         name: parts[0] || '',
+        quantity: 1, // Par défaut, quantité = 1
       };
 
       // Format 2 : nom, quantité
@@ -190,13 +203,29 @@ export function parseCSV(content: string): ParsedCard[] {
         card.setCode = parts[2].trim();
       }
 
-      // Validation : le nom ne doit pas être vide
-      if (card.name.length > 0) {
-        parsedCards.push(card);
+      // Valider la carte avant de l'ajouter
+      const validation = validateParsedCard(card);
+      if (validation.success) {
+        parsedCards.push(validation.data);
+      } else {
+        // Log l'erreur mais continue le parsing
+        const errorMessage = 'error' in validation ? validation.error : 'Erreur de validation inconnue';
+        console.warn(`Carte invalide à la ligne ${i + 1}: ${errorMessage}`, card);
       }
     }
   }
 
+  // Validation finale : vérifier qu'on a au moins une carte valide
+  if (parsedCards.length === 0) {
+    throw new Error('Aucune carte valide trouvée dans le fichier CSV');
+  }
+
+  // Limiter à 10000 cartes pour éviter les imports trop volumineux
+  if (parsedCards.length > 10000) {
+    throw new Error(`L'import contient trop de cartes (${parsedCards.length}). Maximum autorisé : 10000 cartes`);
+  }
+
   return parsedCards;
 }
+
 

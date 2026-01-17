@@ -50,6 +50,18 @@ export function Navbar() {
               Decks
             </Link>
             <Link
+              to="/wishlist"
+              className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Wishlist
+            </Link>
+            <Link
+              to="/statistics"
+              className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Statistiques
+            </Link>
+            <Link
               to="/profile"
               className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
             >
@@ -92,6 +104,13 @@ export function Navbar() {
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {profile?.pseudonym || currentUser.email}
               </span>
+            </Link>
+            <Link
+              to="/privacy-policy"
+              className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+              title="Politique de confidentialité"
+            >
+              Confidentialité
             </Link>
             <Button variant="secondary" onClick={handleLogout}>
               Déconnexion

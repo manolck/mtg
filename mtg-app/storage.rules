@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Règles pour les avatars utilisateurs
+    // Chemin: avatars/{userId}/{filename}
+    match /avatars/{userId}/{fileName} {
+      // Lecture : tous les utilisateurs authentifiés peuvent lire
+      allow read: if request.auth != null;
+      
+      // Écriture : seul le propriétaire peut uploader/modifier
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024 // 5MB max
+        && request.resource.contentType.matches('image/.*');
+      
+      // Suppression : seul le propriétaire peut supprimer
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Tous les autres fichiers sont privés
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+
+
+

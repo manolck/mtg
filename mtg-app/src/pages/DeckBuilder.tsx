@@ -4,6 +4,7 @@ import { useDecks } from '../hooks/useDecks';
 import { useCollection } from '../hooks/useCollection';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
+import { Spinner } from '../components/UI/Spinner';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { UserCard } from '../types/card';
@@ -92,7 +93,9 @@ export function DeckBuilder() {
   if (decksLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Chargement du deck...</p>
+        <div className="flex justify-center py-8">
+          <Spinner size="lg" />
+        </div>
       </div>
     );
   }

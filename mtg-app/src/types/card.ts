@@ -72,3 +72,21 @@ export interface ParsedCard {
   scryfallId?: string;
 }
 
+export interface WishlistItem {
+  id: string;
+  name: string;
+  quantity: number; // Quantité désirée
+  set?: string;
+  setCode?: string;
+  collectorNumber?: string;
+  rarity?: string;
+  language?: string;
+  mtgData?: MTGCard;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  notes?: string; // Notes personnelles sur la carte
+  targetPrice?: number; // Prix cible pour les notifications (optionnel)
+  scryfallId?: string; // Pour faciliter la recherche
+}
+

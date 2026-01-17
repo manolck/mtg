@@ -55,6 +55,7 @@ export function useProfile() {
           pseudonym: currentUser.displayName || currentUser.email?.split('@')[0] || 'Joueur',
           avatarId: defaultAvatar.id,
           role: 'user',
+          preferredLanguage: 'fr', // Par défaut en français
           createdAt: new Date(),
           updatedAt: new Date(),
         };
