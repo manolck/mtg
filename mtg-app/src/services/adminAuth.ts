@@ -48,12 +48,17 @@ function recordToUserProfile(record: any): UserProfile {
  */
 export async function createUser(userData: AdminUser): Promise<{ uid: string; email: string }> {
   try {
+    // S'assurer que 'user' est toujours présent dans les rôles
+    const roles = userData.roles && userData.roles.length > 0 
+      ? (userData.roles.includes('user') ? userData.roles : ['user', ...userData.roles])
+      : ['user'];
+
     // Créer l'utilisateur dans PocketBase
     const record = await pb.collection('users').create({
       email: userData.email,
       password: userData.password,
       passwordConfirm: userData.password,
-      role: userData.role || 'user',
+      roles: roles, // Utiliser roles au lieu de role
       pseudonym: userData.email.split('@')[0],
       avatarId: 'default',
       preferredLanguage: 'fr',
@@ -71,11 +76,12 @@ export async function createUser(userData: AdminUser): Promise<{ uid: string; em
 
 /**
  * Mettre à jour un utilisateur
+ * @param updates.roles - Tableau de rôles. Si fourni, remplace complètement les rôles existants.
  */
-export async function updateUser(uid: string, updates: { email?: string; password?: string; role?: 'admin' | 'user' }): Promise<void> {
+export async function updateUser(uid: string, updates: { email?: string; password?: string; roles?: string[] }): Promise<void> {
   try {
     const updateData: any = cleanForPocketBase({
-      role: updates.role,
+      roles: updates.roles, // Utiliser roles au lieu de role
     });
 
     // Note: La mise à jour de l'email et du mot de passe nécessite des opérations spéciales dans PocketBase
@@ -92,6 +98,43 @@ export async function updateUser(uid: string, updates: { email?: string; passwor
   } catch (error: any) {
     console.error('Error updating user:', error);
     throw new Error(error.message || 'Failed to update user');
+  }
+}
+
+/**
+ * Ajoute ou retire le rôle admin d'un utilisateur
+ * @param uid - ID de l'utilisateur
+ * @param isAdmin - true pour ajouter le rôle admin, false pour le retirer
+ */
+export async function setAdminRole(uid: string, isAdmin: boolean): Promise<void> {
+  try {
+    // Récupérer l'utilisateur actuel
+    const userRecord = await pb.collection('users').getOne(uid);
+    const currentRoles: string[] = userRecord.roles && Array.isArray(userRecord.roles) 
+      ? userRecord.roles 
+      : (userRecord.role === 'admin' ? ['user', 'admin'] : ['user']); // Migration depuis l'ancien format
+
+    let newRoles: string[];
+    if (isAdmin) {
+      // Ajouter le rôle admin si pas déjà présent
+      if (!currentRoles.includes('admin')) {
+        newRoles = [...currentRoles, 'admin'];
+      } else {
+        newRoles = currentRoles; // Déjà admin
+      }
+    } else {
+      // Retirer le rôle admin mais garder 'user'
+      newRoles = currentRoles.filter(r => r !== 'admin');
+      // S'assurer que 'user' est toujours présent
+      if (!newRoles.includes('user')) {
+        newRoles = ['user', ...newRoles];
+      }
+    }
+
+    await pb.collection('users').update(uid, { roles: newRoles });
+  } catch (error: any) {
+    console.error('Error setting admin role:', error);
+    throw new Error(error.message || 'Failed to update user role');
   }
 }
 

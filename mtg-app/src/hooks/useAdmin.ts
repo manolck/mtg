@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { pb } from '../services/pocketbase';
 import { useAuth } from './useAuth';
+import { isAdmin as checkIsAdmin } from '../types/user';
 
 export function useAdmin() {
   const { currentUser } = useAuth();
@@ -22,7 +23,16 @@ export function useAdmin() {
         const profileRecord = await pb.collection('users').getOne(currentUser.uid);
 
         if (profileRecord) {
-          const adminStatus = profileRecord.role === 'admin';
+          // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+          let roles: string[] = ['user'];
+          if (profileRecord.roles && Array.isArray(profileRecord.roles)) {
+            roles = profileRecord.roles;
+          } else if (profileRecord.role) {
+            // Migration depuis l'ancien format
+            roles = profileRecord.role === 'admin' ? ['user', 'admin'] : ['user'];
+          }
+
+          const adminStatus = roles.includes('admin');
           if (isMounted) {
             setIsAdmin(adminStatus);
           }
