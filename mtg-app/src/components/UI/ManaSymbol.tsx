@@ -12,7 +12,7 @@ interface ManaSymbolProps {
 
 export function ManaSymbol({ color, size = 24, className = '' }: ManaSymbolProps) {
   const baseClasses = 'inline-block flex-shrink-0';
-  const imageStyle = { width: size, height: size, display: 'inline-block', objectFit: 'contain' };
+  const imageStyle: React.CSSProperties = { width: size, height: size, display: 'inline-block', objectFit: 'contain' as const };
   
   switch (color) {
     case 'W':

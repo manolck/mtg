@@ -141,7 +141,7 @@ export function VirtualizedCardGrid({
   // Fonction pour rendre une cellule
   // react-window v2 attend: ({ columnIndex, rowIndex, style, ariaAttributes }) => ReactElement
   const Cell = useCallback(
-    ({ columnIndex, rowIndex, style, ...rest }: { 
+    ({ columnIndex, rowIndex, style }: { 
       columnIndex: number; 
       rowIndex: number; 
       style: React.CSSProperties;
@@ -382,7 +382,8 @@ export function VirtualizedCardGrid({
           rowHeight: props.rowHeight,
           width: props.width,
           style: { overflowX: 'hidden', backgroundColor: 'transparent' },
-        }, Cell)}
+          children: Cell,
+        })}
       </div>
     );
   } catch (error: any) {

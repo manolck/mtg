@@ -230,7 +230,6 @@ export function WishlistSearchInput({
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:295',message:'Collection trigger intersecting',data:{displayed:displayedCollectionCount,total:collectionResults.length},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
               setDisplayedCollectionCount((prev) => Math.min(prev + 50, collectionResults.length));
             }
           });
@@ -242,7 +241,6 @@ export function WishlistSearchInput({
       );
       collectionObserver.observe(loadMoreCollectionRef.current);
       observers.push(collectionObserver);
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:310',message:'Collection observer created',data:{displayed:displayedCollectionCount,total:collectionResults.length,hasRef:!!loadMoreCollectionRef.current},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
     }
 
     // Observer pour Scryfall
@@ -275,12 +273,6 @@ export function WishlistSearchInput({
     setDisplayedScryfallCount(50);
   }, [collectionResults.length, scryfallResults.length]);
 
-  // Log pour debug
-  useEffect(() => {
-    if (showResults) {
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WishlistSearchInput.tsx:340',message:'Results state',data:{collectionCount:collectionResults.length,displayedCollection:displayedCollectionCount,scryfallCount:scryfallResults.length,displayedScryfall:displayedScryfallCount,showResults,hasCollectionTrigger:collectionResults.length > displayedCollectionCount,hasScryfallTrigger:scryfallResults.length > displayedScryfallCount},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
-    }
-  }, [showResults, collectionResults.length, displayedCollectionCount, scryfallResults.length, displayedScryfallCount]);
 
   // Les cartes sont déjà enrichies avec les données françaises via le service MagicCorporation
   // Plus besoin d'enrichissement supplémentaire ici

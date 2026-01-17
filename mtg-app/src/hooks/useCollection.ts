@@ -74,16 +74,28 @@ export function useCollection(userId?: string) {
   );
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:76',message:'useEffect triggered',data:{userId,currentUserId:currentUser?.uid,hasCurrentUser:!!currentUser},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     // Si userId est 'all', charger toutes les collections
     if (userId === 'all') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:79',message:'Loading all collections',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       loadAllCollections();
       setViewingUserId(null);
     } else {
       const targetUserId = userId || currentUser?.uid;
       if (targetUserId) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:84',message:'Loading collection for user',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         loadCollection(targetUserId);
         setViewingUserId(targetUserId);
       } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:87',message:'No user ID, clearing collection',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setCards([]);
         setLoading(false);
         setViewingUserId(null);
@@ -92,14 +104,23 @@ export function useCollection(userId?: string) {
   }, [currentUser, userId]);
 
   async function loadCollection(targetUserId: string) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:94',message:'loadCollection started',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     try {
       setLoading(true);
       setLoadingMore(false);
       const cardsRef = collection(db, 'users', targetUserId, 'collection');
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:101',message:'Before getDocs',data:{targetUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       // Charger toutes les cartes
       const cardsQuery = query(cardsRef);
       const snapshot = await getDocs(cardsQuery);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:103',message:'After getDocs',data:{docCount:snapshot.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
       // Utiliser une Map basée sur la clé logique pour dédupliquer
       const cardsByKeyMap = new Map<string, UserCard>();
@@ -114,17 +135,11 @@ export function useCollection(userId?: string) {
         } as UserCard;
         
         const cardKey = getCardKey(card);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:106',message:'Loading card from collection',data:{cardId:card.id,cardName:card.name,setCode:card.setCode,set:card.set,collectorNumber:card.collectorNumber,language:card.language,quantity:card.quantity,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         
         if (cardsByKeyMap.has(cardKey)) {
           // Doublon détecté : fusionner les quantités
           const existingCard = cardsByKeyMap.get(cardKey)!;
           const mergedQuantity = existingCard.quantity + card.quantity;
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:115',message:'DUPLICATE DETECTED in loaded collection - merging',data:{cardKey:cardKey,existingCardId:existingCard.id,duplicateCardId:card.id,existingQuantity:existingCard.quantity,duplicateQuantity:card.quantity,mergedQuantity:mergedQuantity},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
           // Garder la carte existante avec la quantité fusionnée
           existingCard.quantity = mergedQuantity;
           // Marquer la carte dupliquée pour suppression
@@ -137,42 +152,72 @@ export function useCollection(userId?: string) {
       // Supprimer les doublons de Firestore en arrière-plan (sans bloquer l'affichage)
       if (duplicateCardsToDelete.length > 0) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:127',message:'Deleting duplicate cards from Firestore',data:{duplicateCount:duplicateCardsToDelete.length,cardIds:duplicateCardsToDelete},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:152',message:'Processing duplicate cards',data:{duplicateCount:duplicateCardsToDelete.length,totalCards:cardsByKeyMap.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
-        // Supprimer les doublons en arrière-plan
-        Promise.all(duplicateCardsToDelete.map(cardId => {
-          const cardRef = doc(cardsRef, cardId);
-          return deleteDoc(cardRef).catch(err => {
-            console.warn(`Erreur lors de la suppression du doublon ${cardId}:`, err);
-          });
-        })).catch(err => {
-          console.warn('Erreur lors de la suppression des doublons:', err);
+        
+        // Créer une Map pour trouver rapidement les cartes à mettre à jour
+        // On utilise les clés des cartes dupliquées pour identifier les cartes à mettre à jour
+        const duplicateKeysMap = new Map<string, string>();
+        duplicateCardsToDelete.forEach(duplicateId => {
+          const duplicateDoc = snapshot.docs.find(d => d.id === duplicateId);
+          if (duplicateDoc) {
+            const duplicateData = duplicateDoc.data();
+            const duplicateCardKey = getCardKey({
+              name: duplicateData.name || '',
+              setCode: duplicateData.setCode || duplicateData.set || '',
+              collectorNumber: duplicateData.collectorNumber || '',
+              language: duplicateData.language || 'en',
+            });
+            duplicateKeysMap.set(duplicateCardKey, duplicateId);
+          }
         });
         
-        // Mettre à jour les quantités fusionnées dans Firestore
-        const updatePromises = Array.from(cardsByKeyMap.values())
-          .filter(card => duplicateCardsToDelete.some(id => {
-            // Trouver si cette carte a été fusionnée
-            const duplicateCard = snapshot.docs.find(d => d.id !== card.id && getCardKey({...d.data(), id: d.id} as UserCard) === getCardKey(card));
-            return duplicateCard && duplicateCardsToDelete.includes(duplicateCard.id);
-          }))
-          .map(card => {
+        // Mettre à jour uniquement les cartes qui ont été fusionnées
+        const updatePromises = Array.from(cardsByKeyMap.entries())
+          .filter(([cardKey, card]) => duplicateKeysMap.has(cardKey))
+          .map(([cardKey, card]) => {
             const cardRef = doc(cardsRef, card.id);
             return updateDoc(cardRef, { quantity: card.quantity }).catch(err => {
               console.warn(`Erreur lors de la mise à jour de la quantité pour ${card.id}:`, err);
             });
           });
-        Promise.all(updatePromises).catch(err => {
-          console.warn('Erreur lors de la mise à jour des quantités:', err);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:180',message:'After processing duplicates',data:{updatePromisesCount:updatePromises.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+        
+        // Supprimer les doublons et mettre à jour les quantités en arrière-plan
+        Promise.all([
+          ...duplicateCardsToDelete.map(cardId => {
+            const cardRef = doc(cardsRef, cardId);
+            return deleteDoc(cardRef).catch(err => {
+              console.warn(`Erreur lors de la suppression du doublon ${cardId}:`, err);
+            });
+          }),
+          ...updatePromises
+        ]).catch(err => {
+          console.warn('Erreur lors de la suppression/mise à jour des doublons:', err);
         });
       }
 
       const allCardsArray = Array.from(cardsByKeyMap.values());
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:161',message:'Before setting cards',data:{allCardsCount:allCardsArray.length,displayedCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       setAllCards(allCardsArray);
       setCards(allCardsArray.slice(0, displayedCount));
       setError(null);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:165',message:'Setting loading to false',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       setLoading(false);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:167',message:'loadCollection completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
     } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:169',message:'loadCollection error',data:{errorMessage:err instanceof Error ? err.message : String(err)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       console.error('Error loading collection:', err);
       setError('Erreur lors du chargement de la collection');
       setLoading(false);
@@ -274,12 +319,24 @@ export function useCollection(userId?: string) {
       }
 
       // Attendre que tous les profils soient chargés
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:268',message:'Before Promise.all for profiles',data:{profilePromisesCount:profilePromises.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       await Promise.all(profilePromises);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:270',message:'After Promise.all for profiles',data:{allCardsCount:allCards.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       setAllCards(allCards);
       setCards(allCards.slice(0, displayedCount));
       setError(null);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:275',message:'Setting loading to false in loadAllCollections',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       setLoading(false);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:277',message:'loadAllCollections completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // Si on a chargé exactement INITIAL_BATCH_SIZE, il y a probablement plus de cartes
       // Charger le reste en arrière-plan
@@ -611,9 +668,6 @@ export function useCollection(userId?: string) {
     // Inclure la langue dans la clé (par défaut 'en' si non spécifiée)
     const language = (card.language || 'en').toLowerCase();
     const key = `${normalizedName}|${setCode}|${collectorNumber}|${language}`;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:553',message:'getCardKey called',data:{cardName:card.name,setCode:card.setCode,collectorNumber:card.collectorNumber,language:card.language,generatedKey:key},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return key;
   }
 
@@ -744,10 +798,8 @@ export function useCollection(userId?: string) {
           createdAt: data.createdAt?.toDate() || new Date(),
         } as UserCard;
         const key = getCardKey(card);
-        // #region agent log
         if (existingCardsMap.has(key)) {
           const existing = existingCardsMap.get(key)!;
-          fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:689',message:'DUPLICATE KEY in existingCardsMap (will merge quantities)',data:{cardKey:key,existingCardId:existing.id,newCardId:card.id,existingName:existing.name,newName:card.name,existingLanguage:existing.language,newLanguage:card.language,existingSetCode:existing.setCode,newSetCode:card.setCode,existingQuantity:existing.quantity,newQuantity:card.quantity},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
           // Si doublon détecté, garder celui avec la plus grande quantité ou le plus récent
           if (card.quantity > existing.quantity || (card.quantity === existing.quantity && card.createdAt > existing.createdAt)) {
             existingCardsMap.set(key, card);
@@ -755,7 +807,6 @@ export function useCollection(userId?: string) {
         } else {
           existingCardsMap.set(key, card);
         }
-        // #endregion
       });
 
       // Constantes pour l'optimisation
@@ -817,15 +868,9 @@ export function useCollection(userId?: string) {
               language: parsedCard.language || 'en',
               set: parsedCard.set
             });
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:768',message:'Checking for existing card',data:{cardName:parsedCard.name,setCode:parsedCard.setCode,collectorNumber:parsedCard.collectorNumber,language:parsedCard.language,updateMode:updateMode,cardKey:cardKey,existingCardFound:existingCardsMap.has(cardKey)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             const existingCard = existingCardsMap.get(cardKey);
             
             if (existingCard) {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:774',message:'Existing card found',data:{existingCardId:existingCard.id,existingCardName:existingCard.name,existingLanguage:existingCard.language,newLanguage:parsedCard.language,existingSetCode:existingCard.setCode,newSetCode:parsedCard.setCode,existingQuantity:existingCard.quantity,newQuantity:parsedCard.quantity,updateMode:updateMode},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-              // #endregion
               // Carte existante trouvée : mettre à jour ou fusionner selon le mode
               const targetQuantity = parsedCard.quantity || 1;
               
@@ -871,9 +916,6 @@ export function useCollection(userId?: string) {
               } else {
                 // Mode add : fusionner les quantités pour éviter les doublons
                 const mergedQuantity = existingCard.quantity + targetQuantity;
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:810',message:'Duplicate card found in add mode - merging quantities',data:{cardName:parsedCard.name,existingCardId:existingCard.id,existingQuantity:existingCard.quantity,newQuantity:targetQuantity,mergedQuantity:mergedQuantity,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-                // #endregion
                 return {
                   type: 'update' as const,
                   cardId: existingCard.id,
@@ -891,9 +933,6 @@ export function useCollection(userId?: string) {
               }
             } else {
               // Nouvelle carte à ajouter (pas de doublon trouvé)
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:830',message:'Adding new card (no duplicate found)',data:{cardName:parsedCard.name,setCode:parsedCard.setCode,set:parsedCard.set,collectorNumber:parsedCard.collectorNumber,language:parsedCard.language,quantity:parsedCard.quantity,updateMode:updateMode,cardKey:cardKey},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-              // #endregion
               return {
                 type: 'add' as const,
                 data: {

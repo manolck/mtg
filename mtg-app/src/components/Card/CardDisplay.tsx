@@ -2,8 +2,6 @@ import { useState, useMemo, memo } from 'react';
 import type { UserCard } from '../../types/card';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
-import { useToast } from '../../context/ToastContext';
-import { errorHandler } from '../../services/errorHandler';
 import { LazyImage } from '../UI/LazyImage';
 
 interface CardDisplayProps {
@@ -30,7 +28,6 @@ export const CardDisplay = memo(function CardDisplay({
   onEdit,
   showActions = false 
 }: CardDisplayProps) {
-  const { showError } = useToast();
   const imageUrl = card.mtgData?.imageUrl;
   const backImageUrl = card.backImageUrl || card.backMtgData?.imageUrl;
   const isDoubleFaced = card.mtgData?.layout === 'transform' || card.name.includes(' // ');
@@ -138,7 +135,7 @@ export const CardDisplay = memo(function CardDisplay({
                 }}
               >
                 <LazyImage
-                  src={imageUrl}
+                  src={imageUrl || ''}
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
@@ -382,7 +379,7 @@ export const CardDisplay = memo(function CardDisplay({
                   }}
                 >
                   <LazyImage
-                    src={imageUrl}
+                    src={imageUrl || ''}
                     alt={`${cardName} - Face avant`}
                     className="w-full h-full object-contain rounded-lg shadow-2xl"
                     style={{ borderRadius: '15px' }}

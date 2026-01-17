@@ -213,8 +213,6 @@ Sentry propose un plan gratuit avec :
 
 Pour plus d'informations, voir [Sentry Pricing](https://sentry.io/pricing/).
 
-## Ressources
-
-- [Documentation Sentry React](https://docs.sentry.io/platforms/javascript/guides/react/)
+## Ressources- [Documentation Sentry React](https://docs.sentry.io/platforms/javascript/guides/react/)
 - [Sentry Dashboard](https://sentry.io/)
 - [Guide de configuration](https://docs.sentry.io/platforms/javascript/guides/react/configuration/)

@@ -28,9 +28,6 @@ export function CardMenuModal({
   onDelete,
 }: CardMenuModalProps) {
   const [newQuantity, setNewQuantity] = useState(card.quantity.toString());
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDeleteInstanceConfirm, setShowDeleteInstanceConfirm] = useState<string | null>(null);
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   // Grouper les cartes par langue
   const cardGroups = useMemo(() => {
@@ -72,10 +69,6 @@ export function CardMenuModal({
   };
 
   const handleDelete = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
     onDelete?.(card.id);
     onClose();
   };
@@ -120,7 +113,8 @@ export function CardMenuModal({
                   {onDelete && group.cardIds.length === 1 && (
                     <button
                       onClick={() => {
-                        setShowDeleteInstanceConfirm(group.cardIds[0]);
+                        onDelete(group.cardIds[0]);
+                        onClose();
                       }}
                       className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                       title="Supprimer cette instance"
@@ -166,7 +160,8 @@ export function CardMenuModal({
             <Button
               variant="danger"
               onClick={() => {
-                setShowDeleteAllConfirm(true);
+                allCardsWithSameName.forEach(c => onDelete?.(c.id));
+                onClose();
               }}
               className="w-full"
             >
