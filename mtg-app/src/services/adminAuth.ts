@@ -31,12 +31,21 @@ function cleanForPocketBase(obj: any): any {
  * Convertit un record PocketBase en UserProfile
  */
 function recordToUserProfile(record: any): UserProfile {
+  // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+  let roles: string[] = ['user']; // Par défaut
+  if (record.roles && Array.isArray(record.roles)) {
+    roles = record.roles;
+  } else if (record.role) {
+    // Migration depuis l'ancien format
+    roles = record.role === 'admin' ? ['user', 'admin'] : ['user'];
+  }
+
   return {
     uid: record.id,
     email: record.email,
     pseudonym: record.pseudonym,
     avatarId: record.avatarId || 'default',
-    role: record.role || 'user',
+    roles,
     preferredLanguage: record.preferredLanguage || 'en',
     createdAt: new Date(record.created),
     updatedAt: new Date(record.updated),
