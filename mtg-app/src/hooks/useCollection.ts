@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { collection, query, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, collectionGroup, limit, startAfter, orderBy, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { parseCSV } from '../services/csvParser';
 import { searchCardByName, searchCardsByName, searchCardByMultiverseId, searchCardByNameAndNumber } from '../services/mtgApi';
@@ -58,10 +58,11 @@ export function useCollection(userId?: string) {
   const { createImport, updateImportStatus, updateImportProgress, saveImportReport } = useImports();
   const [cards, setCards] = useState<UserCard[]>([]);
   const [allCards, setAllCards] = useState<UserCard[]>([]); // Toutes les cartes chargées
-  const [displayedCount, setDisplayedCount] = useState(50); // Nombre de cartes affichées
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMoreCards, setHasMoreCards] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [isImportPaused, setIsImportPaused] = useState(false);
@@ -202,10 +203,11 @@ export function useCollection(userId?: string) {
 
       const allCardsArray = Array.from(cardsByKeyMap.values());
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:161',message:'Before setting cards',data:{allCardsCount:allCardsArray.length,displayedCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:161',message:'Before setting cards',data:{allCardsCount:allCardsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
       setAllCards(allCardsArray);
-      setCards(allCardsArray.slice(0, displayedCount));
+      setCards(allCardsArray);
+      setHasMoreCards(false); // Pour une collection spécifique, on charge tout d'un coup
       setError(null);
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:165',message:'Setting loading to false',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
@@ -225,22 +227,42 @@ export function useCollection(userId?: string) {
     }
   }
 
-  async function loadAllCollections() {
+  async function loadAllCollections(loadMore: boolean = false) {
     try {
-      setLoading(true);
-      setLoadingMore(false);
+      if (!loadMore) {
+        setLoading(true);
+        setAllCards([]);
+        setLastVisibleDoc(null);
+        setHasMoreCards(true);
+      } else {
+        setLoadingMore(true);
+      }
       setError(null);
 
-      // OPTIMISATION : Charger d'abord un échantillon de 50 cartes pour un chargement initial rapide
-      const INITIAL_BATCH_SIZE = 50;
+      const BATCH_SIZE = 50;
       const collectionsGroup = collectionGroup(db, 'collection');
-      const initialQuery = query(collectionsGroup, limit(INITIAL_BATCH_SIZE));
-      const initialSnapshot = await getDocs(initialQuery);
       
-      // Grouper par userId pour récupérer les profils (échantillon initial)
+      let cardsQuery = query(
+        collectionsGroup,
+        orderBy('createdAt', 'desc'),
+        limit(BATCH_SIZE)
+      );
+
+      if (loadMore && lastVisibleDoc) {
+        cardsQuery = query(
+          collectionsGroup,
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisibleDoc),
+          limit(BATCH_SIZE)
+        );
+      }
+      
+      const snapshot = await getDocs(cardsQuery);
+      
+      // Grouper par userId pour récupérer les profils
       const userMap = new Map<string, { cards: UserCard[]; userId: string }>();
       
-      initialSnapshot.forEach((docSnap) => {
+      snapshot.forEach((docSnap) => {
         const userId = docSnap.ref.parent.parent?.id;
         if (userId) {
           if (!userMap.has(userId)) {
@@ -327,116 +349,34 @@ export function useCollection(userId?: string) {
       fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:270',message:'After Promise.all for profiles',data:{allCardsCount:allCards.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
 
-      setAllCards(allCards);
-      setCards(allCards.slice(0, displayedCount));
-      setError(null);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:275',message:'Setting loading to false in loadAllCollections',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      setLoading(false);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/67215df1-356d-4529-b0a0-c92e4af5fdea',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useCollection.ts:277',message:'loadAllCollections completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-
-      // Si on a chargé exactement INITIAL_BATCH_SIZE, il y a probablement plus de cartes
-      // Charger le reste en arrière-plan
-      if (initialSnapshot.size === INITIAL_BATCH_SIZE) {
-        setLoadingMore(true);
-        
-        // Charger toutes les cartes restantes en arrière-plan
-        const remainingQuery = query(collectionsGroup);
-        const remainingSnapshot = await getDocs(remainingQuery);
-        
-        const remainingUserMap = new Map<string, { cards: UserCard[]; userId: string }>();
-        remainingSnapshot.forEach((docSnap) => {
-          const userId = docSnap.ref.parent.parent?.id;
-          if (userId) {
-            if (!remainingUserMap.has(userId)) {
-              remainingUserMap.set(userId, { userId, cards: [] });
-            }
-            
-            const data = docSnap.data();
-            const card: UserCard = {
-              id: docSnap.id,
-              ...data,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              ownerId: userId,
-            } as UserCard;
-            
-            remainingUserMap.get(userId)!.cards.push(card);
-          }
+      // Mettre à jour les cartes de manière atomique pour éviter le clignotement
+      if (loadMore) {
+        // Ajouter les nouvelles cartes aux cartes existantes (éviter les doublons)
+        setAllCards(prev => {
+          const existingIds = new Set(prev.map(c => c.id));
+          const uniqueNewCards = allCards.filter(c => !existingIds.has(c.id));
+          const updated = uniqueNewCards.length > 0 ? [...prev, ...uniqueNewCards] : prev;
+          setCards(updated); // Mettre à jour cards aussi
+          return updated;
         });
-
-        // Charger les profils pour les nouvelles cartes
-        const remainingAllCards: UserCard[] = [];
-        const remainingProfilePromises: Promise<void>[] = [];
-
-        for (const [userId, userData] of remainingUserMap) {
-          const promise = (async () => {
-            try {
-              // Vérifier le cache d'abord
-              let profile = profileCacheRef.current.get(userId);
-              
-              if (profile === null) {
-                // null signifie soit pas dans le cache, soit expiré
-                const profileRef = doc(db, 'users', userId, 'profile', 'data');
-                const profileSnap = await getDoc(profileRef);
-                
-                if (profileSnap.exists()) {
-                  const profileData = profileSnap.data();
-                  profile = {
-                    ...profileData,
-                    createdAt: profileData.createdAt?.toDate() || new Date(),
-                    updatedAt: profileData.updatedAt?.toDate() || new Date(),
-                  } as UserProfile;
-                } else {
-                  profile = null;
-                }
-                
-                profileCacheRef.current.set(userId, profile);
-              }
-
-              userData.cards.forEach(card => {
-                remainingAllCards.push({
-                  ...card,
-                  ownerId: userId,
-                  ownerProfile: profile ? {
-                    avatarId: profile.avatarId,
-                    pseudonym: profile.pseudonym,
-                  } : undefined,
-                });
-              });
-            } catch (err) {
-              console.warn(`Error loading profile for user ${userId}:`, err);
-              profileCacheRef.current.set(userId, null);
-              userData.cards.forEach(card => {
-                remainingAllCards.push({
-                  ...card,
-                  ownerId: userId,
-                });
-              });
-            }
-          })();
-          
-          remainingProfilePromises.push(promise);
-        }
-
-        await Promise.all(remainingProfilePromises);
-        
-        // Fusionner avec les cartes déjà chargées (éviter les doublons)
-        const finalCardsMap = new Map<string, UserCard>();
-        allCards.forEach(card => finalCardsMap.set(card.id, card));
-        remainingAllCards.forEach(card => {
-          if (!finalCardsMap.has(card.id)) {
-            finalCardsMap.set(card.id, card);
-          }
-        });
-        
-        const finalAllCards = Array.from(finalCardsMap.values());
-        setAllCards(finalAllCards);
-        setCards(finalAllCards.slice(0, displayedCount));
-        setLoadingMore(false);
+      } else {
+        // Remplacer les cartes (chargement initial)
+        setAllCards(allCards);
+        setCards(allCards);
       }
+
+      // Mettre à jour le dernier document visible et vérifier s'il y a plus de cartes
+      if (snapshot.docs.length > 0) {
+        setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMoreCards(snapshot.docs.length === BATCH_SIZE);
+      } else {
+        setLastVisibleDoc(null);
+        setHasMoreCards(false);
+      }
+
+      setError(null);
+      setLoading(false);
+      setLoadingMore(false);
     } catch (err) {
       console.error('Error loading all collections:', err);
       setError('Erreur lors du chargement de toutes les collections');
@@ -1237,28 +1177,11 @@ export function useCollection(userId?: string) {
 
   // Fonction pour charger plus de cartes au défilement
   const loadMoreCards = useCallback(async () => {
-    if (loadingMore || displayedCount >= allCards.length) {
+    if (loadingMore || !hasMoreCards) {
       return;
     }
-
-    setLoadingMore(true);
-    
-    // Simuler un petit délai pour le chargement
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Afficher 50 cartes supplémentaires
-    const newCount = Math.min(displayedCount + 50, allCards.length);
-    setDisplayedCount(newCount);
-    setCards(allCards.slice(0, newCount));
-    
-    setLoadingMore(false);
-  }, [allCards, displayedCount, loadingMore]);
-
-  // Réinitialiser displayedCount quand allCards change
-  useEffect(() => {
-    setDisplayedCount(50);
-    setCards(allCards.slice(0, 50));
-  }, [allCards.length]);
+    await loadAllCollections(true);
+  }, [loadingMore, hasMoreCards]);
 
   return {
     cards,
@@ -1281,7 +1204,7 @@ export function useCollection(userId?: string) {
     isImportPaused,
     currentImportId,
     loadMoreCards,
-    hasMoreCards: allCards.length > displayedCount,
+    hasMoreCards,
   };
 }
 
