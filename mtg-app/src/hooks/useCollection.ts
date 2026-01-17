@@ -183,12 +183,21 @@ export function useCollection(userId?: string) {
               });
               
               if (profileRecord) {
+                // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+                let roles: string[] = ['user'];
+                if (profileRecord.roles && Array.isArray(profileRecord.roles)) {
+                  roles = profileRecord.roles;
+                } else if (profileRecord.role) {
+                  // Migration depuis l'ancien format
+                  roles = profileRecord.role === 'admin' ? ['user', 'admin'] : ['user'];
+                }
+
                 profile = {
                   uid: profileRecord.id,
                   email: profileRecord.email,
                   pseudonym: profileRecord.pseudonym,
                   avatarId: profileRecord.avatarId || 'default',
-                  role: profileRecord.role || 'user',
+                  roles,
                   preferredLanguage: profileRecord.preferredLanguage || 'en',
                   createdAt: new Date(profileRecord.created),
                   updatedAt: new Date(profileRecord.updated),

@@ -3,7 +3,8 @@ import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
 import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
-import { createUser, updateUser, deleteUserAccount, listUsers } from '../services/adminAuth';
+import { createUser, setAdminRole, deleteUserAccount, listUsers } from '../services/adminAuth';
+import { isAdmin, getUserRoles } from '../types/user';
 import type { UserProfile, AdminUser } from '../types/user';
 
 export function Admin() {
@@ -17,8 +18,9 @@ export function Admin() {
   const [newUser, setNewUser] = useState<AdminUser>({
     email: '',
     password: '',
-    role: 'user',
+    roles: ['user'],
   });
+  const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // États pour la modification
@@ -55,9 +57,11 @@ export function Admin() {
     try {
       setCreating(true);
       setError('');
-      await createUser(newUser);
+      const roles = newUserIsAdmin ? ['user', 'admin'] : ['user'];
+      await createUser({ ...newUser, roles });
       setSuccess('Utilisateur créé avec succès');
-      setNewUser({ email: '', password: '', role: 'user' });
+      setNewUser({ email: '', password: '', roles: ['user'] });
+      setNewUserIsAdmin(false);
       setShowCreateModal(false);
       await loadUsers();
       setTimeout(() => setSuccess(''), 3000);
@@ -74,16 +78,19 @@ export function Admin() {
     try {
       setUpdating(true);
       setError('');
-      await updateUser(editingUser.uid, {
-        role: editingUser.role,
-      });
-      setSuccess('Utilisateur mis à jour avec succès');
+      const newRoles = getUserRoles(editingUser);
+      const willBeAdmin = newRoles.includes('admin');
+      
+      // Mettre à jour les rôles en utilisant setAdminRole qui gère automatiquement le rôle 'user'
+      await setAdminRole(editingUser.uid, willBeAdmin);
+      
+      setSuccess(`Rôles mis à jour avec succès`);
       setShowEditModal(false);
       setEditingUser(null);
       await loadUsers();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de la mise à jour de l\'utilisateur');
+      setError(err.message || 'Erreur lors de la mise à jour des rôles');
     } finally {
       setUpdating(false);
     }
@@ -188,15 +195,20 @@ export function Admin() {
                       {user.pseudonym || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                        }`}
-                      >
-                        {user.role === 'admin' ? 'Admin' : 'Utilisateur'}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {getUserRoles(user).map((role) => (
+                          <span
+                            key={role}
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              role === 'admin'
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                            }`}
+                          >
+                            {role === 'admin' ? 'Admin' : 'User'}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(user.createdAt)}
@@ -257,25 +269,39 @@ export function Admin() {
           />
           <div>
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Rôle
+              Rôles
             </label>
-            <select
-              value={newUser.role}
-              onChange={(e) =>
-                setNewUser({ ...newUser, role: e.target.value as 'admin' | 'user' })
-              }
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="user">Utilisateur</option>
-              <option value="admin">Admin</option>
-            </select>
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={true}
+                  disabled
+                  className="mr-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">User (toujours présent)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={newUserIsAdmin}
+                  onChange={(e) => setNewUserIsAdmin(e.target.checked)}
+                  className="mr-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Admin</span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Tous les utilisateurs ont le rôle "user" par défaut. Vous pouvez ajouter le rôle "admin" en plus.
+            </p>
           </div>
           <div className="flex gap-2 justify-end">
             <Button
               variant="secondary"
               onClick={() => {
                 setShowCreateModal(false);
-                setNewUser({ email: '', password: '', role: 'user' });
+                setNewUser({ email: '', password: '', roles: ['user'] });
+                setNewUserIsAdmin(false);
                 setError('');
               }}
             >
@@ -313,20 +339,49 @@ export function Admin() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                Rôle
+                Rôles
               </label>
-              <select
-                value={editingUser.role || 'user'}
-                onChange={(e) =>
-                  setEditingUser({ ...editingUser, role: e.target.value as 'admin' | 'user' })
-                }
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="user">Utilisateur</option>
-                <option value="admin">Admin</option>
-              </select>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled
+                    className="mr-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">User (toujours présent)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={isAdmin(editingUser)}
+                    onChange={(e) => {
+                      const currentRoles = getUserRoles(editingUser);
+                      const newRoles = e.target.checked
+                        ? (currentRoles.includes('admin') ? currentRoles : [...currentRoles, 'admin'])
+                        : currentRoles.filter(r => r !== 'admin');
+                      setEditingUser({ ...editingUser, roles: newRoles });
+                    }}
+                    className="mr-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Admin</span>
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Le rôle "user" est toujours présent. Vous pouvez ajouter ou retirer le rôle "admin" sans modifier le rôle "user".
+              </p>
             </div>
             <div className="flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingUser(null);
+                  setError('');
+                }}
+              >
+                Annuler
+              </Button>
               <Button
                 variant="secondary"
                 onClick={() => {

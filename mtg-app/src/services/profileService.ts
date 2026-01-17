@@ -31,12 +31,21 @@ function cleanForPocketBase(obj: any): any {
  * Convertit un record PocketBase en UserProfile
  */
 function recordToUserProfile(record: any): UserProfile {
+  // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+  let roles: string[] = ['user']; // Par défaut
+  if (record.roles && Array.isArray(record.roles)) {
+    roles = record.roles;
+  } else if (record.role) {
+    // Migration depuis l'ancien format
+    roles = record.role === 'admin' ? ['user', 'admin'] : ['user'];
+  }
+
   return {
     uid: record.id,
     email: record.email,
     pseudonym: record.pseudonym,
     avatarId: record.avatarId || 'default',
-    role: record.role || 'user',
+    roles,
     preferredLanguage: record.preferredLanguage || 'en',
     createdAt: new Date(record.created),
     updatedAt: new Date(record.updated),
@@ -66,7 +75,7 @@ export async function createDefaultProfile(userId: string, email: string): Promi
     email,
     pseudonym: email.split('@')[0] || 'Joueur',
     avatarId: 'default',
-    role: 'user',
+    roles: ['user'], // Par défaut, tous les utilisateurs ont le rôle 'user'
     preferredLanguage: 'fr',
   };
 
@@ -81,7 +90,7 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
   const updateData = cleanForPocketBase({
     pseudonym: updates.pseudonym,
     avatarId: updates.avatarId,
-    role: updates.role,
+    roles: updates.roles, // Utiliser roles au lieu de role
     preferredLanguage: updates.preferredLanguage,
   });
 
