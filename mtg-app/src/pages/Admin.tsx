@@ -244,7 +244,7 @@ export function Admin() {
         isOpen={showCreateModal}
         onClose={() => {
           setShowCreateModal(false);
-          setNewUser({ email: '', password: '', role: 'user' });
+          setNewUser({ email: '', password: '', roles: ['user'] });
           setError('');
         }}
         title="Créer un nouvel utilisateur"

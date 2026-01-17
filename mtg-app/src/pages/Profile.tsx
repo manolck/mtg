@@ -229,11 +229,24 @@ export function Profile() {
       setChangingPassword(true);
 
       // PocketBase nécessite une réauthentification avant de changer le mot de passe
-      // On se reconnecte avec l'email et le mot de passe actuel
-      await pb.collection('users').authWithPassword(currentUser.email!, currentPassword);
+      // On se reconnecte avec l'email et le mot de passe actuel pour vérifier
+      let authenticatedUserId: string;
+      try {
+        const authResult = await pb.collection('users').authWithPassword(currentUser.email!, currentPassword);
+        // Utiliser l'ID de l'utilisateur authentifié (peut être différent si authWithPassword change l'utilisateur)
+        authenticatedUserId = authResult.record.id;
+      } catch (authErr: any) {
+        if (authErr.status === 400 || authErr.status === 404) {
+          showError('Mot de passe actuel incorrect');
+          return;
+        }
+        throw authErr;
+      }
 
       // Mettre à jour le mot de passe via l'API PocketBase
-      await pb.collection('users').update(currentUser.uid, {
+      // PocketBase nécessite que l'utilisateur soit authentifié et que passwordConfirm corresponde
+      // Utiliser l'ID de l'utilisateur authentifié
+      await pb.collection('users').update(authenticatedUserId, {
         password: newPassword,
         passwordConfirm: newPassword,
       });
@@ -246,12 +259,27 @@ export function Profile() {
       showSuccess('Mot de passe modifié avec succès !');
     } catch (err: any) {
       console.error('Error changing password:', err);
+      console.error('Error details:', {
+        status: err.status,
+        message: err.message,
+        response: err.response,
+        data: err.data,
+      });
       
       // Gestion des erreurs spécifiques
-      if (err.status === 400 && err.message?.includes('password')) {
-        showError('Mot de passe actuel incorrect');
-      } else if (err.status === 400 && err.message?.includes('weak')) {
-        showError('Le nouveau mot de passe est trop faible');
+      if (err.status === 400) {
+        const errorMessage = err.message || err.data?.message || '';
+        if (errorMessage.includes('password') || errorMessage.includes('incorrect') || errorMessage.includes('invalid')) {
+          showError('Mot de passe actuel incorrect ou nouveau mot de passe invalide');
+        } else if (errorMessage.includes('weak') || errorMessage.includes('minimum')) {
+          showError('Le nouveau mot de passe est trop faible (minimum 6 caractères)');
+        } else if (errorMessage.includes('match') || errorMessage.includes('confirm')) {
+          showError('Les mots de passe ne correspondent pas');
+        } else {
+          showError(`Erreur lors du changement de mot de passe: ${errorMessage || 'Erreur inconnue'}`);
+        }
+      } else if (err.status === 403 || err.status === 401) {
+        showError('Vous n\'avez pas la permission de modifier votre mot de passe');
       } else {
         errorHandler.handleAndShowError(err);
       }
