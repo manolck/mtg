@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
+import { useProfile } from '../../hooks/useProfile';
 import type { UserCard } from '../../types/card';
 
 interface CardMenuModalProps {
@@ -27,7 +28,24 @@ export function CardMenuModal({
   onUpdateQuantity,
   onDelete,
 }: CardMenuModalProps) {
+  const { profile } = useProfile();
+  const preferredLanguage = profile?.preferredLanguage || 'en';
   const [newQuantity, setNewQuantity] = useState(card.quantity.toString());
+
+  // Déterminer le nom de la carte à afficher selon la langue préférée
+  const cardName = useMemo(() => {
+    // Si la langue préférée est le français et que des données françaises sont disponibles
+    if (preferredLanguage === 'fr' && card.mtgData?.foreignNames) {
+      const frenchName = card.mtgData.foreignNames.find(
+        fn => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName?.name) {
+        return frenchName.name;
+      }
+    }
+    // Sinon, utiliser le nom stocké (en anglais par défaut)
+    return card.name;
+  }, [card.name, card.mtgData?.foreignNames, preferredLanguage]);
 
   // Grouper les cartes par langue
   const cardGroups = useMemo(() => {
@@ -78,7 +96,7 @@ export function CardMenuModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Détails - ${card.name}`}>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Détails - ${cardName}`}>
       <div className="space-y-4">
         {/* Total de cartes */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

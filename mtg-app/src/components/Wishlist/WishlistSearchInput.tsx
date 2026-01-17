@@ -528,17 +528,36 @@ export function WishlistSearchInput({
                     </div>
                   </div>
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {collectionResults.slice(0, displayedCollectionCount).map((card) => (
+                    {collectionResults.slice(0, displayedCollectionCount).map((card) => {
+                      // Déterminer l'image à afficher selon la langue préférée
+                      let displayImageUrl = card.imageUrl;
+                      let displayName = card.name;
+                      
+                      if (preferredLanguage === 'fr' && card.foreignNames) {
+                        const frenchName = card.foreignNames.find(
+                          fn => fn.language === 'French' || fn.language === 'fr'
+                        );
+                        if (frenchName) {
+                          if (frenchName.imageUrl) {
+                            displayImageUrl = frenchName.imageUrl;
+                          }
+                          if (frenchName.name) {
+                            displayName = frenchName.name;
+                          }
+                        }
+                      }
+                      
+                      return (
                       <button
                         key={card.id || `collection-${card.name}`}
                         onClick={() => handleAddCard(card)}
                         className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
                         <div className="flex items-start gap-3">
-                          {card.imageUrl && (
+                          {displayImageUrl && (
                             <LazyImage
-                              src={card.imageUrl}
-                              alt={card.name}
+                              src={displayImageUrl}
+                              alt={displayName}
                               className="w-12 h-16 object-cover rounded flex-shrink-0"
                               priority="low"
                               showPlaceholder={false}
@@ -546,10 +565,13 @@ export function WishlistSearchInput({
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-gray-900 dark:text-white truncate">
-                              {card.name}
+                              {displayName}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {card.type}
+                              {preferredLanguage === 'fr' && card.foreignNames ? 
+                                (card.foreignNames.find(fn => fn.language === 'French' || fn.language === 'fr')?.type || card.type) :
+                                card.type
+                              }
                             </div>
                             {card.manaCost && (
                               <div className="mt-1">
@@ -612,17 +634,36 @@ export function WishlistSearchInput({
                     </div>
                   </div>
                   <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {scryfallResults.slice(0, displayedScryfallCount).map((card) => (
+                    {scryfallResults.slice(0, displayedScryfallCount).map((card) => {
+                      // Déterminer l'image à afficher selon la langue préférée
+                      let displayImageUrl = card.imageUrl;
+                      let displayName = card.name;
+                      
+                      if (preferredLanguage === 'fr' && card.foreignNames) {
+                        const frenchName = card.foreignNames.find(
+                          fn => fn.language === 'French' || fn.language === 'fr'
+                        );
+                        if (frenchName) {
+                          if (frenchName.imageUrl) {
+                            displayImageUrl = frenchName.imageUrl;
+                          }
+                          if (frenchName.name) {
+                            displayName = frenchName.name;
+                          }
+                        }
+                      }
+                      
+                      return (
                       <button
                         key={card.id}
                         onClick={() => handleAddCard(card)}
                         className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
                         <div className="flex items-start gap-3">
-                          {card.imageUrl && (
+                          {displayImageUrl && (
                             <LazyImage
-                              src={card.imageUrl}
-                              alt={card.name}
+                              src={displayImageUrl}
+                              alt={displayName}
                               className="w-12 h-16 object-cover rounded flex-shrink-0"
                               priority="low"
                               showPlaceholder={false}
@@ -630,10 +671,13 @@ export function WishlistSearchInput({
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-gray-900 dark:text-white truncate">
-                              {card.name}
+                              {displayName}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {card.type}
+                              {preferredLanguage === 'fr' && card.foreignNames ? 
+                                (card.foreignNames.find(fn => fn.language === 'French' || fn.language === 'fr')?.type || card.type) :
+                                card.type
+                              }
                             </div>
                             {card.manaCost && (
                               <div className="mt-1">
