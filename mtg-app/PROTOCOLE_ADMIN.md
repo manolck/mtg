@@ -1,8 +1,16 @@
 # Protocole de création du premier administrateur
 
-Ce document décrit les différentes méthodes pour créer le premier administrateur de l'application MTG Collection.
+Ce document décrit comment créer un administrateur pour l'application MTG Collection.
 
-## Méthode 1 : Via Firebase Console (Recommandée - Simple)
+**L'application utilise désormais PocketBase pour l'authentification.** Les administrateurs se gèrent via l'interface d'administration PocketBase (rôles ou collection dédiée selon votre schéma). Les méthodes Firebase ci-dessous sont conservées à titre d'archive.
+
+## Méthode actuelle : PocketBase
+
+1. Créez un utilisateur via l'inscription ou l'interface PocketBase Admin.
+2. Dans PocketBase Admin, définissez le rôle admin pour cet utilisateur (collection `users`, champ `roles` ou équivalent selon votre schéma).
+3. Connectez-vous à l'application : le lien "Admin" apparaît si l'utilisateur a le rôle admin.
+
+## Archive : Méthode 1 (Firebase Console)
 
 ### Étape 1 : Créer l'utilisateur dans Firebase Authentication
 

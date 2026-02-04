@@ -1,54 +1,26 @@
 import {
   getWishlistItems,
-  getWishlistItem,
   addWishlistItem,
   updateWishlistItem,
   deleteWishlistItem,
 } from '../wishlistService';
-import { db } from '../firebase';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-} from 'firebase/firestore';
 import type { WishlistItem } from '../../types/card';
 
-// Mock Firebase
-jest.mock('../firebase', () => ({
-  db: {},
-}));
+const mockGetFullList = jest.fn();
+const mockCreate = jest.fn();
+const mockUpdate = jest.fn();
+const mockDelete = jest.fn();
 
-jest.mock('firebase/firestore', () => ({
-  collection: jest.fn(),
-  doc: jest.fn(),
-  getDoc: jest.fn(),
-  getDocs: jest.fn(),
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  query: jest.fn(),
-  orderBy: jest.fn(),
-  where: jest.fn(),
-  Timestamp: {
-    now: jest.fn(() => ({ toDate: () => new Date() })),
+jest.mock('../pocketbase', () => ({
+  pb: {
+    collection: () => ({
+      getFullList: mockGetFullList,
+      create: mockCreate,
+      update: mockUpdate,
+      delete: mockDelete,
+    }),
   },
 }));
-
-const mockGetDocs = getDocs as jest.Mock;
-const mockGetDoc = getDoc as jest.Mock;
-const mockAddDoc = addDoc as jest.Mock;
-const mockUpdateDoc = updateDoc as jest.Mock;
-const mockDeleteDoc = deleteDoc as jest.Mock;
-const mockCollection = collection as jest.Mock;
-const mockDoc = doc as jest.Mock;
-const mockQuery = query as jest.Mock;
-const mockOrderBy = orderBy as jest.Mock;
 
 describe('wishlistService', () => {
   const userId = 'test-user-id';
@@ -65,55 +37,41 @@ describe('wishlistService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCollection.mockReturnValue({});
-    mockDoc.mockReturnValue({});
-    mockQuery.mockReturnValue({});
-    mockOrderBy.mockReturnValue({});
   });
 
   describe('getWishlistItems', () => {
     it('should fetch all wishlist items for a user', async () => {
-      const mockSnapshot = {
-        docs: [
-          {
-            id: 'item-1',
-            data: () => ({
-              name: 'Lightning Bolt',
-              quantity: 1,
-              userId,
-              createdAt: { toDate: () => new Date() },
-              updatedAt: { toDate: () => new Date() },
-            }),
-          },
-          {
-            id: 'item-2',
-            data: () => ({
-              name: 'Counterspell',
-              quantity: 2,
-              userId,
-              createdAt: { toDate: () => new Date() },
-              updatedAt: { toDate: () => new Date() },
-            }),
-          },
-        ],
-      };
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      mockGetFullList.mockResolvedValue([
+        {
+          id: 'item-1',
+          userId,
+          name: 'Lightning Bolt',
+          quantity: 1,
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        },
+        {
+          id: 'item-2',
+          userId,
+          name: 'Counterspell',
+          quantity: 2,
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        },
+      ]);
 
       const result = await getWishlistItems(userId);
 
       expect(result).toHaveLength(2);
       expect(result[0].name).toBe('Lightning Bolt');
       expect(result[1].name).toBe('Counterspell');
-      expect(mockGetDocs).toHaveBeenCalled();
+      expect(mockGetFullList).toHaveBeenCalledWith(
+        expect.objectContaining({ filter: `userId = "${userId}"` })
+      );
     });
 
     it('should return empty array when no items', async () => {
-      const mockSnapshot = {
-        docs: [],
-      };
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      mockGetFullList.mockResolvedValue([]);
 
       const result = await getWishlistItems(userId);
 
@@ -121,57 +79,15 @@ describe('wishlistService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      mockGetDocs.mockRejectedValue(new Error('Firestore error'));
+      mockGetFullList.mockRejectedValue(new Error('API error'));
 
-      await expect(getWishlistItems(userId)).rejects.toThrow('Firestore error');
-    });
-  });
-
-  describe('getWishlistItem', () => {
-    it('should fetch a specific wishlist item', async () => {
-      const mockDocSnap = {
-        exists: () => true,
-        id: 'item-1',
-        data: () => ({
-          name: 'Lightning Bolt',
-          quantity: 1,
-          userId,
-          createdAt: { toDate: () => new Date() },
-          updatedAt: { toDate: () => new Date() },
-        }),
-      };
-
-      mockGetDoc.mockResolvedValue(mockDocSnap);
-
-      const result = await getWishlistItem(userId, 'item-1');
-
-      expect(result).toBeTruthy();
-      expect(result?.name).toBe('Lightning Bolt');
-      expect(mockGetDoc).toHaveBeenCalled();
-    });
-
-    it('should return null when item does not exist', async () => {
-      const mockDocSnap = {
-        exists: () => false,
-      };
-
-      mockGetDoc.mockResolvedValue(mockDocSnap);
-
-      const result = await getWishlistItem(userId, 'non-existent');
-
-      expect(result).toBeNull();
-    });
-
-    it('should handle errors gracefully', async () => {
-      mockGetDoc.mockRejectedValue(new Error('Firestore error'));
-
-      await expect(getWishlistItem(userId, 'item-1')).rejects.toThrow('Firestore error');
+      await expect(getWishlistItems(userId)).rejects.toThrow('API error');
     });
   });
 
   describe('addWishlistItem', () => {
     it('should add a new wishlist item', async () => {
-      mockAddDoc.mockResolvedValue({ id: 'new-item-id' });
+      mockCreate.mockResolvedValue({ id: 'new-item-id' });
 
       const newItem = {
         name: 'Lightning Bolt',
@@ -183,56 +99,58 @@ describe('wishlistService', () => {
       const result = await addWishlistItem(userId, newItem);
 
       expect(result).toBe('new-item-id');
-      expect(mockAddDoc).toHaveBeenCalled();
+      expect(mockCreate).toHaveBeenCalled();
     });
 
     it('should handle errors gracefully', async () => {
-      mockAddDoc.mockRejectedValue(new Error('Firestore error'));
+      mockCreate.mockRejectedValue(new Error('API error'));
 
       await expect(
         addWishlistItem(userId, {
           name: 'Lightning Bolt',
           quantity: 1,
         })
-      ).rejects.toThrow('Firestore error');
+      ).rejects.toThrow('API error');
     });
   });
 
   describe('updateWishlistItem', () => {
     it('should update an existing wishlist item', async () => {
-      mockUpdateDoc.mockResolvedValue(undefined);
+      mockUpdate.mockResolvedValue(undefined);
 
       await updateWishlistItem(userId, 'item-1', {
         quantity: 3,
         notes: 'Updated notes',
       });
 
-      expect(mockUpdateDoc).toHaveBeenCalled();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'item-1',
+        expect.objectContaining({ quantity: 3, notes: 'Updated notes' })
+      );
     });
 
     it('should handle errors gracefully', async () => {
-      mockUpdateDoc.mockRejectedValue(new Error('Firestore error'));
+      mockUpdate.mockRejectedValue(new Error('API error'));
 
       await expect(
         updateWishlistItem(userId, 'item-1', { quantity: 3 })
-      ).rejects.toThrow('Firestore error');
+      ).rejects.toThrow('API error');
     });
   });
 
   describe('deleteWishlistItem', () => {
     it('should delete a wishlist item', async () => {
-      mockDeleteDoc.mockResolvedValue(undefined);
+      mockDelete.mockResolvedValue(undefined);
 
       await deleteWishlistItem(userId, 'item-1');
 
-      expect(mockDeleteDoc).toHaveBeenCalled();
+      expect(mockDelete).toHaveBeenCalledWith('item-1');
     });
 
     it('should handle errors gracefully', async () => {
-      mockDeleteDoc.mockRejectedValue(new Error('Firestore error'));
+      mockDelete.mockRejectedValue(new Error('API error'));
 
-      await expect(deleteWishlistItem(userId, 'item-1')).rejects.toThrow('Firestore error');
+      await expect(deleteWishlistItem(userId, 'item-1')).rejects.toThrow('API error');
     });
   });
 });
-

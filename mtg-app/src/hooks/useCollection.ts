@@ -1,9 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-// Remplacer ces imports Firebase
-// import { collection, query, getDocs, ... } from 'firebase/firestore';
-// import { db } from '../services/firebase';
-
-// Par ces imports PocketBase
 import { pb } from '../services/pocketbase';
 import * as collectionService from '../services/collectionService';
 import * as importService from '../services/importService';

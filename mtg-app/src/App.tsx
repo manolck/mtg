@@ -49,7 +49,7 @@ function MTGJSONInitializer() {
       if (shouldUpdatePrices()) {
         // Ne pas afficher de log en développement si l'API n'est pas configurée
         const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
-        if (!isDev || !import.meta.env.VITE_FIREBASE_FUNCTIONS_URL?.includes('YOUR-PROJECT-ID')) {
+        if (!isDev || (import.meta.env.VITE_PRICE_API_URL?.trim() ?? '') !== '') {
           console.log('MTGJSON prices update available (last update > 15 days), triggering server update...');
         }
         updateMTGJSONPrices().then(success => {

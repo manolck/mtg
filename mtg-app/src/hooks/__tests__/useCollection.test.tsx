@@ -1,54 +1,28 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useCollection } from '../useCollection';
 import { AuthProvider } from '../../context/AuthContext';
-import { db } from '../../services/firebase';
-import { 
-  collection, 
-  getDocs, 
-  collectionGroup, 
-  query, 
-  limit, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  updateDoc, 
-  writeBatch, 
-  getDoc 
-} from 'firebase/firestore';
+import * as collectionService from '../../services/collectionService';
+import * as importService from '../../services/importService';
 import type { UserCard } from '../../types/card';
 
-// Mock Firebase
-jest.mock('../../services/firebase', () => ({
-  db: {},
-  auth: {
-    currentUser: null,
+jest.mock('../../services/pocketbase', () => ({
+  pb: {
+    collection: jest.fn(),
+    authStore: {
+      isValid: true,
+      model: { id: 'test-user-id', email: 'test@example.com', pseudonym: null },
+      onChange: jest.fn(() => () => {}),
+      clear: jest.fn(),
+    },
   },
 }));
 
-jest.mock('firebase/auth', () => ({
-  onAuthStateChanged: jest.fn((auth, callback) => {
-    callback({
-      uid: 'test-user-id',
-      email: 'test@example.com',
-    });
-    return jest.fn();
-  }),
-  signInWithEmailAndPassword: jest.fn(),
-  signOut: jest.fn(),
-}));
-
-jest.mock('firebase/firestore', () => ({
-  collection: jest.fn(),
-  getDocs: jest.fn(),
-  collectionGroup: jest.fn(),
-  query: jest.fn(),
-  limit: jest.fn(),
-  addDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  doc: jest.fn(),
-  updateDoc: jest.fn(),
-  writeBatch: jest.fn(),
-  getDoc: jest.fn(),
+jest.mock('../../services/collectionService');
+jest.mock('../../services/importService', () => ({
+  createImport: jest.fn().mockResolvedValue('import-id'),
+  updateImportStatus: jest.fn().mockResolvedValue(undefined),
+  updateImportProgress: jest.fn().mockResolvedValue(undefined),
+  saveImportReport: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../services/csvParser', () => ({
@@ -108,30 +82,21 @@ jest.mock('../../services/scryfallApi', () => ({
   }),
 }));
 
-const mockUseImports = {
-  createImport: jest.fn().mockResolvedValue('import-id'),
-  updateImportStatus: jest.fn().mockResolvedValue(undefined),
-  updateImportProgress: jest.fn().mockResolvedValue(undefined),
-  saveImportReport: jest.fn().mockResolvedValue(undefined),
-};
-
-jest.mock('../useImports', () => ({
-  useImports: () => mockUseImports,
-}));
+const mockCreateImport = importService.createImport as jest.Mock;
 
 const mockUseAuth = jest.fn();
 jest.mock('../useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-const mockGetDocs = getDocs as jest.Mock;
-const mockCollection = collection as jest.Mock;
-const mockCollectionGroup = collectionGroup as jest.Mock;
-const mockDeleteDoc = deleteDoc as jest.Mock;
-const mockUpdateDoc = updateDoc as jest.Mock;
-const mockAddDoc = addDoc as jest.Mock;
-const mockGetDoc = getDoc as jest.Mock;
-const mockWriteBatch = writeBatch as jest.Mock;
+const mockGetCollection = collectionService.getCollection as jest.Mock;
+const mockGetAllCollections = collectionService.getAllCollections as jest.Mock;
+const mockDeleteCard = collectionService.deleteCard as jest.Mock;
+const mockDeleteCards = collectionService.deleteCards as jest.Mock;
+const mockUpdateCardQuantity = collectionService.updateCardQuantity as jest.Mock;
+const mockAddCard = collectionService.addCard as jest.Mock;
+const mockFindCard = collectionService.findCard as jest.Mock;
+const mockUpdateCard = collectionService.updateCard as jest.Mock;
 
 describe('useCollection', () => {
   const mockUser = {
@@ -149,23 +114,17 @@ describe('useCollection', () => {
     collectorNumber: '161',
   };
 
-  const createMockSnapshot = (cards: any[] = []) => ({
-    size: cards.length,
-    forEach: jest.fn((callback) => {
-      cards.forEach(card => callback(card));
-    }),
-    docs: cards.map(card => ({
-      id: card.id || 'card-1',
-      data: () => card.data ? card.data() : card,
-      ref: {
-        parent: {
-          parent: {
-            id: card.userId || 'test-user-id',
-          },
-        },
-      },
-    })),
-  });
+  const createMockCards = (cards: Partial<UserCard>[] = []): UserCard[] =>
+    cards.map((c, i) => ({
+      id: c.id || `card-${i + 1}`,
+      name: c.name || 'Lightning Bolt',
+      quantity: c.quantity ?? 1,
+      userId: c.userId || 'test-user-id',
+      createdAt: c.createdAt || new Date(),
+      setCode: c.setCode,
+      collectorNumber: c.collectorNumber,
+      ...c,
+    }));
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <AuthProvider>
@@ -175,40 +134,21 @@ describe('useCollection', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCollection.mockReturnValue({});
-    mockCollectionGroup.mockReturnValue({});
     mockUseAuth.mockReturnValue({ currentUser: mockUser });
-    mockGetDocs.mockResolvedValue(createMockSnapshot());
-    mockDeleteDoc.mockResolvedValue(undefined);
-    mockUpdateDoc.mockResolvedValue(undefined);
-    mockAddDoc.mockResolvedValue({ id: 'new-card-id' });
-    mockGetDoc.mockResolvedValue({
-      exists: () => false,
-      data: () => ({}),
-    });
-    
-    const mockBatch = {
-      delete: jest.fn(),
-      update: jest.fn(),
-      set: jest.fn(),
-      commit: jest.fn().mockResolvedValue(undefined),
-    };
-    mockWriteBatch.mockReturnValue(mockBatch);
+    mockGetCollection.mockResolvedValue([]);
+    mockGetAllCollections.mockResolvedValue({ items: [], totalCount: 0, owners: [] });
+    mockDeleteCard.mockResolvedValue(undefined);
+    mockDeleteCards.mockResolvedValue(undefined);
+    mockUpdateCardQuantity.mockResolvedValue(undefined);
+    mockAddCard.mockResolvedValue({ id: 'new-card-id' });
+    mockFindCard.mockResolvedValue(null);
+    mockUpdateCard.mockResolvedValue(undefined);
   });
 
   describe('Loading Collection', () => {
     it('should load collection for authenticated user', async () => {
-      const mockSnapshot = createMockSnapshot([{
-        id: 'card-1',
-        data: () => ({
-          name: 'Lightning Bolt',
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
-      }]);
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockCards = createMockCards([{ id: 'card-1', name: 'Lightning Bolt', quantity: 1 }]);
+      mockGetCollection.mockResolvedValue(mockCards);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -216,18 +156,16 @@ describe('useCollection', () => {
         expect(result.current.loading).toBe(false);
       }, { timeout: 3000 });
 
-      expect(mockGetDocs).toHaveBeenCalled();
-      expect(mockCollection).toHaveBeenCalled();
+      expect(mockGetCollection).toHaveBeenCalledWith('test-user-id');
     });
 
     it('should load all collections when userId is "all"', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      mockGetAllCollections.mockResolvedValue({ items: [], totalCount: 0, owners: [] });
 
       const { result } = renderHook(() => useCollection('all'), { wrapper });
 
       await waitFor(() => {
-        expect(mockCollectionGroup).toHaveBeenCalled();
+        expect(mockGetAllCollections).toHaveBeenCalled();
       }, { timeout: 3000 });
     });
 
@@ -241,7 +179,7 @@ describe('useCollection', () => {
     });
 
     it('should handle loading error gracefully', async () => {
-      mockGetDocs.mockRejectedValue(new Error('Firestore error'));
+      mockGetCollection.mockRejectedValue(new Error('Firestore error'));
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -255,18 +193,9 @@ describe('useCollection', () => {
 
   describe('Delete Card', () => {
     it('should delete a card successfully', async () => {
-      const mockSnapshot = createMockSnapshot([{
-        id: 'card-1',
-        data: () => ({
-          name: 'Lightning Bolt',
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
-      }]);
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockDeleteDoc.mockResolvedValue(undefined);
+      const mockCards = createMockCards([{ id: 'card-1', name: 'Lightning Bolt', quantity: 1 }]);
+      mockGetCollection.mockResolvedValue(mockCards);
+      mockDeleteCard.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -278,7 +207,7 @@ describe('useCollection', () => {
         await result.current.deleteCard('card-1');
       });
 
-      expect(mockDeleteDoc).toHaveBeenCalled();
+      expect(mockDeleteCard).toHaveBeenCalled();
     });
 
     it('should throw error when trying to delete without permission', async () => {
@@ -298,9 +227,9 @@ describe('useCollection', () => {
     });
 
     it('should handle delete error', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockDeleteDoc.mockRejectedValue(new Error('Delete failed'));
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
+      mockDeleteCard.mockRejectedValue(new Error('Delete failed'));
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -318,12 +247,11 @@ describe('useCollection', () => {
 
   describe('Delete All Cards', () => {
     it('should delete all cards successfully', async () => {
-      const mockSnapshot = createMockSnapshot([
-        { id: 'card-1', data: () => ({ name: 'Card 1', quantity: 1, userId: 'test-user-id', createdAt: { toDate: () => new Date() } }) },
-        { id: 'card-2', data: () => ({ name: 'Card 2', quantity: 1, userId: 'test-user-id', createdAt: { toDate: () => new Date() } }) },
+      const mockCards = createMockCards([
+        { id: 'card-1', name: 'Card 1', quantity: 1 },
+        { id: 'card-2', name: 'Card 2', quantity: 1 },
       ]);
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      mockGetCollection.mockResolvedValue(mockCards);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -335,7 +263,7 @@ describe('useCollection', () => {
         await result.current.deleteAllCards();
       });
 
-      expect(mockWriteBatch).toHaveBeenCalled();
+      expect(mockDeleteCards).toHaveBeenCalled();
     });
 
     it('should throw error when trying to delete all without permission', async () => {
@@ -357,18 +285,9 @@ describe('useCollection', () => {
 
   describe('Update Card Quantity', () => {
     it('should update card quantity successfully', async () => {
-      const mockSnapshot = createMockSnapshot([{
-        id: 'card-1',
-        data: () => ({
-          name: 'Lightning Bolt',
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
-      }]);
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockUpdateDoc.mockResolvedValue(undefined);
+      const mockCards = createMockCards([{ id: 'card-1', name: 'Lightning Bolt', quantity: 1 }]);
+      mockGetCollection.mockResolvedValue(mockCards);
+      mockUpdateCardQuantity.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -380,12 +299,12 @@ describe('useCollection', () => {
         await result.current.updateCardQuantity('card-1', 3);
       });
 
-      expect(mockUpdateDoc).toHaveBeenCalled();
+      expect(mockUpdateCardQuantity).toHaveBeenCalled();
     });
 
     it('should throw error for invalid quantity', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -403,18 +322,9 @@ describe('useCollection', () => {
 
   describe('Update Card', () => {
     it('should update card successfully', async () => {
-      const mockSnapshot = createMockSnapshot([{
-        id: 'card-1',
-        data: () => ({
-          name: 'Lightning Bolt',
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
-      }]);
-
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockUpdateDoc.mockResolvedValue(undefined);
+      const mockCards = createMockCards([{ id: 'card-1', name: 'Lightning Bolt', quantity: 1 }]);
+      mockGetCollection.mockResolvedValue(mockCards);
+      mockUpdateCard.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -426,15 +336,15 @@ describe('useCollection', () => {
         await result.current.updateCard('card-1', { quantity: 2, condition: 'NM' });
       });
 
-      expect(mockUpdateDoc).toHaveBeenCalled();
+      expect(mockUpdateCard).toHaveBeenCalled();
     });
   });
 
   describe('Import CSV', () => {
     it('should import CSV successfully', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockUseImports.createImport.mockResolvedValue('import-id-123');
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
+      mockCreateImport.mockResolvedValue('import-id-123');
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -448,7 +358,7 @@ describe('useCollection', () => {
         await result.current.importCSV(csvContent);
       });
 
-      expect(mockUseImports.createImport).toHaveBeenCalled();
+      expect(mockCreateImport).toHaveBeenCalled();
     });
 
     it('should throw error when importing without authentication', async () => {
@@ -468,9 +378,9 @@ describe('useCollection', () => {
     });
 
     it('should handle pause import', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
-      mockUseImports.createImport.mockResolvedValue('import-id-123');
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
+      mockCreateImport.mockResolvedValue('import-id-123');
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -486,8 +396,8 @@ describe('useCollection', () => {
     });
 
     it('should handle resume import', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -504,8 +414,8 @@ describe('useCollection', () => {
     });
 
     it('should handle cancel import', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -525,16 +435,12 @@ describe('useCollection', () => {
     it('should load more cards when available', async () => {
       const manyCards = Array.from({ length: 100 }, (_, i) => ({
         id: `card-${i}`,
-        data: () => ({
-          name: `Card ${i}`,
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
+        name: `Card ${i}`,
+        quantity: 1,
+        userId: 'test-user-id',
       }));
-
-      const mockSnapshot = createMockSnapshot(manyCards);
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockCards = createMockCards(manyCards);
+      mockGetCollection.mockResolvedValue(mockCards);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -552,16 +458,12 @@ describe('useCollection', () => {
     it('should not load more if all cards are displayed', async () => {
       const fewCards = Array.from({ length: 10 }, (_, i) => ({
         id: `card-${i}`,
-        data: () => ({
-          name: `Card ${i}`,
-          quantity: 1,
-          userId: 'test-user-id',
-          createdAt: { toDate: () => new Date() },
-        }),
+        name: `Card ${i}`,
+        quantity: 1,
+        userId: 'test-user-id',
       }));
-
-      const mockSnapshot = createMockSnapshot(fewCards);
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockCards = createMockCards(fewCards);
+      mockGetCollection.mockResolvedValue(mockCards);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -582,8 +484,8 @@ describe('useCollection', () => {
 
   describe('Can Modify', () => {
     it('should return true when viewing own collection', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 
@@ -595,8 +497,8 @@ describe('useCollection', () => {
     });
 
     it('should return false when viewing other user collection', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection('other-user-id'), { wrapper });
 
@@ -608,8 +510,8 @@ describe('useCollection', () => {
     });
 
     it('should return false when viewing all collections', async () => {
-      const mockSnapshot = createMockSnapshot();
-      mockGetDocs.mockResolvedValue(mockSnapshot);
+      const mockSnapshot = createMockCards();
+      mockGetCollection.mockResolvedValue(mockSnapshot);
 
       const { result } = renderHook(() => useCollection('all'), { wrapper });
 
