@@ -6,9 +6,8 @@
 
 import { LRUCache } from '../utils/LRUCache';
 
-// URL de l'API backend (Firebase Functions)
-const API_BASE_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 
-  'https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net';
+// URL de l'API backend pour les prix MTGJSON
+const API_BASE_URL = import.meta.env.VITE_PRICE_API_URL || '';
 
 // Cache en mémoire pour les prix recherchés
 const priceCache = new LRUCache<string, CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
@@ -37,12 +36,10 @@ function isDevelopment(): boolean {
 async function isAPIAvailable(): Promise<boolean> {
   // En développement, on peut utiliser l'émulateur ou laisser tomber
   if (isDevelopment()) {
-    // Vérifier si l'URL de l'API est configurée
-    const apiUrl = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL;
-    if (!apiUrl || apiUrl.includes('YOUR-PROJECT-ID')) {
+    const apiUrl = import.meta.env.VITE_PRICE_API_URL;
+    if (!apiUrl || apiUrl.trim() === '') {
       return false; // API non configurée en dev
     }
-    
     // Tester si l'API répond
     try {
       const response = await fetch(`${apiUrl}/getCardPrice?cardName=test`, {
@@ -84,8 +81,11 @@ export async function getCardPriceFromMTGJSON(
     }
   }
 
+  if (!API_BASE_URL?.trim()) {
+    return null;
+  }
+
   try {
-    // Construire l'URL avec les paramètres
     const params = new URLSearchParams({ cardName });
     if (setCode) {
       params.append('setCode', setCode);
@@ -123,13 +123,13 @@ export async function getCardPriceFromMTGJSON(
  * Vérifie si l'API est disponible
  */
 export async function isMTGJSONInitialized(): Promise<boolean> {
-  // En développement, vérifier si l'API est configurée
   if (isDevelopment()) {
     return isAPIAvailable();
   }
-  
+  if (!API_BASE_URL?.trim()) {
+    return false;
+  }
   try {
-    // Essayer une requête simple pour vérifier si l'API répond
     const response = await fetch(`${API_BASE_URL}/getCardPrice?cardName=test`, {
       signal: AbortSignal.timeout(2000),
     });
@@ -157,14 +157,11 @@ export async function initializeMTGJSONPrices(): Promise<void> {
  * Force la mise à jour des prix (appelle la Cloud Function)
  */
 export async function updateMTGJSONPrices(): Promise<boolean> {
-  // Vérifier que l'URL est configurée correctement
-  if (API_BASE_URL.includes('YOUR-PROJECT-ID')) {
-    // En développement, c'est normal que l'URL ne soit pas configurée
+  if (!API_BASE_URL || API_BASE_URL.trim() === '') {
     if (isDevelopment()) {
-      // Ne pas afficher de message en développement, c'est attendu
       return false;
     }
-    console.warn('Firebase Functions URL not configured. Please set VITE_FIREBASE_FUNCTIONS_URL in your .env file');
+    console.warn('Price API URL not configured. Please set VITE_PRICE_API_URL in your .env file');
     return false;
   }
 

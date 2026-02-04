@@ -1,15 +1,23 @@
 import '@testing-library/jest-dom';
 
-// Mock Firebase
-jest.mock('../services/firebase', () => ({
-  auth: {
-    currentUser: null,
-    onAuthStateChanged: jest.fn(),
-    signInWithEmailAndPassword: jest.fn(),
-    signOut: jest.fn(),
+// Mock PocketBase
+jest.mock('../services/pocketbase', () => ({
+  pb: {
+    collection: jest.fn(() => ({
+      getFullList: jest.fn().mockResolvedValue([]),
+      getOne: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      authWithPassword: jest.fn(),
+    })),
+    authStore: {
+      isValid: false,
+      model: null,
+      onChange: jest.fn(() => () => {}),
+      clear: jest.fn(),
+    },
   },
-  db: {},
-  storage: {},
 }));
 
 // Mock window.matchMedia

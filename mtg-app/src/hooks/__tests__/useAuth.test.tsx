@@ -1,11 +1,27 @@
 import { renderHook } from '@testing-library/react';
 import { useAuth } from '../useAuth';
 import { AuthProvider } from '../../context/AuthContext';
-import { auth } from '../../services/firebase';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
-jest.mock('../../services/firebase');
-jest.mock('firebase/auth');
+const mockAuthWithPassword = jest.fn();
+const mockClear = jest.fn();
+const mockOnChange = jest.fn();
+
+jest.mock('../../services/pocketbase', () => ({
+  pb: {
+    collection: () => ({
+      authWithPassword: mockAuthWithPassword,
+    }),
+    authStore: {
+      isValid: false,
+      model: null,
+      onChange: (cb: () => void) => {
+        mockOnChange.mockImplementation(cb);
+        return () => {};
+      },
+      clear: mockClear,
+    },
+  },
+}));
 
 describe('useAuth', () => {
   beforeEach(() => {
@@ -25,8 +41,7 @@ describe('useAuth', () => {
   });
 
   it('should handle login', async () => {
-    const mockSignIn = signInWithEmailAndPassword as jest.Mock;
-    mockSignIn.mockResolvedValue({} as any);
+    mockAuthWithPassword.mockResolvedValue(undefined);
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider>{children}</AuthProvider>
@@ -36,17 +51,13 @@ describe('useAuth', () => {
 
     await result.current.login('test@example.com', 'password123');
 
-    expect(mockSignIn).toHaveBeenCalledWith(
-      auth,
+    expect(mockAuthWithPassword).toHaveBeenCalledWith(
       'test@example.com',
       'password123',
     );
   });
 
   it('should handle logout', async () => {
-    const mockSignOut = signOut as jest.Mock;
-    mockSignOut.mockResolvedValue(undefined);
-
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider>{children}</AuthProvider>
     );
@@ -55,7 +66,6 @@ describe('useAuth', () => {
 
     await result.current.logout();
 
-    expect(mockSignOut).toHaveBeenCalledWith(auth);
+    expect(mockClear).toHaveBeenCalled();
   });
 });
-

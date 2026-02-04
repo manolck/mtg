@@ -47,7 +47,6 @@ export default defineConfig({
         manualChunks: {
           // Séparer les dépendances lourdes
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
         },
       },
     },

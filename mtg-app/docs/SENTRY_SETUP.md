@@ -45,12 +45,6 @@ VITE_SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
    - Nom : `VITE_SENTRY_DSN`
    - Valeur : Votre DSN Sentry
 
-Ou via Firebase CLI :
-
-```bash
-firebase functions:config:set sentry.dsn="https://your-sentry-dsn@sentry.io/project-id"
-```
-
 #### Option B : Vercel
 
 1. Dans le dashboard Vercel, allez dans **Settings** > **Environment Variables**

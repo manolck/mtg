@@ -1,53 +1,33 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useDecks } from '../useDecks';
 import { AuthProvider } from '../../context/AuthContext';
-import { db } from '../../services/firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import * as deckService from '../../services/deckService';
 import type { Deck } from '../../types/deck';
 
-// Mock Firebase
-jest.mock('../../services/firebase', () => ({
-  db: {},
-  auth: {
-    currentUser: null,
+jest.mock('../../services/pocketbase', () => ({
+  pb: {
+    collection: jest.fn(),
+    authStore: {
+      isValid: true,
+      model: { id: 'test-user-id', email: 'test@example.com', pseudonym: null },
+      onChange: jest.fn(() => () => {}),
+      clear: jest.fn(),
+    },
   },
 }));
 
-jest.mock('firebase/auth', () => ({
-  onAuthStateChanged: jest.fn((auth, callback) => {
-    // Appeler immédiatement le callback avec un utilisateur mocké
-    callback({
-      uid: 'test-user-id',
-      email: 'test@example.com',
-    });
-    return jest.fn(); // Retourner une fonction unsubscribe
-  }),
-  signInWithEmailAndPassword: jest.fn(),
-  signOut: jest.fn(),
+jest.mock('../../services/deckService', () => ({
+  getDecks: jest.fn(),
+  createDeck: jest.fn(),
+  updateDeck: jest.fn(),
+  deleteDeck: jest.fn(),
 }));
 
-jest.mock('firebase/firestore', () => ({
-  collection: jest.fn(),
-  getDocs: jest.fn(),
-  addDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  doc: jest.fn(),
-  query: jest.fn(),
-  orderBy: jest.fn(),
-  updateDoc: jest.fn(),
-}));
-
-const mockGetDocs = getDocs as jest.Mock;
-const mockAddDoc = addDoc as jest.Mock;
-const mockDeleteDoc = deleteDoc as jest.Mock;
-const mockCollection = collection as jest.Mock;
+const mockGetDecks = deckService.getDecks as jest.Mock;
+const mockCreateDeck = deckService.createDeck as jest.Mock;
+const mockDeleteDeck = deckService.deleteDeck as jest.Mock;
 
 describe('useDecks', () => {
-  const mockUser = {
-    uid: 'test-user-id',
-    email: 'test@example.com',
-  };
-
   const mockDeck: Deck = {
     id: 'deck-1',
     name: 'Test Deck',
@@ -58,25 +38,10 @@ describe('useDecks', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCollection.mockReturnValue({});
   });
 
   it('should load decks for authenticated user', async () => {
-    const mockSnapshot = {
-      forEach: jest.fn((callback) => {
-        callback({
-          id: 'deck-1',
-          data: () => ({
-            name: 'Test Deck',
-            cards: [],
-            userId: 'test-user-id',
-            createdAt: { toDate: () => new Date() },
-          }),
-        });
-      }),
-    };
-
-    mockGetDocs.mockResolvedValue(mockSnapshot);
+    mockGetDecks.mockResolvedValue([mockDeck]);
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider>
@@ -84,21 +49,19 @@ describe('useDecks', () => {
       </AuthProvider>
     );
 
-    // Mock currentUser dans AuthProvider
     const { result } = renderHook(() => useDecks(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockGetDocs).toHaveBeenCalled();
+    expect(mockGetDecks).toHaveBeenCalledWith('test-user-id');
+    expect(result.current.decks).toEqual([mockDeck]);
   });
 
   it('should create a new deck', async () => {
-    mockAddDoc.mockResolvedValue({ id: 'new-deck-id' });
-    mockGetDocs.mockResolvedValue({
-      forEach: jest.fn(),
-    });
+    mockGetDecks.mockResolvedValue([]);
+    mockCreateDeck.mockResolvedValue({ ...mockDeck, id: 'new-deck-id' });
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider>
@@ -114,14 +77,12 @@ describe('useDecks', () => {
 
     await result.current.createDeck('New Deck');
 
-    expect(mockAddDoc).toHaveBeenCalled();
+    expect(mockCreateDeck).toHaveBeenCalledWith('test-user-id', 'New Deck');
   });
 
   it('should delete a deck', async () => {
-    mockDeleteDoc.mockResolvedValue(undefined);
-    mockGetDocs.mockResolvedValue({
-      forEach: jest.fn(),
-    });
+    mockGetDecks.mockResolvedValue([mockDeck]);
+    mockDeleteDeck.mockResolvedValue(undefined);
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider>
@@ -137,30 +98,6 @@ describe('useDecks', () => {
 
     await result.current.deleteDeck('deck-1');
 
-    expect(mockDeleteDoc).toHaveBeenCalled();
-  });
-
-  it('should return empty decks when user is not authenticated', async () => {
-    // Mock onAuthStateChanged pour retourner null (utilisateur non authentifié)
-    const { onAuthStateChanged } = require('firebase/auth');
-    onAuthStateChanged.mockImplementationOnce((auth, callback) => {
-      callback(null);
-      return jest.fn();
-    });
-
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <AuthProvider>
-        <div>{children}</div>
-      </AuthProvider>
-    );
-
-    const { result } = renderHook(() => useDecks(), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(result.current.decks).toEqual([]);
+    expect(mockDeleteDeck).toHaveBeenCalledWith('deck-1');
   });
 });
-
