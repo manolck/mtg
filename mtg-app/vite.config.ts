@@ -1,11 +1,37 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react({
       jsxRuntime: 'automatic',
+    }),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: null,
+      manifest: {
+        name: 'MTG Collection',
+        short_name: 'MTG',
+        description: 'Gérez votre collection de cartes Magic: The Gathering, créez des decks et suivez vos statistiques.',
+        start_url: '/',
+        display: 'standalone',
+        theme_color: '#1e293b',
+        background_color: '#0f172a',
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallbackDenylist: [/^\/api\//, /\/_\/.*/],
+        runtimeCaching: [],
+      },
+      devOptions: { enabled: false },
     }),
   ],
   optimizeDeps: {

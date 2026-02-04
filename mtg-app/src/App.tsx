@@ -21,6 +21,7 @@ const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
+import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
 import { useEffect } from 'react';
 import { initializeMTGJSONPrices, shouldUpdatePrices, updateMTGJSONPrices } from './services/mtgjsonPriceServiceAPI';
 
@@ -91,6 +92,7 @@ function App() {
     <AuthProvider>
       <ToastProvider>
         <ErrorHandlerInitializer />
+        <PWAUpdateNotifier />
         <MTGJSONInitializer />
         <BrowserRouter>
           <GDPRConsent />
