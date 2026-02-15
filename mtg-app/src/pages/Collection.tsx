@@ -101,7 +101,7 @@ export function Collection() {
   }, []);
 
   const handleConfirmMoveToCollection = useCallback(async () => {
-    if (!cardToMove || !moveTargetCollectionId || !canModify()) return;
+    if (!cardToMove || !moveTargetCollectionId || !canModify) return;
     try {
       setMoving(true);
       await updateCard(cardToMove.id, { collectionId: moveTargetCollectionId });

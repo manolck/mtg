@@ -357,12 +357,11 @@ export function Profile() {
     setShowReportModal(true);
   };
 
-  const handleDeleteImport = async (importId: string) => {
+  const handleDeleteImport = (importId: string) => {
     setShowDeleteImportConfirm(importId);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _confirmDeleteImport = async () => {
+  const handleConfirmDeleteImport = async () => {
     if (!showDeleteImportConfirm) return;
     try {
       await deleteImport(showDeleteImportConfirm);
@@ -1191,6 +1190,17 @@ export function Profile() {
           setShowDeleteCollectionConfirm(false);
           setCollectionToDeleteId(null);
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!showDeleteImportConfirm}
+        title="Supprimer cet import"
+        message="Supprimer cet import de l'historique ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={handleConfirmDeleteImport}
+        onCancel={() => setShowDeleteImportConfirm(null)}
       />
     </div>
   );
