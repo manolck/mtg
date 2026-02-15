@@ -71,7 +71,20 @@ export function Collection() {
 
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
+  const myOwner = owners.find(o => o.userId === currentUser?.uid);
   const selectedCollection = userCollections.find((c) => c.id === selectedCollectionId);
+  const [userSelectOpen, setUserSelectOpen] = useState(false);
+  const userSelectRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userSelectRef.current && !userSelectRef.current.contains(event.target as Node)) {
+        setUserSelectOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddToDeck = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
@@ -450,31 +463,98 @@ export function Collection() {
           </h1>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4" ref={userSelectRef}>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Utilisateur :
           </label>
-          <select
-            value={selectedUserId === 'all' ? 'all' : selectedUserId || currentUser?.uid || ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSelectedUserId(value === 'all' ? 'all' : value === currentUser?.uid ? null : value);
-              if (value !== currentUser?.uid && value !== 'all') setSelectedCollectionId(null);
-            }}
-            className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value={currentUser?.uid || ''}>
-              Ma Collection{currentOwner?.cardCount != null ? ` (${currentOwner.cardCount} cartes)` : ''}
-            </option>
-            <option value="all">Toutes les Collections</option>
-            {owners
-              .filter(o => o.userId !== currentUser?.uid)
-              .map((owner) => (
-                <option key={owner.userId} value={owner.userId}>
-                  {owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'} ({owner.cardCount} cartes)
-                </option>
-              ))}
-          </select>
+          <div className="relative w-full max-w-md">
+            <button
+              type="button"
+              onClick={() => setUserSelectOpen((o) => !o)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left"
+            >
+              {selectedUserId === 'all' ? (
+                <>
+                  <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-lg" aria-hidden>📚</span>
+                  <span className="flex-1">Toutes les Collections</span>
+                </>
+              ) : (
+                <>
+                  {currentOwner?.profile?.avatarId ? (
+                    <AvatarDisplay avatarId={currentOwner.profile.avatarId} size="md" />
+                  ) : (
+                    <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                  )}
+                  <span className="flex-1">
+                    {currentOwner?.profile?.pseudonym || currentOwner?.profile?.email || currentUser?.email || 'Moi'}
+                    {currentOwner?.cardCount != null && ` (${currentOwner.cardCount} cartes)`}
+                  </span>
+                </>
+              )}
+              <svg className={`w-5 h-5 text-gray-500 transition-transform ${userSelectOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {userSelectOpen && (
+              <ul
+                className="absolute z-20 mt-1 w-full py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto"
+                role="listbox"
+              >
+                <li
+                  role="option"
+                  aria-selected={(selectedUserId || currentUser?.uid) === currentUser?.uid}
+                  onClick={() => {
+                    setSelectedUserId(null);
+                    setUserSelectOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {myOwner?.profile?.avatarId ? (
+                    <AvatarDisplay avatarId={myOwner.profile.avatarId} size="sm" />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                  )}
+                  <span>{myOwner?.profile?.pseudonym || myOwner?.profile?.email || currentUser?.email || 'Moi'}</span>
+                  {myOwner?.cardCount != null && <span className="text-gray-500 dark:text-gray-400 text-sm">({myOwner.cardCount} cartes)</span>}
+                </li>
+                <li
+                  role="option"
+                  aria-selected={selectedUserId === 'all'}
+                  onClick={() => {
+                    setSelectedUserId('all');
+                    setUserSelectOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>📚</span>
+                  <span>Toutes les Collections</span>
+                </li>
+                {owners
+                  .filter((o) => o.userId !== currentUser?.uid)
+                  .map((owner) => (
+                    <li
+                      key={owner.userId}
+                      role="option"
+                      aria-selected={selectedUserId === owner.userId}
+                      onClick={() => {
+                        setSelectedUserId(owner.userId);
+                        setSelectedCollectionId(null);
+                        setUserSelectOpen(false);
+                      }}
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      {owner.profile?.avatarId ? (
+                        <AvatarDisplay avatarId={owner.profile.avatarId} size="sm" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                      )}
+                      <span>{owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'}</span>
+                      <span className="text-gray-500 dark:text-gray-400 text-sm">({owner.cardCount} cartes)</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         {isViewingOwnCollection && !isViewingAllCollections && (
