@@ -56,14 +56,34 @@ export async function getDecks(userId: string): Promise<Deck[]> {
  * Crée un nouveau deck
  */
 export async function createDeck(userId: string, name: string): Promise<Deck> {
+  const deckName = typeof name === 'string' ? name.trim() : '';
+  if (!deckName) {
+    throw new Error('Le nom du deck ne peut pas être vide');
+  }
+  // Utiliser l'id du store auth pour que la createRule (@request.auth.id = userId) soit satisfaite
+  const authId = pb.authStore.model?.id;
+  const uid = (typeof authId === 'string' && authId) || (typeof userId === 'string' ? userId.trim() : '');
+  if (!uid) {
+    throw new Error('Vous devez être connecté pour créer un deck');
+  }
+
   const deckData = cleanForPocketBase({
-    userId,
-    name,
-    cards: [],
+    userId: uid,
+    name: deckName,
+    cards: [] as DeckCard[],
   });
 
-  const record = await pb.collection('decks').create(deckData);
-  return recordToDeck(record);
+  try {
+    const record = await pb.collection('decks').create(deckData);
+    return recordToDeck(record);
+  } catch (err: unknown) {
+    // PocketBase ClientResponseError a .message (depuis response.message) ou .response.message
+    const msg =
+      err instanceof Error
+        ? err.message
+        : err && typeof err === 'object' && 'response' in err && (err as { response?: { message?: string } }).response?.message;
+    throw new Error(msg && msg !== 'Something went wrong.' ? msg : 'Impossible de créer le deck. Vérifiez votre connexion et les droits.');
+  }
 }
 
 /**
