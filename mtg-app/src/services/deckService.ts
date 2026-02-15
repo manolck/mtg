@@ -82,7 +82,11 @@ export async function createDeck(userId: string, name: string): Promise<Deck> {
       err instanceof Error
         ? err.message
         : err && typeof err === 'object' && 'response' in err && (err as { response?: { message?: string } }).response?.message;
-    throw new Error(msg && msg !== 'Something went wrong.' ? msg : 'Impossible de créer le deck. Vérifiez votre connexion et les droits.');
+    const message =
+      typeof msg === 'string' && msg !== 'Something went wrong.'
+        ? msg
+        : 'Impossible de créer le deck. Vérifiez votre connexion et les droits.';
+    throw new Error(message);
   }
 }
 
