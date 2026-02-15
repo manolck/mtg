@@ -13,6 +13,7 @@ interface CardDisplayProps {
   isInWishlist?: boolean; // Indique si la carte est déjà dans la wishlist
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
+  onMoveToCollection?: (card: UserCard) => void;
   onEdit?: (card: UserCard) => void; // Pour ouvrir un menu d'édition personnalisé
   showQuantity?: boolean;
   showActions?: boolean;
@@ -26,6 +27,7 @@ export const CardDisplay = memo(function CardDisplay({
   isInWishlist = false,
   onDelete,
   onUpdateQuantity,
+  onMoveToCollection,
   onEdit,
   showActions = false 
 }: CardDisplayProps) {
@@ -301,7 +303,22 @@ export const CardDisplay = memo(function CardDisplay({
         )}
 
         {/* Boutons d'action en haut à droite - visibles au survol */}
-        <div className={`absolute top-2 ${onAddToWishlist ? 'right-12' : 'right-2'} flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`absolute top-2 ${(onAddToWishlist || onMoveToCollection) ? 'right-12' : 'right-2'} flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
+          {/* Bouton Déplacer vers une autre collection */}
+          {onMoveToCollection && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToCollection(card);
+              }}
+              className="w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors"
+              title="Déplacer vers une autre collection"
+            >
+              <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </button>
+          )}
           {/* Bouton Ajouter au deck */}
           {onAddToDeck && (
             <button

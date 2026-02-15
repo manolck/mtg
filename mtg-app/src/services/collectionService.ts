@@ -317,6 +317,77 @@ export async function deleteCollection(collectionId: string): Promise<void> {
 }
 
 /**
+ * Retourne le nombre de cartes par collection pour un utilisateur.
+ */
+export async function getCollectionCounts(
+  userId: string
+): Promise<Record<string, number>> {
+  const items = await pb.collection('collection_items').getFullList({
+    filter: `userCollectionId.userId = "${userId}"`,
+    fields: 'userCollectionId',
+  });
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const collId =
+      typeof item.userCollectionId === 'string'
+        ? item.userCollectionId
+        : item.userCollectionId?.id ?? item.userCollectionId;
+    if (collId) {
+      counts[collId] = (counts[collId] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/**
+ * Fusionne une ou plusieurs collections dans une collection cible.
+ * Les cartes des collections sources sont déplacées vers la cible (quantités fusionnées si même carte).
+ * Les collections sources sont ensuite supprimées.
+ */
+export async function mergeCollections(
+  userId: string,
+  sourceCollectionIds: string[],
+  targetCollectionId: string
+): Promise<void> {
+  const targetId = targetCollectionId;
+  const sources = sourceCollectionIds.filter((id) => id !== targetId);
+  if (sources.length === 0) return;
+
+  for (const sourceId of sources) {
+    const items = await pb.collection('collection_items').getFullList({
+      filter: `userCollectionId = "${sourceId}"`,
+      expand: 'cardId',
+    });
+    for (const item of items) {
+      const cardId = typeof item.cardId === 'string' ? item.cardId : item.cardId?.id;
+      if (!cardId) continue;
+      const itemLang = item.language ?? 'en';
+      const targetItems = await pb.collection('collection_items').getFullList({
+        filter: `userCollectionId = "${targetId}" && cardId = "${cardId}"`,
+      });
+      const sameLanguage = targetItems.find(
+        (t) => (t.language ?? 'en') === itemLang
+      );
+      if (sameLanguage) {
+        const newQty = (sameLanguage.quantity ?? 0) + (item.quantity ?? 1);
+        await pb.collection('collection_items').update(sameLanguage.id, {
+          quantity: newQty,
+        });
+      } else {
+        await pb.collection('collection_items').create({
+          userCollectionId: targetId,
+          cardId,
+          quantity: item.quantity ?? 1,
+          condition: item.condition ?? undefined,
+          language: itemLang,
+        });
+      }
+    }
+    await pb.collection('user_collections').delete(sourceId);
+  }
+}
+
+/**
  * Supprime toutes les cartes d'un utilisateur, ou seulement celles d'une collection.
  */
 export async function deleteAllCardsByUser(

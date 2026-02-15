@@ -6,6 +6,7 @@ import { useUserCollections } from '../hooks/useUserCollections';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { errorHandler } from '../services/errorHandler';
+import * as collectionService from '../services/collectionService';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
@@ -68,7 +69,25 @@ export function Profile() {
   const [renameCollectionId, setRenameCollectionId] = useState<string | null>(null);
   const [renameCollectionName, setRenameCollectionName] = useState('');
   const [renamingCollection, setRenamingCollection] = useState(false);
-  
+  const [collectionCounts, setCollectionCounts] = useState<Record<string, number>>({});
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSourceIds, setMergeSourceIds] = useState<string[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  // Charger le nombre de cartes par collection
+  useEffect(() => {
+    if (!currentUser?.uid || userCollections.length === 0) {
+      setCollectionCounts({});
+      return;
+    }
+    let cancelled = false;
+    collectionService.getCollectionCounts(currentUser.uid).then((counts) => {
+      if (!cancelled) setCollectionCounts(counts);
+    });
+    return () => { cancelled = true; };
+  }, [currentUser?.uid, userCollections]);
+
   // État pour le changement de mot de passe
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -186,8 +205,39 @@ export function Profile() {
       setShowDeleteCollectionConfirm(false);
       setCollectionToDeleteId(null);
       refreshCollection();
+      refreshUserCollections();
     } catch (err) {
       errorHandler.handleAndShowError(err);
+    }
+  };
+
+  const handleMergeCollections = async () => {
+    if (!currentUser?.uid || mergeSourceIds.length < 2 || !mergeTargetId) {
+      showError('Sélectionnez au moins deux collections à fusionner et la collection de destination.');
+      return;
+    }
+    if (mergeSourceIds.includes(mergeTargetId)) {
+      showError('La collection de destination ne doit pas faire partie des collections à fusionner.');
+      return;
+    }
+    try {
+      setMerging(true);
+      await collectionService.mergeCollections(currentUser.uid, mergeSourceIds, mergeTargetId);
+      showSuccess('Collections fusionnées avec succès');
+      setShowMergeModal(false);
+      setMergeSourceIds([]);
+      setMergeTargetId(null);
+      refreshUserCollections();
+      refreshCollection();
+      setCollectionCounts((prev) => {
+        const next = { ...prev };
+        mergeSourceIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setMerging(false);
     }
   };
 
@@ -672,14 +722,28 @@ export function Profile() {
                   <Button
                     variant="primary"
                     onClick={() => {
-                      if (userCollections.length > 0 && !importTargetCollectionId) {
+                      if (userCollections.length === 1) {
                         setImportTargetCollectionId(userCollections[0].id);
+                      } else if (userCollections.length > 1 && !importTargetCollectionId) {
+                        setImportTargetCollectionId(null);
                       }
                       setShowImportModal(true);
                     }}
                   >
                     Ajouter des cartes
                   </Button>
+                  {userCollections.length >= 2 && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setMergeSourceIds([]);
+                        setMergeTargetId(null);
+                        setShowMergeModal(true);
+                      }}
+                    >
+                      Fusionner des collections
+                    </Button>
+                  )}
                 </div>
                 {userCollections.length === 0 ? (
                   <p className="text-gray-600 dark:text-gray-400 text-sm">
@@ -692,7 +756,12 @@ export function Profile() {
                         key={col.id}
                         className="flex items-center justify-between gap-2 py-2 px-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
                       >
-                        <span className="font-medium text-gray-900 dark:text-white">{col.name}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {col.name}
+                          <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
+                            ({collectionCounts[col.id] ?? 0} carte{(collectionCounts[col.id] ?? 0) !== 1 ? 's' : ''})
+                          </span>
+                        </span>
                         <div className="flex gap-2">
                           <Button
                             variant="secondary"
@@ -889,14 +958,21 @@ export function Profile() {
         <div className="space-y-4">
           {userCollections.length > 0 && (
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                 Collection de destination
               </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Les cartes du fichier CSV seront ajoutées dans la collection choisie ci-dessous.
+              </p>
               <select
                 value={importTargetCollectionId ?? ''}
                 onChange={(e) => setImportTargetCollectionId(e.target.value === '' ? null : e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                required
               >
+                {userCollections.length > 1 && (
+                  <option value="">Choisir une collection</option>
+                )}
                 {userCollections.map((col) => (
                   <option key={col.id} value={col.id}>
                     {col.name}
@@ -946,11 +1022,21 @@ export function Profile() {
               onChange={handleNewImportFileUpload}
               className="hidden"
               id="profile-csv-upload"
+              disabled={userCollections.length > 0 && !importTargetCollectionId}
             />
-            <label htmlFor="profile-csv-upload" className="cursor-pointer">
-              <span className="inline-block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                {importing ? 'Import en cours...' : 'Sélectionner un fichier CSV'}
-              </span>
+            <label
+              htmlFor="profile-csv-upload"
+              className={`inline-block w-full text-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                userCollections.length > 0 && !importTargetCollectionId
+                  ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+              } ${importing ? 'opacity-70 pointer-events-none' : ''}`}
+            >
+              {importing
+                ? 'Import en cours...'
+                : userCollections.length > 0 && !importTargetCollectionId
+                  ? 'Choisissez d\'abord une collection ci-dessus'
+                  : 'Sélectionner un fichier CSV'}
             </label>
           </div>
         </div>
@@ -976,6 +1062,90 @@ export function Profile() {
               Créer
             </Button>
             <Button variant="secondary" onClick={() => setShowCreateCollectionModal(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showMergeModal}
+        onClose={() => {
+          setShowMergeModal(false);
+          setMergeSourceIds([]);
+          setMergeTargetId(null);
+        }}
+        title="Fusionner des collections"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Sélectionnez les collections à fusionner, puis la collection de destination. Les cartes des collections
+            sélectionnées seront déplacées vers la collection de destination (quantités fusionnées si même carte), puis
+            les collections sources seront supprimées.
+          </p>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Collections à fusionner (au moins 2)
+            </label>
+            <ul className="space-y-2">
+              {userCollections.map((col) => (
+                <li key={col.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`merge-src-${col.id}`}
+                    checked={mergeSourceIds.includes(col.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMergeSourceIds((prev) => [...prev, col.id]);
+                      } else {
+                        setMergeSourceIds((prev) => prev.filter((id) => id !== col.id));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor={`merge-src-${col.id}`} className="cursor-pointer text-gray-900 dark:text-white">
+                    {col.name} ({collectionCounts[col.id] ?? 0} cartes)
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Fusionner dans (collection de destination)
+            </label>
+            <select
+              value={mergeTargetId ?? ''}
+              onChange={(e) => setMergeTargetId(e.target.value === '' ? null : e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Choisir une collection</option>
+              {userCollections
+                .filter((col) => !mergeSourceIds.includes(col.id))
+                .map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name} ({collectionCounts[col.id] ?? 0} cartes)
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleMergeCollections}
+              disabled={mergeSourceIds.length < 2 || !mergeTargetId || merging}
+              loading={merging}
+            >
+              Fusionner
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowMergeModal(false);
+                setMergeSourceIds([]);
+                setMergeTargetId(null);
+              }}
+              disabled={merging}
+            >
               Annuler
             </Button>
           </div>

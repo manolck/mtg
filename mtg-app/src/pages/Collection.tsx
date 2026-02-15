@@ -38,6 +38,7 @@ export function Collection() {
     error, 
     deleteCard,
     updateCardQuantity,
+    updateCard,
     canModify,
     loadMoreCards,
     hasMoreCards
@@ -68,6 +69,9 @@ export function Collection() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [newDeckName, setNewDeckName] = useState('');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+  const [cardToMove, setCardToMove] = useState<import('../types/card').UserCard | null>(null);
+  const [moveTargetCollectionId, setMoveTargetCollectionId] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
 
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
@@ -90,6 +94,26 @@ export function Collection() {
     setSelectedCardId(cardId);
     setShowDeckModal(true);
   }, []);
+
+  const handleMoveToCollection = useCallback((card: import('../types/card').UserCard) => {
+    setCardToMove(card);
+    setMoveTargetCollectionId(null);
+  }, []);
+
+  const handleConfirmMoveToCollection = useCallback(async () => {
+    if (!cardToMove || !moveTargetCollectionId || !canModify()) return;
+    try {
+      setMoving(true);
+      await updateCard(cardToMove.id, { collectionId: moveTargetCollectionId });
+      setCardToMove(null);
+      setMoveTargetCollectionId(null);
+      showSuccess('Carte déplacée dans l\'autre collection');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setMoving(false);
+    }
+  }, [cardToMove, moveTargetCollectionId, canModify, updateCard, showSuccess]);
 
   const handleToggleWishlist = useCallback(async (card: import('../types/card').UserCard) => {
     if (!isViewingOwnCollection) return;
@@ -888,6 +912,7 @@ export function Collection() {
                 isInWishlist={isCardInWishlist(card)}
                 onDelete={canModify ? deleteCard : undefined}
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+                onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
                 showActions={true}
               />
             );
@@ -908,6 +933,62 @@ export function Collection() {
         onClose={() => setShowExportModal(false)}
         cards={filteredCards}
       />
+
+      {/* Modal déplacer la carte vers une autre collection */}
+      <Modal
+        isOpen={!!cardToMove}
+        onClose={() => {
+          setCardToMove(null);
+          setMoveTargetCollectionId(null);
+        }}
+        title="Déplacer la carte"
+      >
+        {cardToMove && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Choisissez la collection de destination pour <strong className="text-gray-900 dark:text-white">{cardToMove.name}</strong>.
+            </p>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                Collection de destination
+              </label>
+              <select
+                value={moveTargetCollectionId ?? ''}
+                onChange={(e) => setMoveTargetCollectionId(e.target.value === '' ? null : e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Choisir une collection</option>
+                {userCollections
+                  .filter((col) => col.id !== cardToMove.collectionId)
+                  .map((col) => (
+                    <option key={col.id} value={col.id}>
+                      {col.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleConfirmMoveToCollection}
+                disabled={!moveTargetCollectionId || moving}
+                loading={moving}
+              >
+                Déplacer
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCardToMove(null);
+                  setMoveTargetCollectionId(null);
+                }}
+                disabled={moving}
+              >
+                Annuler
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal pour ajouter au deck */}
       <Modal
