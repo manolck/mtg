@@ -124,46 +124,14 @@
     "options": {}
   },
   {
-    "id": "collection_id",
-    "name": "collection",
+    "id": "cards_id",
+    "name": "cards",
     "type": "base",
     "system": false,
     "schema": [
       {
         "system": false,
-        "id": "coll_collectionid",
-        "name": "collectionId",
-        "type": "relation",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "user_collections_id",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
-      },
-      {
-        "system": false,
-        "id": "3c3hor2v",
-        "name": "userId",
-        "type": "relation",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
-      },
-      {
-        "system": false,
-        "id": "ucmza9ma",
+        "id": "card_name",
         "name": "name",
         "type": "text",
         "required": true,
@@ -177,21 +145,7 @@
       },
       {
         "system": false,
-        "id": "tnr0hru1",
-        "name": "quantity",
-        "type": "number",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
-      },
-      {
-        "system": false,
-        "id": "qn4viea3",
+        "id": "card_set",
         "name": "set",
         "type": "text",
         "required": false,
@@ -205,7 +159,7 @@
       },
       {
         "system": false,
-        "id": "bwwqxnj5",
+        "id": "card_setcode",
         "name": "setCode",
         "type": "text",
         "required": false,
@@ -219,7 +173,7 @@
       },
       {
         "system": false,
-        "id": "w4yszhvt",
+        "id": "card_collectornum",
         "name": "collectorNumber",
         "type": "text",
         "required": false,
@@ -233,7 +187,7 @@
       },
       {
         "system": false,
-        "id": "d8t5dnrp",
+        "id": "card_rarity",
         "name": "rarity",
         "type": "text",
         "required": false,
@@ -247,35 +201,7 @@
       },
       {
         "system": false,
-        "id": "wvkojkm5",
-        "name": "condition",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "yvsrjrpo",
-        "name": "language",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "rdlpunmr",
+        "id": "card_mtgdata",
         "name": "mtgData",
         "type": "json",
         "required": false,
@@ -287,7 +213,7 @@
       },
       {
         "system": false,
-        "id": "backimage_field",
+        "id": "card_backimg",
         "name": "backImageUrl",
         "type": "text",
         "required": false,
@@ -301,7 +227,7 @@
       },
       {
         "system": false,
-        "id": "backmultiverse_field",
+        "id": "card_backmulti",
         "name": "backMultiverseid",
         "type": "number",
         "required": false,
@@ -315,7 +241,7 @@
       },
       {
         "system": false,
-        "id": "backmtgdata_field",
+        "id": "card_backmtg",
         "name": "backMtgData",
         "type": "json",
         "required": false,
@@ -327,11 +253,100 @@
       }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\" && (@request.auth.id = userId || @request.auth.id != \"\")",
-    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = userId.id || @request.auth.id != \"\")",
-    "createRule": "userId = @request.auth.id",
-    "updateRule": "userId = @request.auth.id",
-    "deleteRule": "userId = @request.auth.id",
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "@request.auth.id != \"\"",
+    "deleteRule": "@request.auth.id != \"\"",
+    "options": {}
+  },
+  {
+    "id": "collection_items_id",
+    "name": "collection_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "ci_usercoll",
+        "name": "userCollectionId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "user_collections_id",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "ci_card",
+        "name": "cardId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "cards_id",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "ci_quantity",
+        "name": "quantity",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "ci_condition",
+        "name": "condition",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "ci_language",
+        "name": "language",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "userCollectionId.userId = @request.auth.id",
+    "updateRule": "userCollectionId.userId = @request.auth.id",
+    "deleteRule": "userCollectionId.userId = @request.auth.id",
     "options": {}
   },
   {
@@ -762,6 +777,89 @@
     "indexes": [],
     "listRule": "@request.auth.id != \"\" && (@request.auth.id = userId || @request.auth.id != \"\")",
     "viewRule": "@request.auth.id != \"\" && (@request.auth.id = userId || @request.auth.id != \"\")",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id",
+    "options": {}
+  },
+  {
+    "id": "legal_id",
+    "name": "legal",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "legal_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "legal_type",
+        "name": "type",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "legal_accepted",
+        "name": "accepted",
+        "type": "bool",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "system": false,
+        "id": "legal_timestamp",
+        "name": "timestamp",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "legal_version",
+        "name": "version",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "userId = @request.auth.id",
+    "viewRule": "userId = @request.auth.id",
     "createRule": "userId = @request.auth.id",
     "updateRule": "userId = @request.auth.id",
     "deleteRule": "userId = @request.auth.id",

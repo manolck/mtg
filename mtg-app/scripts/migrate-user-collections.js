@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Migration : créer une collection par défaut "Ma collection" pour chaque
- * utilisateur ayant des cartes, et lier ces cartes à cette collection.
+ * Migration (schéma avec tables join) : s'assurer que chaque utilisateur
+ * ayant des collection_items possède une collection par défaut "Ma collection".
  *
- * Prérequis :
- * - PocketBase avec la collection user_collections créée et le champ
- *   collectionId ajouté à la collection (cartes).
- * - Variables d'environnement : POCKETBASE_URL, POCKETBASE_ADMIN_EMAIL,
- *   POCKETBASE_ADMIN_PASSWORD
+ * Prérequis : schéma avec cards + collection_items + user_collections.
+ * Variables d'environnement : POCKETBASE_URL, POCKETBASE_ADMIN_EMAIL,
+ * POCKETBASE_ADMIN_PASSWORD
  *
  * Usage : node scripts/migrate-user-collections.js
  */
@@ -34,46 +32,36 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('Récupération des cartes...');
-  const cards = await pb.collection('collection').getFullList({ sort: 'userId' });
-  const byUser = new Map();
-  for (const card of cards) {
-    const uid = typeof card.userId === 'string' ? card.userId : card.userId?.id ?? card.userId;
-    if (!uid) continue;
-    if (!byUser.has(uid)) byUser.set(uid, []);
-    byUser.get(uid).push(card);
+  console.log('Récupération des collection_items...');
+  const items = await pb.collection('collection_items').getFullList({
+    expand: 'userCollectionId',
+    sort: 'created',
+  });
+  const userIds = new Set();
+  for (const item of items) {
+    const uid =
+      typeof item.userCollectionId === 'object' && item.userCollectionId
+        ? item.userCollectionId.userId
+        : null;
+    if (uid) userIds.add(uid);
   }
 
-  console.log(`${cards.length} cartes, ${byUser.size} utilisateur(s).`);
+  console.log(`${items.length} entrées, ${userIds.size} utilisateur(s).`);
 
-  for (const [userId, userCards] of byUser) {
-    const withCollection = userCards.filter((c) => c.collectionId != null && c.collectionId !== '');
-    if (withCollection.length === userCards.length) {
-      console.log(`User ${userId}: toutes les cartes ont déjà un collectionId, skip.`);
-      continue;
-    }
-
-    let defaultColl;
+  for (const userId of userIds) {
     const existing = await pb.collection('user_collections').getFullList({
       filter: `userId = "${userId}"`,
     });
-    const named = existing.find((c) => c.name === DEFAULT_COLLECTION_NAME);
-    if (named) {
-      defaultColl = named;
-      console.log(`User ${userId}: collection existante "${defaultColl.name}" (${defaultColl.id}).`);
-    } else {
-      defaultColl = await pb.collection('user_collections').create({
-        userId,
-        name: DEFAULT_COLLECTION_NAME,
-      });
-      console.log(`User ${userId}: créé "${defaultColl.name}" (${defaultColl.id}).`);
+    const hasDefault = existing.some((c) => c.name === DEFAULT_COLLECTION_NAME);
+    if (hasDefault) {
+      console.log(`User ${userId}: a déjà "${DEFAULT_COLLECTION_NAME}", skip.`);
+      continue;
     }
-
-    const toUpdate = userCards.filter((c) => !c.collectionId || c.collectionId === '');
-    for (const card of toUpdate) {
-      await pb.collection('collection').update(card.id, { collectionId: defaultColl.id });
-    }
-    console.log(`User ${userId}: ${toUpdate.length} carte(s) mises à jour.`);
+    await pb.collection('user_collections').create({
+      userId,
+      name: DEFAULT_COLLECTION_NAME,
+    });
+    console.log(`User ${userId}: créé "${DEFAULT_COLLECTION_NAME}".`);
   }
 
   console.log('Migration terminée.');

@@ -154,11 +154,11 @@ export async function setAdminRole(uid: string, isAdmin: boolean): Promise<void>
 export async function deleteUserAccount(uid: string): Promise<void> {
   try {
     // Supprimer toutes les données de l'utilisateur
-    // Collections
-    const collections = await pb.collection('collection').getFullList({
+    // User collections (cascade supprime les collection_items)
+    const userCollections = await pb.collection('user_collections').getFullList({
       filter: `userId = "${uid}"`,
     });
-    await Promise.all(collections.map(c => pb.collection('collection').delete(c.id)));
+    await Promise.all(userCollections.map(c => pb.collection('user_collections').delete(c.id)));
 
     // Decks
     const decks = await pb.collection('decks').getFullList({

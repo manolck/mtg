@@ -12,11 +12,11 @@ function cleanForPocketBase(obj: any): any {
   if (obj === null || obj === undefined) {
     return null;
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => cleanForPocketBase(item));
   }
-  
+
   if (typeof obj === 'object' && obj.constructor === Object) {
     const cleaned: any = {};
     for (const [key, value] of Object.entries(obj)) {
@@ -26,66 +26,90 @@ function cleanForPocketBase(obj: any): any {
     }
     return cleaned;
   }
-  
+
   return obj;
 }
 
 /**
- * Convertit un record PocketBase en UserCard
+ * Convertit un enregistrement collection_items (avec expand cardId, optionnellement userCollectionId) en UserCard
  */
-export function recordToUserCard(record: any): UserCard {
+export function recordToUserCard(
+  item: any,
+  options?: { userId?: string }
+): UserCard {
+  const card = item.expand?.cardId ?? item.cardId;
+  const collId =
+    typeof item.userCollectionId === 'string'
+      ? item.userCollectionId
+      : item.userCollectionId?.id ?? item.userCollectionId;
+  const userId =
+    options?.userId ??
+    item.expand?.userCollectionId?.userId ??
+    (typeof item.userCollectionId === 'object' ? item.userCollectionId?.userId : undefined);
+
   return {
-    id: record.id,
-    userId: typeof record.userId === 'string' ? record.userId : record.userId?.id || record.userId,
-    collectionId: typeof record.collectionId === 'string' ? record.collectionId : record.collectionId?.id ?? record.collectionId,
-    name: record.name,
-    quantity: record.quantity || 1,
-    set: record.set,
-    setCode: record.setCode,
-    collectorNumber: record.collectorNumber,
-    rarity: record.rarity,
-    condition: record.condition,
-    language: record.language || 'en',
-    mtgData: record.mtgData,
-    backImageUrl: record.backImageUrl,
-    backMultiverseid: record.backMultiverseid,
-    backMtgData: record.backMtgData,
-    createdAt: new Date(record.created),
+    id: item.id,
+    userId: userId ?? '',
+    collectionId: collId,
+    name: card?.name ?? '',
+    quantity: item.quantity ?? 1,
+    set: card?.set,
+    setCode: card?.setCode,
+    collectorNumber: card?.collectorNumber,
+    rarity: card?.rarity,
+    condition: item.condition ?? card?.condition,
+    language: item.language ?? 'en',
+    mtgData: card?.mtgData,
+    backImageUrl: card?.backImageUrl,
+    backMultiverseid: card?.backMultiverseid,
+    backMtgData: card?.backMtgData,
+    createdAt: new Date(item.created),
   };
 }
 
 /**
  * Récupère les cartes d'un utilisateur, optionnellement filtrées par collection.
- * @param collectionId - si fourni, uniquement les cartes de cette collection ; sinon toutes les cartes de l'utilisateur
+ * Utilise la table join collection_items + cards.
  */
-export async function getCollection(userId: string, collectionId?: string | null): Promise<UserCard[]> {
-  let filter = `userId = "${userId}"`;
+export async function getCollection(
+  userId: string,
+  collectionId?: string | null
+): Promise<UserCard[]> {
+  let filter: string;
   if (collectionId != null && collectionId !== '') {
-    filter += ` && collectionId = "${collectionId}"`;
+    filter = `userCollectionId = "${collectionId}"`;
+  } else {
+    filter = `userCollectionId.userId = "${userId}"`;
   }
-  const records = await pb.collection('collection').getFullList({
+  const records = await pb.collection('collection_items').getFullList({
     filter,
+    expand: 'cardId',
     sort: '-created',
   });
-  return records.map(recordToUserCard);
+  return records.map((item) => recordToUserCard(item, { userId }));
 }
 
 /**
- * Récupère toutes les collections (tous les utilisateurs)
+ * Récupère toutes les collections (tous les utilisateurs), paginé.
+ * Utilise collection_items avec expand cardId, userCollectionId.
  */
-export async function getAllCollections(page: number = 1, perPage: number = 50): Promise<{
+export async function getAllCollections(
+  page: number = 1,
+  perPage: number = 50
+): Promise<{
   items: UserCard[];
   page: number;
   perPage: number;
   totalItems: number;
   totalPages: number;
 }> {
-  const result = await pb.collection('collection').getList(page, perPage, {
+  const result = await pb.collection('collection_items').getList(page, perPage, {
+    expand: 'cardId,userCollectionId',
     sort: '-created',
   });
 
   return {
-    items: result.items.map(recordToUserCard),
+    items: result.items.map((item) => recordToUserCard(item)),
     page: result.page,
     perPage: result.perPage,
     totalItems: result.totalItems,
@@ -94,78 +118,115 @@ export async function getAllCollections(page: number = 1, perPage: number = 50):
 }
 
 /**
- * Ajoute une carte (collectionId recommandé après migration)
+ * Ajoute une carte : crée l'entrée dans cards puis la liaison dans collection_items.
  */
-export async function addCard(card: Omit<UserCard, 'id' | 'createdAt'>): Promise<UserCard> {
-  const cardData = cleanForPocketBase({
-    userId: card.userId,
-    collectionId: card.collectionId,
+export async function addCard(
+  card: Omit<UserCard, 'id' | 'createdAt'>
+): Promise<UserCard> {
+  const cardPayload = cleanForPocketBase({
     name: card.name,
-    quantity: card.quantity,
     set: card.set,
     setCode: card.setCode,
     collectorNumber: card.collectorNumber,
     rarity: card.rarity,
-    condition: card.condition,
-    language: card.language || 'en',
     mtgData: card.mtgData,
     backImageUrl: card.backImageUrl,
     backMultiverseid: card.backMultiverseid,
     backMtgData: card.backMtgData,
   });
+  const cardRecord = await pb.collection('cards').create(cardPayload);
 
-  const record = await pb.collection('collection').create(cardData);
-  return recordToUserCard(record);
+  const itemPayload = cleanForPocketBase({
+    userCollectionId: card.collectionId,
+    cardId: cardRecord.id,
+    quantity: card.quantity ?? 1,
+    condition: card.condition,
+    language: card.language ?? 'en',
+  });
+  const itemRecord = await pb.collection('collection_items').create(itemPayload);
+
+  const full = await pb.collection('collection_items').getOne(itemRecord.id, {
+    expand: 'cardId,userCollectionId',
+  });
+  return recordToUserCard(full, { userId: card.userId });
 }
 
 /**
- * Met à jour une carte
+ * Met à jour une carte (collection_items et éventuellement cards).
+ * L'id passé est l'id de l'entrée collection_items.
  */
-export async function updateCard(cardId: string, updates: Partial<UserCard>): Promise<UserCard> {
-  const updateData = cleanForPocketBase({
-    collectionId: updates.collectionId,
+export async function updateCard(
+  itemId: string,
+  updates: Partial<UserCard>
+): Promise<UserCard> {
+  const item = await pb.collection('collection_items').getOne(itemId, {
+    expand: 'cardId,userCollectionId',
+  });
+  const cardId = typeof item.cardId === 'string' ? item.cardId : item.cardId?.id;
+
+  const itemUpdates = cleanForPocketBase({
+    userCollectionId: updates.collectionId,
     quantity: updates.quantity,
     condition: updates.condition,
+    language: updates.language,
+  });
+  if (Object.keys(itemUpdates).length > 0) {
+    await pb.collection('collection_items').update(itemId, itemUpdates);
+  }
+
+  const cardUpdates = cleanForPocketBase({
     set: updates.set,
     setCode: updates.setCode,
     collectorNumber: updates.collectorNumber,
     rarity: updates.rarity,
-    language: updates.language,
     mtgData: updates.mtgData,
     backImageUrl: updates.backImageUrl,
     backMultiverseid: updates.backMultiverseid,
     backMtgData: updates.backMtgData,
   });
+  if (cardId && Object.keys(cardUpdates).length > 0) {
+    await pb.collection('cards').update(cardId, cardUpdates);
+  }
 
-  const record = await pb.collection('collection').update(cardId, updateData);
-  return recordToUserCard(record);
+  const updated = await pb.collection('collection_items').getOne(itemId, {
+    expand: 'cardId,userCollectionId',
+  });
+  return recordToUserCard(updated);
 }
 
 /**
  * Met à jour uniquement la quantité d'une carte
  */
-export async function updateCardQuantity(cardId: string, quantity: number): Promise<UserCard> {
-  return updateCard(cardId, { quantity });
+export async function updateCardQuantity(
+  itemId: string,
+  quantity: number
+): Promise<UserCard> {
+  return updateCard(itemId, { quantity });
 }
 
 /**
- * Supprime une carte
+ * Supprime une entrée collection_items (la carte cards reste en base).
  */
-export async function deleteCard(cardId: string): Promise<void> {
-  await pb.collection('collection').delete(cardId);
+export async function deleteCard(itemId: string): Promise<void> {
+  await pb.collection('collection_items').delete(itemId);
 }
 
 /**
- * Supprime plusieurs cartes (par IDs)
+ * Supprime plusieurs entrées collection_items par leurs ids.
  */
-export async function deleteCards(cardIds: string[]): Promise<void> {
-  // PocketBase ne supporte pas les suppressions en batch nativement
-  // On fait les suppressions en parallèle
-  await Promise.all(cardIds.map(id => pb.collection('collection').delete(id)));
+export async function deleteCards(itemIds: string[]): Promise<void> {
+  await Promise.all(
+    itemIds.map((id) => pb.collection('collection_items').delete(id))
+  );
+}
+
+function escapeFilter(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 /**
- * Recherche une carte existante par critères (optionnellement dans une collection)
+ * Recherche une carte existante par critères (optionnellement dans une collection).
+ * Filtre sur collection_items + cardId (relation).
  */
 export async function findCard(
   userId: string,
@@ -177,22 +238,23 @@ export async function findCard(
   },
   collectionId?: string | null
 ): Promise<UserCard | null> {
-  let filter = `userId = "${userId}" && name = "${criteria.name}"`;
+  let filter = `userCollectionId.userId = "${userId}" && cardId.name = "${escapeFilter(criteria.name)}"`;
   if (collectionId != null && collectionId !== '') {
-    filter += ` && collectionId = "${collectionId}"`;
+    filter += ` && userCollectionId = "${collectionId}"`;
   }
   if (criteria.setCode) {
-    filter += ` && setCode = "${criteria.setCode}"`;
+    filter += ` && cardId.setCode = "${escapeFilter(criteria.setCode)}"`;
   }
   if (criteria.collectorNumber) {
-    filter += ` && collectorNumber = "${criteria.collectorNumber}"`;
+    filter += ` && cardId.collectorNumber = "${escapeFilter(criteria.collectorNumber)}"`;
   }
   if (criteria.language) {
-    filter += ` && language = "${criteria.language}"`;
+    filter += ` && language = "${escapeFilter(criteria.language)}"`;
   }
   try {
-    const records = await pb.collection('collection').getFullList({
+    const records = await pb.collection('collection_items').getFullList({
       filter,
+      expand: 'cardId,userCollectionId',
       limit: 1,
     });
     return records.length > 0 ? recordToUserCard(records[0]) : null;
@@ -207,13 +269,18 @@ export async function findCard(
 function recordToUserCollection(record: any): UserCollection {
   return {
     id: record.id,
-    userId: typeof record.userId === 'string' ? record.userId : record.userId?.id ?? record.userId,
+    userId:
+      typeof record.userId === 'string'
+        ? record.userId
+        : record.userId?.id ?? record.userId,
     name: record.name,
     createdAt: new Date(record.created),
   };
 }
 
-export async function getUserCollections(userId: string): Promise<UserCollection[]> {
+export async function getUserCollections(
+  userId: string
+): Promise<UserCollection[]> {
   const records = await pb.collection('user_collections').getFullList({
     filter: `userId = "${userId}"`,
     sort: 'created',
@@ -221,7 +288,10 @@ export async function getUserCollections(userId: string): Promise<UserCollection
   return records.map(recordToUserCollection);
 }
 
-export async function createCollection(userId: string, name: string): Promise<UserCollection> {
+export async function createCollection(
+  userId: string,
+  name: string
+): Promise<UserCollection> {
   const record = await pb.collection('user_collections').create({
     userId,
     name: name.trim(),
@@ -229,7 +299,10 @@ export async function createCollection(userId: string, name: string): Promise<Us
   return recordToUserCollection(record);
 }
 
-export async function updateCollection(collectionId: string, name: string): Promise<UserCollection> {
+export async function updateCollection(
+  collectionId: string,
+  name: string
+): Promise<UserCollection> {
   const record = await pb.collection('user_collections').update(collectionId, {
     name: name.trim(),
   });
@@ -237,22 +310,19 @@ export async function updateCollection(collectionId: string, name: string): Prom
 }
 
 /**
- * Supprime une collection et toutes ses cartes.
+ * Supprime une collection. Les collection_items sont supprimés en cascade (cascadeDelete sur userCollectionId).
  */
 export async function deleteCollection(collectionId: string): Promise<void> {
-  const cards = await pb.collection('collection').getFullList({
-    filter: `collectionId = "${collectionId}"`,
-  });
-  for (const card of cards) {
-    await pb.collection('collection').delete(card.id);
-  }
   await pb.collection('user_collections').delete(collectionId);
 }
 
 /**
  * Supprime toutes les cartes d'un utilisateur, ou seulement celles d'une collection.
  */
-export async function deleteAllCardsByUser(userId: string, collectionId?: string | null): Promise<void> {
+export async function deleteAllCardsByUser(
+  userId: string,
+  collectionId?: string | null
+): Promise<void> {
   const cards = await getCollection(userId, collectionId ?? undefined);
   if (cards.length === 0) return;
   await deleteCards(cards.map((c) => c.id));
