@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useDeferredValue, startTransition, useCallba
 import { flushSync } from 'react-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useAllCollections } from '../hooks/useAllCollections';
+import { useUserCollections } from '../hooks/useUserCollections';
 import { useDecks } from '../hooks/useDecks';
 import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
@@ -12,18 +13,22 @@ import { Button } from '../components/UI/Button';
 import { SearchInput } from '../components/UI/SearchInput';
 import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword } from '../utils/keywordSearch';
 import { Modal } from '../components/UI/Modal';
-import { ProgressBar } from '../components/UI/ProgressBar';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
 import { Spinner } from '../components/UI/Spinner';
-import { ConfirmDialog } from '../components/UI/ConfirmDialog';
+import { Link } from 'react-router-dom';
 
 export function Collection() {
   const { currentUser } = useAuth();
   const { owners, loading: loadingOwners } = useAllCollections();
+  const { collections: userCollections, loading: loadingUserCollections } = useUserCollections(currentUser?.uid ?? undefined);
   const { showSuccess } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  
+  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
+  const effectiveCollectionId = isViewingOwnCollection ? selectedCollectionId : undefined;
   
   const { 
     cards, 
@@ -31,23 +36,16 @@ export function Collection() {
     loading,
     loadingMore,
     error, 
-    importCSV, 
     deleteCard,
-    deleteAllCards, 
     updateCardQuantity,
-    importProgress,
     canModify,
-    pauseImport,
-    resumeImport,
-    cancelImport,
-    isImportPaused,
     loadMoreCards,
     hasMoreCards
-  } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
+  } = useCollection(
+    selectedUserId === 'all' ? 'all' : (selectedUserId || undefined),
+    effectiveCollectionId ?? undefined
+  );
   const { decks, createDeck, addCardToDeck } = useDecks();
-  
-  // Déterminer si on regarde sa propre collection
-  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
   
   const { addItem: addToWishlist, removeItem: removeFromWishlist, checkIfInWishlist, items: wishlistItems } = useWishlist(
     isViewingOwnCollection ? currentUser?.uid : undefined
@@ -55,11 +53,6 @@ export function Collection() {
   
   const [showExportModal, setShowExportModal] = useState(false);
   const [showDeckModal, setShowDeckModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importMode, setImportMode] = useState<'add' | 'update'>('add');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // États pour la recherche et les filtres
@@ -78,53 +71,7 @@ export function Collection() {
 
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
-
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setImporting(true);
-      const text = await file.text();
-      // Ne pas fermer le modal immédiatement, il se fermera automatiquement à 100%
-      await importCSV(text, importMode === 'update');
-      showSuccess('Import terminé avec succès');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (err) {
-      errorHandler.handleAndShowError(err);
-      // Fermer le modal en cas d'erreur
-      setShowImportModal(false);
-    } finally {
-      setImporting(false);
-    }
-  }, [importMode, importCSV, showSuccess]);
-
-  // Fermer automatiquement le modal d'import quand l'import est terminé à 100%
-  useEffect(() => {
-    if (importProgress && importProgress.current >= importProgress.total && importProgress.total > 0) {
-      // L'import est terminé, fermer le modal après un court délai pour voir le message de succès
-      const timer = setTimeout(() => {
-        setShowImportModal(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }, 1000); // 1 seconde pour voir le message "Terminé"
-      
-      return () => clearTimeout(timer);
-    }
-  }, [importProgress]);
-
-  const handleDeleteAll = useCallback(async () => {
-    try {
-      await deleteAllCards();
-      showSuccess('Collection supprimée');
-      setShowDeleteConfirm(false);
-    } catch (err) {
-      errorHandler.handleAndShowError(err);
-    }
-  }, [deleteAllCards, showSuccess]);
+  const selectedCollection = userCollections.find((c) => c.id === selectedCollectionId);
 
   const handleAddToDeck = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
@@ -497,7 +444,7 @@ export function Collection() {
             {isViewingAllCollections 
               ? 'Toutes les Collections' 
               : isViewingOwnCollection 
-                ? 'Ma Collection' 
+                ? (selectedCollectionId ? (selectedCollection?.name ?? 'Collection') : 'Toutes mes collections')
                 : `Collection de ${currentOwner?.profile?.pseudonym || 'Utilisateur'}`}
             {filteredCards.length > 0 && ` (${filteredCards.length}${filteredCards.length !== allCards.length ? ` / ${allCards.length}` : ''})`}
           </h1>
@@ -505,18 +452,19 @@ export function Collection() {
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Sélectionner une collection :
+            Utilisateur :
           </label>
           <select
             value={selectedUserId === 'all' ? 'all' : selectedUserId || currentUser?.uid || ''}
             onChange={(e) => {
               const value = e.target.value;
               setSelectedUserId(value === 'all' ? 'all' : value === currentUser?.uid ? null : value);
+              if (value !== currentUser?.uid && value !== 'all') setSelectedCollectionId(null);
             }}
             className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value={currentUser?.uid || ''}>
-              Ma Collection
+              Ma Collection{currentOwner?.cardCount != null ? ` (${currentOwner.cardCount} cartes)` : ''}
             </option>
             <option value="all">Toutes les Collections</option>
             {owners
@@ -528,9 +476,33 @@ export function Collection() {
               ))}
           </select>
         </div>
+
+        {isViewingOwnCollection && !isViewingAllCollections && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Quelle collection ?
+            </label>
+            <select
+              value={selectedCollectionId ?? ''}
+              onChange={(e) => setSelectedCollectionId(e.target.value === '' ? null : e.target.value)}
+              className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Toutes mes collections</option>
+              {loadingUserCollections ? (
+                <option disabled>Chargement...</option>
+              ) : (
+                userCollections.map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* 2. Boutons pour exporter, ajouter des cartes, supprimer la collection */}
+      {/* 2. Bouton exporter (ajout/suppression de cartes sont dans le Profil) */}
       {isViewingOwnCollection && !isViewingAllCollections && (
         <div className="mb-6 flex gap-2 flex-wrap">
           <Button
@@ -540,20 +512,6 @@ export function Collection() {
           >
             Exporter la collection
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setShowImportModal(true)}
-          >
-            Ajouter des cartes
-          </Button>
-          {cards.length > 0 && (
-            <Button
-              variant="danger"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Supprimer la collection
-            </Button>
-          )}
         </div>
       )}
 
@@ -793,49 +751,6 @@ export function Collection() {
         </div>
       )}
 
-      {importProgress && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Import en cours...
-              </h3>
-              <div className="flex gap-2">
-                {isImportPaused ? (
-                  <Button
-                    variant="primary"
-                    onClick={() => resumeImport()}
-                    className="text-sm px-2 py-1"
-                  >
-                    Reprendre
-                  </Button>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => pauseImport()}
-                    className="text-sm px-2 py-1"
-                  >
-                    Pause
-                  </Button>
-                )}
-                <Button
-                  variant="danger"
-                  onClick={() => cancelImport()}
-                  className="text-sm px-2 py-1"
-                >
-                  Annuler
-                </Button>
-              </div>
-            </div>
-            <ProgressBar
-              current={importProgress.current}
-              total={importProgress.total}
-              label={importProgress.currentCard || (isImportPaused ? 'En pause...' : 'Traitement...')}
-            />
-          </div>
-        </div>
-      )}
-
       {showLoadingMore && (
         <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
           <Spinner size="md" />
@@ -846,14 +761,14 @@ export function Collection() {
       )}
 
       {/* 4. Affichage des cartes */}
-      {cards.length === 0 && !importing && !importProgress ? (
+      {cards.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
             {isViewingOwnCollection ? 'Votre collection est vide.' : 'Cette collection est vide.'}
           </p>
           {isViewingOwnCollection && (
             <p className="text-gray-500 dark:text-gray-500 text-sm mb-4">
-              Importez un fichier CSV pour commencer.
+              Allez dans votre <Link to="/profile" className="text-blue-600 dark:text-blue-400 hover:underline">Profil</Link> pour ajouter des cartes (import CSV).
             </p>
           )}
         </div>
@@ -914,69 +829,6 @@ export function Collection() {
         cards={filteredCards}
       />
 
-      {/* Modal d'import */}
-      <Modal
-        isOpen={showImportModal}
-        onClose={() => {
-          setShowImportModal(false);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-        }}
-        title="Ajouter des cartes à la collection"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Mode d'import
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="add"
-                  checked={importMode === 'add'}
-                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
-                  className="text-blue-600"
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  Ajouter à la collection existante
-                </span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="update"
-                  checked={importMode === 'update'}
-                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
-                  className="text-blue-600"
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  Mettre à jour la collection
-                </span>
-              </label>
-            </div>
-          </div>
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="csv-upload-modal"
-            />
-            <label htmlFor="csv-upload-modal" className="cursor-pointer">
-              <span className="inline-block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                {importing ? 'Import en cours...' : 'Sélectionner un fichier CSV'}
-              </span>
-            </label>
-          </div>
-        </div>
-      </Modal>
-
       {/* Modal pour ajouter au deck */}
       <Modal
         isOpen={showDeckModal}
@@ -1031,17 +883,6 @@ export function Collection() {
         </div>
       </Modal>
 
-      {/* Dialog de confirmation de suppression */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        title="Supprimer la collection"
-        message="⚠️ Êtes-vous sûr de vouloir supprimer TOUTE votre collection ? Cette action est irréversible."
-        confirmText="Supprimer tout"
-        cancelText="Annuler"
-        variant="danger"
-        onConfirm={handleDeleteAll}
-        onCancel={() => setShowDeleteConfirm(false)}
-      />
     </div>
   );
 }

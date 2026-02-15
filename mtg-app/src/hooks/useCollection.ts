@@ -9,6 +9,7 @@ import type { MTGCard } from '../types/card';
 import type { UserCard } from '../types/card';
 import type { CardImportStatus } from '../types/import';
 import { useAuth } from './useAuth';
+import { useProfile } from './useProfile';
 // useImports n'est plus nécessaire car on utilise directement importService
 import type { UserProfile } from '../types/user';
 import { LRUCache } from '../utils/LRUCache';
@@ -28,8 +29,9 @@ export interface ImportProgress {
   }>;
 }
 
-export function useCollection(userId?: string) {
+export function useCollection(userId?: string, collectionId?: string | null) {
   const { currentUser } = useAuth();
+  const { profile } = useProfile();
   // Note: Les imports sont maintenant gérés directement via importService dans importCSV
   const [cards, setCards] = useState<UserCard[]>([]);
   const [allCards, setAllCards] = useState<UserCard[]>([]); // Toutes les cartes chargées
@@ -40,41 +42,45 @@ export function useCollection(userId?: string) {
   const [hasMoreCards, setHasMoreCards] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [viewingCollectionId, setViewingCollectionId] = useState<string | null>(null);
   const [isImportPaused, setIsImportPaused] = useState(false);
   const [currentImportId, setCurrentImportId] = useState<string | null>(null);
   const importCancelledRef = useRef(false);
   const importPausedRef = useRef(false);
+  const importTargetCollectionIdRef = useRef<string | null>(null);
   // Cache LRU pour les profils utilisateurs (limite de 100 entrées, TTL de 5 minutes)
   const profileCacheRef = useRef<LRUCache<string, UserProfile | null>>(
     new LRUCache<string, UserProfile | null>(100, 5 * 60 * 1000)
   );
 
   useEffect(() => {
-    // Si userId est 'all', charger toutes les collections
+    // Si userId est 'all', charger toutes les collections (tous utilisateurs)
     if (userId === 'all') {
       loadAllCollections();
       setViewingUserId(null);
+      setViewingCollectionId(null);
     } else {
       const targetUserId = userId || currentUser?.uid;
       if (targetUserId) {
-        loadCollection(targetUserId);
+        loadCollection(targetUserId, collectionId ?? undefined);
         setViewingUserId(targetUserId);
+        setViewingCollectionId(collectionId ?? null);
       } else {
         setCards([]);
         setLoading(false);
         setViewingUserId(null);
+        setViewingCollectionId(null);
       }
     }
-  }, [currentUser, userId]);
+  }, [currentUser, userId, collectionId]);
 
-  async function loadCollection(targetUserId: string) {
+  async function loadCollection(targetUserId: string, targetCollectionId?: string) {
     try {
       setLoading(true);
       setLoadingMore(false);
       setError(null);
   
-      // Utiliser le service PocketBase
-      const cards = await collectionService.getCollection(targetUserId);
+      const cards = await collectionService.getCollection(targetUserId, targetCollectionId);
   
       // Gérer les doublons (même logique qu'avant)
       const cardsByKeyMap = new Map<string, UserCard>();
@@ -513,11 +519,11 @@ export function useCollection(userId?: string) {
     importPausedRef.current = false;
   }
 
-  async function importCSV(csvContent: string, updateMode: boolean = false, importId?: string) {
+  async function importCSV(csvContent: string, updateMode: boolean = false, importId?: string, targetCollectionId?: string | null) {
     if (!currentUser) {
       throw new Error('Vous devez être connecté pour importer des cartes');
     }
-  
+    importTargetCollectionIdRef.current = targetCollectionId ?? null;
     try {
       // Créer l'import job
       let actualImportId = importId;
@@ -580,16 +586,20 @@ export function useCollection(userId?: string) {
             progress.currentCard = parsedCard.name;
             setImportProgress({ ...progress });
   
-            // Rechercher les données MTG
-            const cardData = await searchCardData(parsedCard, false);
+            // Rechercher les données MTG (langue selon préférence profil)
+            const cardData = await searchCardData(parsedCard, profile?.preferredLanguage === 'fr');
   
-            // Vérifier si la carte existe déjà
-            const existingCard = await collectionService.findCard(currentUser.uid, {
-              name: parsedCard.name,
-              setCode: parsedCard.setCode,
-              collectorNumber: parsedCard.collectorNumber,
-              language: parsedCard.language || 'en',
-            });
+            const targetCollId = targetCollectionId ?? importTargetCollectionIdRef.current ?? undefined;
+            const existingCard = await collectionService.findCard(
+              currentUser.uid,
+              {
+                name: parsedCard.name,
+                setCode: parsedCard.setCode,
+                collectorNumber: parsedCard.collectorNumber,
+                language: parsedCard.language || 'en',
+              },
+              targetCollId
+            );
   
             if (existingCard && updateMode) {
               // Mettre à jour la quantité
@@ -602,9 +612,9 @@ export function useCollection(userId?: string) {
                 message: `Quantité mise à jour: ${existingCard.quantity} → ${newQuantity}`,
               };
             } else if (!existingCard) {
-              // Créer une nouvelle carte
               await collectionService.addCard({
                 userId: currentUser.uid,
+                collectionId: targetCollId,
                 name: parsedCard.name,
                 quantity: parsedCard.quantity || 1,
                 set: parsedCard.set || parsedCard.setCode || cardData.mtgData?.set,
@@ -696,10 +706,9 @@ export function useCollection(userId?: string) {
         await importService.updateImportStatus(actualImportId, finalStatus);
       }
 
-      // Recharger la collection
-      const targetUserId = userId || currentUser.uid;
+      const targetUserId = userId || currentUser?.uid;
       if (targetUserId && targetUserId !== 'all') {
-        await loadCollection(targetUserId);
+        await loadCollection(targetUserId, importTargetCollectionIdRef.current ?? undefined);
       }
   
       setImportProgress(null);
@@ -724,7 +733,7 @@ export function useCollection(userId?: string) {
 
     try {
       await collectionService.deleteCard(cardId);
-      await loadCollection(currentUser!.uid);
+      await loadCollection(currentUser!.uid, viewingCollectionId ?? undefined);
     } catch (err) {
       console.error('Error deleting card:', err);
       setError('Erreur lors de la suppression de la carte');
@@ -732,25 +741,20 @@ export function useCollection(userId?: string) {
     }
   }
 
-  async function deleteAllCards() {
+  async function deleteAllCards(onlyInCollectionId?: string | null) {
     if (!canModify()) {
       throw new Error('Vous ne pouvez pas modifier cette collection');
     }
 
     try {
-      const cards = await collectionService.getCollection(currentUser!.uid);
-      const cardIds = cards.map(c => c.id);
-      
-      // Mettre à jour l'état local immédiatement pour un feedback rapide
+      await collectionService.deleteAllCardsByUser(currentUser!.uid, onlyInCollectionId ?? undefined);
       setCards([]);
-      
-      // Supprimer toutes les cartes en parallèle
-      await collectionService.deleteCards(cardIds);
+      setAllCards([]);
+      await loadCollection(currentUser!.uid, onlyInCollectionId ?? undefined);
     } catch (err) {
       console.error('Error deleting all cards:', err);
       setError('Erreur lors de la suppression de la collection');
-      // Recharger la collection en cas d'erreur pour récupérer l'état actuel
-      await loadCollection(currentUser!.uid);
+      await loadCollection(currentUser!.uid, viewingCollectionId ?? undefined);
       throw err;
     }
   }
@@ -779,8 +783,7 @@ export function useCollection(userId?: string) {
 
     try {
       await collectionService.updateCard(cardId, updates);
-      // Recharger la collection pour avoir les données à jour
-      await loadCollection(currentUser!.uid);
+      await loadCollection(currentUser!.uid, viewingCollectionId ?? undefined);
     } catch (err) {
       console.error('Error updating card:', err);
       setError('Erreur lors de la mise à jour de la carte');
@@ -807,7 +810,8 @@ export function useCollection(userId?: string) {
     deleteAllCards,
     updateCardQuantity,
     updateCard,
-    refresh: () => viewingUserId ? loadCollection(viewingUserId) : Promise.resolve(),
+    refresh: () => viewingUserId ? loadCollection(viewingUserId, viewingCollectionId ?? undefined) : Promise.resolve(),
+    viewingCollectionId,
     importProgress,
     canModify: canModify(),
     viewingUserId,

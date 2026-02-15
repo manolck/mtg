@@ -156,7 +156,7 @@ describe('useCollection', () => {
         expect(result.current.loading).toBe(false);
       }, { timeout: 3000 });
 
-      expect(mockGetCollection).toHaveBeenCalledWith('test-user-id');
+      expect(mockGetCollection).toHaveBeenCalledWith('test-user-id', undefined);
     });
 
     it('should load all collections when userId is "all"', async () => {

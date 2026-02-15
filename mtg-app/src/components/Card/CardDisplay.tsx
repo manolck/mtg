@@ -65,8 +65,9 @@ export const CardDisplay = memo(function CardDisplay({
       }
     }
     
+    const displayName = (name || card.name || '').trim() || 'Carte sans nom';
     return {
-      cardName: name,
+      cardName: displayName,
       imageUrl: image,
       backImageUrl: backImage,
     };

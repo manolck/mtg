@@ -21,7 +21,8 @@
     "setup-admin-simple": "node scripts/setup-admin-simple.js",
     "scrape-magiccorporation": "node scripts/scrape-magiccorporation.js",
     "test-scraping": "node scripts/test-scraping.js",
-    "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs"
+    "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
+    "migrate-user-collections": "node scripts/migrate-user-collections.js"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",

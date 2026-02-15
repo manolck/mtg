@@ -61,8 +61,8 @@
       }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\" && id = @request.auth.id",
-    "viewRule": "@request.auth.id != \"\" && id = @request.auth.id",
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
     "createRule": "",
     "updateRule": "@request.auth.id != \"\" && id = @request.auth.id",
     "deleteRule": "@request.auth.id != \"\" && id = @request.auth.id",
@@ -79,11 +79,72 @@
     }
   },
   {
+    "id": "user_collections_id",
+    "name": "user_collections",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "uc_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "uc_name",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "userId = @request.auth.id",
+    "viewRule": "userId = @request.auth.id",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id",
+    "options": {}
+  },
+  {
     "id": "collection_id",
     "name": "collection",
     "type": "base",
     "system": false,
     "schema": [
+      {
+        "system": false,
+        "id": "coll_collectionid",
+        "name": "collectionId",
+        "type": "relation",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "user_collections_id",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
       {
         "system": false,
         "id": "3c3hor2v",

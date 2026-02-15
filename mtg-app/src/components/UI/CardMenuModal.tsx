@@ -32,19 +32,22 @@ export function CardMenuModal({
   const preferredLanguage = profile?.preferredLanguage || 'en';
   const [newQuantity, setNewQuantity] = useState(card.quantity.toString());
 
-  // Déterminer le nom de la carte à afficher selon la langue préférée
+  // Déterminer le nom de la carte à afficher selon la langue préférée (fallback si vide)
   const cardName = useMemo(() => {
-    // Si la langue préférée est le français et que des données françaises sont disponibles
+    let name: string;
     if (preferredLanguage === 'fr' && card.mtgData?.foreignNames) {
       const frenchName = card.mtgData.foreignNames.find(
         fn => fn.language === 'French' || fn.language === 'fr'
       );
       if (frenchName?.name) {
-        return frenchName.name;
+        name = frenchName.name;
+      } else {
+        name = card.name ?? '';
       }
+    } else {
+      name = card.name ?? '';
     }
-    // Sinon, utiliser le nom stocké (en anglais par défaut)
-    return card.name;
+    return name.trim() || 'Carte sans nom';
   }, [card.name, card.mtgData?.foreignNames, preferredLanguage]);
 
   // Grouper les cartes par langue

@@ -34,6 +34,13 @@ export interface MTGCard {
   }>;
 }
 
+export interface UserCollection {
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: Date;
+}
+
 export interface UserCard {
   id: string;
   name: string;
@@ -50,6 +57,8 @@ export interface UserCard {
   backMultiverseid?: number;
   backMtgData?: MTGCard; // Données complètes de la face arrière
   userId: string;
+  /** ID de la collection utilisateur (user_collections) à laquelle appartient la carte */
+  collectionId?: string;
   createdAt: Date;
   // Pour le mode "toutes les collections"
   ownerId?: string; // ID du propriétaire de la carte
