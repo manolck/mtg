@@ -22,7 +22,7 @@ import type { ImportJob } from '../types/import';
 
 export function Profile() {
   const { profile, loading, error, updateProfile } = useProfile();
-  const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
+  const { imports, loading: loadingImports, updateImportStatus, deleteImport, loadImports } = useImports();
   const {
     cards,
     importCSV,
@@ -87,6 +87,21 @@ export function Profile() {
     });
     return () => { cancelled = true; };
   }, [currentUser?.uid, userCollections]);
+
+  // Recharger les imports à chaque affichage de la page (ex. retour depuis une autre page)
+  useEffect(() => {
+    loadImports();
+  }, [loadImports]);
+
+  // Tant qu'un import est en cours, rafraîchir la liste régulièrement pour mettre à jour la progression
+  const hasActiveImport = imports.some(
+    (imp) => imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
+  );
+  useEffect(() => {
+    if (!hasActiveImport) return;
+    const interval = setInterval(() => loadImports(true), 2500);
+    return () => clearInterval(interval);
+  }, [hasActiveImport, loadImports]);
 
   // État pour le changement de mot de passe
   const [currentPassword, setCurrentPassword] = useState('');

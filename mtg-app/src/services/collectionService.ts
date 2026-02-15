@@ -42,14 +42,15 @@ export function recordToUserCard(
     typeof item.userCollectionId === 'string'
       ? item.userCollectionId
       : item.userCollectionId?.id ?? item.userCollectionId;
-  const userId =
+  const rawUserId =
     options?.userId ??
     item.expand?.userCollectionId?.userId ??
     (typeof item.userCollectionId === 'object' ? item.userCollectionId?.userId : undefined);
+  const userId = typeof rawUserId === 'string' ? rawUserId : (rawUserId?.id ?? '');
 
   return {
     id: item.id,
-    userId: userId ?? '',
+    userId,
     collectionId: collId,
     name: card?.name ?? '',
     quantity: item.quantity ?? 1,
