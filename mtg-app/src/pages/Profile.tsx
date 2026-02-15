@@ -489,6 +489,9 @@ export function Profile() {
   const activeImports = imports.filter(imp => 
     imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
   );
+  // Au retour sur la page, importProgress (useCollection) est null ; on affiche la progression depuis l'import actif rechargé
+  const displayProgress = importProgress ?? activeImports[0]?.progress ?? null;
+  const isLocalImportInProgress = Boolean(importProgress);
   const completedImports = imports.filter(imp => 
     imp.status === 'completed' || imp.status === 'failed' || imp.status === 'cancelled'
   );
@@ -807,32 +810,34 @@ export function Profile() {
             )}
           </div>
 
-          {importProgress && (
+          {displayProgress && (
             <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Import en cours...
                   </h3>
-                  <div className="flex gap-2">
-                    {isImportPaused ? (
-                      <Button variant="primary" onClick={() => resumeImport()} className="text-sm px-2 py-1">
-                        Reprendre
+                  {isLocalImportInProgress && (
+                    <div className="flex gap-2">
+                      {isImportPaused ? (
+                        <Button variant="primary" onClick={() => resumeImport()} className="text-sm px-2 py-1">
+                          Reprendre
+                        </Button>
+                      ) : (
+                        <Button variant="secondary" onClick={() => pauseImport()} className="text-sm px-2 py-1">
+                          Pause
+                        </Button>
+                      )}
+                      <Button variant="danger" onClick={() => cancelImport()} className="text-sm px-2 py-1">
+                        Annuler
                       </Button>
-                    ) : (
-                      <Button variant="secondary" onClick={() => pauseImport()} className="text-sm px-2 py-1">
-                        Pause
-                      </Button>
-                    )}
-                    <Button variant="danger" onClick={() => cancelImport()} className="text-sm px-2 py-1">
-                      Annuler
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <ProgressBar
-                  current={importProgress.current}
-                  total={importProgress.total}
-                  label={importProgress.currentCard || (isImportPaused ? 'En pause...' : 'Traitement...')}
+                  current={displayProgress.current}
+                  total={displayProgress.total}
+                  label={displayProgress.currentCard || (isLocalImportInProgress && isImportPaused ? 'En pause...' : 'Traitement...')}
                 />
               </div>
             </div>

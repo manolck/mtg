@@ -11,6 +11,8 @@ import { Spinner } from '../components/UI/Spinner';
 import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { downloadWishlist } from '../services/wishlistExportService';
+import { normalizeSearchQueryToEnglish } from '../services/searchQueryNormalizer';
+import { searchMatchesText } from '../utils/fuzzyMatch';
 import { WishlistCardMenuModal } from '../components/Wishlist/WishlistCardMenuModal';
 import { WishlistSearchInput } from '../components/Wishlist/WishlistSearchInput';
 import type { WishlistItem } from '../types/card';
@@ -57,26 +59,41 @@ export function Wishlist() {
   const filteredItems = useMemo(() => {
     let filtered = items;
 
-    // Recherche par nom, type, type de créature, description et notes
+    // Recherche par nom, type, type de créature, description et notes — même résultats FR/EN (ex. bâton = staff)
     if (deferredSearch) {
       const searchLower = deferredSearch.toLowerCase();
+      const normalizedLower = normalizeSearchQueryToEnglish(deferredSearch).toLowerCase();
+      const searchVariants = [searchLower];
+      if (normalizedLower !== searchLower) searchVariants.push(normalizedLower);
+
       filtered = filtered.filter(item => {
-        // Recherche dans le nom (priorité)
-        const nameMatch = item.name.toLowerCase().includes(searchLower);
-        
-        // Recherche dans le type de carte (Créature, Instant, etc.)
-        const typeMatch = item.mtgData?.type?.toLowerCase().includes(searchLower) ||
-                         item.mtgData?.types?.some(t => t.toLowerCase().includes(searchLower));
-        
-        // Recherche dans les types de créature (Gobelin, Elfe, etc.)
-        const subtypeMatch = item.mtgData?.subtypes?.some(st => st.toLowerCase().includes(searchLower));
-        
-        // Recherche dans la description/oracle text
-        const textMatch = item.mtgData?.text?.toLowerCase().includes(searchLower);
-        
-        // Recherche dans les notes
-        const notesMatch = item.notes?.toLowerCase().includes(searchLower);
-        
+        const itemName = item.name || '';
+        const nameMatch =
+          searchVariants.some(q => itemName.toLowerCase().includes(q)) ||
+          searchVariants.some(q => searchMatchesText(itemName, q));
+
+        const itemType = item.mtgData?.type || '';
+        const typeMatch =
+          searchVariants.some(q => itemType.toLowerCase().includes(q)) ||
+          searchVariants.some(q => searchMatchesText(itemType, q)) ||
+          item.mtgData?.types?.some(t =>
+            searchVariants.some(q => t.toLowerCase().includes(q)) || searchMatchesText(t, q)
+          );
+
+        const subtypeMatch = item.mtgData?.subtypes?.some(st =>
+          searchVariants.some(q => st.toLowerCase().includes(q)) || searchVariants.some(q => searchMatchesText(st, q))
+        );
+
+        const itemText = item.mtgData?.text || '';
+        const textMatch =
+          searchVariants.some(q => itemText.toLowerCase().includes(q)) ||
+          searchVariants.some(q => searchMatchesText(itemText, q));
+
+        const notesMatch = item.notes
+          ? searchVariants.some(q => item.notes!.toLowerCase().includes(q)) ||
+            searchVariants.some(q => searchMatchesText(item.notes!, q))
+          : false;
+
         return nameMatch || typeMatch || subtypeMatch || textMatch || notesMatch;
       });
     }

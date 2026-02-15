@@ -12,6 +12,8 @@ import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
 import { SearchInput } from '../components/UI/SearchInput';
 import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword } from '../utils/keywordSearch';
+import { normalizeSearchQueryToEnglish } from '../services/searchQueryNormalizer';
+import { searchMatchesText } from '../utils/fuzzyMatch';
 import { Modal } from '../components/UI/Modal';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
@@ -223,45 +225,57 @@ export function Collection() {
   const filteredCards = useMemo(() => {
     let filtered = [...allCards];
 
-    // Filtre par nom (recherche) et/ou mots-clés
+    // Filtre par nom (recherche) et/ou mots-clés — même résultats en français ou anglais (ex. "bâton" = "staff")
     if (deferredSearchQuery.trim()) {
       const query = deferredSearchQuery.toLowerCase();
+      const normalizedQuery = normalizeSearchQueryToEnglish(deferredSearchQuery).toLowerCase();
+      const queryVariants = [query];
+      if (normalizedQuery !== query) queryVariants.push(normalizedQuery);
+
       const keyword = findKeyword(deferredSearchQuery);
       const keywordAction = findKeywordAction(deferredSearchQuery);
       const abilityWord = findAbilityWord(deferredSearchQuery);
-      
+
       filtered = filtered.filter(card => {
-        const nameMatch = card.name.toLowerCase().includes(query);
+        const cardName = card.name || '';
+        const nameMatch =
+          queryVariants.some(q => cardName.toLowerCase().includes(q)) ||
+          queryVariants.some(q => searchMatchesText(cardName, q));
         const subtypes = card.mtgData?.subtypes || [];
-        const creatureTypeMatch = subtypes.some(subtype => 
-          subtype.toLowerCase().includes(query)
-        );
-        
+        const creatureTypeMatch = subtypes.some(subtype => {
+          const st = subtype.toLowerCase();
+          return (
+            queryVariants.some(q => st.includes(q.toLowerCase())) ||
+            queryVariants.some(q => searchMatchesText(subtype, q))
+          );
+        });
+
         let keywordMatch = false;
         if (keyword || keywordAction || abilityWord) {
           const cardText = card.mtgData?.text || '';
           const cardType = card.mtgData?.type || '';
           const cardName = card.name || '';
           const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`.toLowerCase();
-          
+
           if (keyword) {
             keywordMatch = cardHasKeyword(fullText, keyword);
           } else if (keywordAction) {
-            keywordMatch = fullText.includes(keywordAction.en.toLowerCase()) || 
+            keywordMatch = fullText.includes(keywordAction.en.toLowerCase()) ||
                           fullText.includes(keywordAction.fr.toLowerCase());
           } else if (abilityWord) {
-            keywordMatch = fullText.includes(abilityWord.en.toLowerCase()) || 
+            keywordMatch = fullText.includes(abilityWord.en.toLowerCase()) ||
                           fullText.includes(abilityWord.fr.toLowerCase());
           }
         }
-        
+
         const cardText = card.mtgData?.text || '';
         const cardType = card.mtgData?.type || '';
         const cardName = card.name || '';
-        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`.toLowerCase();
-        const textMatch = fullText.includes(query);
-        
-        return nameMatch || creatureTypeMatch || keywordMatch || textMatch;
+        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`;
+        const exactTextMatch = queryVariants.some(q => fullText.toLowerCase().includes(q));
+        const fuzzyTextMatch = queryVariants.some(q => searchMatchesText(fullText, q));
+
+        return nameMatch || creatureTypeMatch || keywordMatch || exactTextMatch || fuzzyTextMatch;
       });
     }
 
@@ -899,9 +913,8 @@ export function Collection() {
         </div>
       ) : cardsByNameMap ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {(cardsByNameMap?.deduplicatedCards || []).map((card) => {
+          {(cardsByNameMap?.deduplicatedCards || []).map((card, index) => {
             const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
-            
             return (
               <CardDisplay
                 key={card.id}
@@ -914,6 +927,7 @@ export function Collection() {
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
                 onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
                 showActions={true}
+                imagePriority={index < 5 ? 'high' : 'low'}
               />
             );
           })}

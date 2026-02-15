@@ -4,6 +4,7 @@ import { Button } from '../components/UI/Button';
 import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { createUser, setAdminRole, deleteUserAccount, listUsers } from '../services/adminAuth';
+import { triggerDeploy, isDeployConfigured, type DeployResult } from '../services/deployService';
 import { isAdmin, getUserRoles } from '../types/user';
 import type { UserProfile, AdminUser } from '../types/user';
 
@@ -30,6 +31,10 @@ export function Admin() {
 
   // État pour la confirmation de suppression
   const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<{ uid: string; email: string } | null>(null);
+
+  // Déploiement (build + reload serveur)
+  const [deploying, setDeploying] = useState(false);
+  const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -115,6 +120,17 @@ export function Admin() {
     }
   }
 
+  async function handleTriggerDeploy() {
+    setDeploying(true);
+    setDeployResult(null);
+    try {
+      const result = await triggerDeploy();
+      setDeployResult(result);
+    } finally {
+      setDeploying(false);
+    }
+  }
+
   function openEditModal(user: UserProfile) {
     setEditingUser({ ...user });
     setShowEditModal(true);
@@ -149,6 +165,34 @@ export function Admin() {
       {success && (
         <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
           {success}
+        </div>
+      )}
+
+      {/* Section Déploiement (build + reload serveur) */}
+      {isDeployConfigured() && (
+        <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Mise à jour du serveur</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Lance sur le serveur : git pull, npm install, npm run build, reload nginx.
+          </p>
+          <Button
+            onClick={handleTriggerDeploy}
+            loading={deploying}
+            disabled={deploying}
+          >
+            {deploying ? 'Déploiement en cours…' : 'Lancer build et reload'}
+          </Button>
+          {deployResult && (
+            <div className={`mt-3 p-3 rounded text-sm whitespace-pre-wrap font-mono ${
+              deployResult.ok
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800'
+            }`}>
+              <div className="font-sans font-medium mb-1">{deployResult.message}</div>
+              {deployResult.output && <pre className="mt-2 overflow-x-auto">{deployResult.output}</pre>}
+              {deployResult.error && <pre className="mt-2 text-red-600 dark:text-red-400">{deployResult.error}</pre>}
+            </div>
+          )}
         </div>
       )}
 

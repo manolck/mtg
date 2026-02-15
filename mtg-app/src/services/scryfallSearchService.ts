@@ -12,6 +12,7 @@ import {
   enrichCardWithFrenchData,
   searchInMagicCorporation,
 } from './magicCorporationService';
+import { normalizeSearchQueryToEnglish } from './searchQueryNormalizer';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { scryfallQueue } from '../utils/apiQueue';
 
@@ -149,27 +150,25 @@ export async function searchCards(
   }
 
   try {
-    // ÉTAPE 1 : Détecter si la requête est en français et la traduire en anglais
+    // ÉTAPE 1 : Normaliser la requête (FR↔EN) pour que "bâton" et "staff" donnent les mêmes résultats
+    let englishQuery = normalizeSearchQueryToEnglish(query);
+    const normalizerChanged = englishQuery.toLowerCase() !== query.trim().toLowerCase();
+
     const isFrench = preferredLanguage === 'fr' || isFrenchQuery(query);
-    let englishQuery = query;
-    
-    if (isFrench) {
-      // Essayer de traduire via MagicCorporation
+    if (isFrench && !normalizerChanged) {
+      // Pas de correspondance dans le dictionnaire : traduction par nom de carte (MagicCorporation)
       const translated = await translateFrenchToEnglish(query);
       if (translated) {
         englishQuery = translated;
       } else {
-        // Si pas de traduction exacte, essayer une recherche partielle dans MagicCorporation
         const mcResults = await searchInMagicCorporation(query, 5);
         if (mcResults.length > 0) {
-          // Utiliser le nom anglais de la première correspondance
           englishQuery = mcResults[0].nameVo;
         }
-        // Sinon, utiliser la requête originale (Scryfall peut parfois comprendre)
       }
     }
 
-    // ÉTAPE 2 : Rechercher sur Scryfall en anglais uniquement
+    // ÉTAPE 2 : Rechercher sur Scryfall en anglais
     const scryfallQuery = buildEnglishQuery(englishQuery);
     const searchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(scryfallQuery)}&order=released&dir=desc&unique=prints&limit=${limit}`;
     
@@ -262,15 +261,14 @@ export async function searchCardNames(
   }
 
   try {
-    // Traduire en anglais si nécessaire
+    // Normaliser (bâton→staff, etc.) puis traduire nom complet si besoin
+    let englishQuery = normalizeSearchQueryToEnglish(query);
+    const normalizerChanged = englishQuery.toLowerCase() !== query.trim().toLowerCase();
     const isFrench = preferredLanguage === 'fr' || isFrenchQuery(query);
-    let englishQuery = query;
-    
-    if (isFrench) {
+
+    if (isFrench && !normalizerChanged) {
       const translated = await translateFrenchToEnglish(query);
-      if (translated) {
-        englishQuery = translated;
-      }
+      if (translated) englishQuery = translated;
     }
 
     const url = `${SCRYFALL_API_BASE_URL}/cards/autocomplete?q=${encodeURIComponent(englishQuery)}`;
@@ -339,15 +337,14 @@ export async function searchCardByName(
   }
 
   try {
-    // Traduire en anglais si nécessaire
+    // Normaliser (bâton→staff, etc.) puis traduire nom complet si besoin
+    let englishQuery = normalizeSearchQueryToEnglish(query);
+    const normalizerChanged = englishQuery.toLowerCase() !== query.trim().toLowerCase();
     const isFrench = preferredLanguage === 'fr' || isFrenchQuery(query);
-    let englishQuery = query;
-    
-    if (isFrench) {
+
+    if (isFrench && !normalizerChanged) {
       const translated = await translateFrenchToEnglish(query);
-      if (translated) {
-        englishQuery = translated;
-      }
+      if (translated) englishQuery = translated;
     }
 
     const url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(`!"${englishQuery}"`)}&order=released&dir=desc&unique=prints&limit=1`;

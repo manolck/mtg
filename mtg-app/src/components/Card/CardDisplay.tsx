@@ -17,6 +17,8 @@ interface CardDisplayProps {
   onEdit?: (card: UserCard) => void; // Pour ouvrir un menu d'édition personnalisé
   showQuantity?: boolean;
   showActions?: boolean;
+  /** Priorité de chargement de l'image (high = premières cartes de la grille) */
+  imagePriority?: 'high' | 'low';
 }
 
 export const CardDisplay = memo(function CardDisplay({ 
@@ -29,7 +31,8 @@ export const CardDisplay = memo(function CardDisplay({
   onUpdateQuantity,
   onMoveToCollection,
   onEdit,
-  showActions = false 
+  showActions = false,
+  imagePriority = 'low',
 }: CardDisplayProps) {
   const { profile } = useProfile();
   const preferredLanguage = profile?.preferredLanguage || 'en';
@@ -183,7 +186,7 @@ export const CardDisplay = memo(function CardDisplay({
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  priority="low"
+                  priority={imagePriority}
                   showPlaceholder={false}
                 />
               </div>
@@ -201,7 +204,7 @@ export const CardDisplay = memo(function CardDisplay({
                   alt={`${cardName} - Face arrière`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  priority="low"
+                  priority={imagePriority}
                   showPlaceholder={false}
                 />
               </div>
@@ -217,7 +220,7 @@ export const CardDisplay = memo(function CardDisplay({
             alt={cardName}
             className="w-full h-full object-contain"
             style={{ borderRadius: '15px' }}
-            priority="low"
+            priority={imagePriority}
             showPlaceholder={false}
           />
         ) : (
@@ -519,6 +522,7 @@ export const CardDisplay = memo(function CardDisplay({
     prevProps.card.ownerProfile?.pseudonym === nextProps.card.ownerProfile?.pseudonym &&
     prevProps.showActions === nextProps.showActions &&
     prevProps.showQuantity === nextProps.showQuantity &&
+    prevProps.imagePriority === nextProps.imagePriority &&
     prevProps.isInWishlist === nextProps.isInWishlist &&
     // Comparer les références des fonctions (elles ne devraient pas changer)
     prevProps.onAddToDeck === nextProps.onAddToDeck &&
