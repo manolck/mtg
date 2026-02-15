@@ -77,7 +77,7 @@ export function Wishlist() {
           searchVariants.some(q => itemType.toLowerCase().includes(q)) ||
           searchVariants.some(q => searchMatchesText(itemType, q)) ||
           item.mtgData?.types?.some(t =>
-            searchVariants.some(q => t.toLowerCase().includes(q)) || searchMatchesText(t, q)
+            searchVariants.some(q => t.toLowerCase().includes(q)) || searchVariants.some(q => searchMatchesText(t, q))
           );
 
         const subtypeMatch = item.mtgData?.subtypes?.some(st =>

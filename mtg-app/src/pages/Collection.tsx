@@ -238,10 +238,15 @@ export function Collection() {
 
       filtered = filtered.filter(card => {
         const cardName = card.name || '';
+        const cardText = card.mtgData?.text || '';
+        const cardType = card.mtgData?.type || '';
+        const subtypes = card.mtgData?.subtypes || [];
+        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`;
+
         const nameMatch =
           queryVariants.some(q => cardName.toLowerCase().includes(q)) ||
           queryVariants.some(q => searchMatchesText(cardName, q));
-        const subtypes = card.mtgData?.subtypes || [];
+
         const creatureTypeMatch = subtypes.some(subtype => {
           const st = subtype.toLowerCase();
           return (
@@ -252,26 +257,18 @@ export function Collection() {
 
         let keywordMatch = false;
         if (keyword || keywordAction || abilityWord) {
-          const cardText = card.mtgData?.text || '';
-          const cardType = card.mtgData?.type || '';
-          const cardName = card.name || '';
-          const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`.toLowerCase();
-
+          const fullTextLower = fullText.toLowerCase();
           if (keyword) {
-            keywordMatch = cardHasKeyword(fullText, keyword);
+            keywordMatch = cardHasKeyword(fullTextLower, keyword);
           } else if (keywordAction) {
-            keywordMatch = fullText.includes(keywordAction.en.toLowerCase()) ||
-                          fullText.includes(keywordAction.fr.toLowerCase());
+            keywordMatch = fullTextLower.includes(keywordAction.en.toLowerCase()) ||
+                          fullTextLower.includes(keywordAction.fr.toLowerCase());
           } else if (abilityWord) {
-            keywordMatch = fullText.includes(abilityWord.en.toLowerCase()) ||
-                          fullText.includes(abilityWord.fr.toLowerCase());
+            keywordMatch = fullTextLower.includes(abilityWord.en.toLowerCase()) ||
+                          fullTextLower.includes(abilityWord.fr.toLowerCase());
           }
         }
 
-        const cardText = card.mtgData?.text || '';
-        const cardType = card.mtgData?.type || '';
-        const cardName = card.name || '';
-        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`;
         const exactTextMatch = queryVariants.some(q => fullText.toLowerCase().includes(q));
         const fuzzyTextMatch = queryVariants.some(q => searchMatchesText(fullText, q));
 
