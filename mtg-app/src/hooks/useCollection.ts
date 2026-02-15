@@ -590,13 +590,14 @@ export function useCollection(userId?: string, collectionId?: string | null) {
             const cardData = await searchCardData(parsedCard, profile?.preferredLanguage === 'fr');
   
             const targetCollId = targetCollectionId ?? importTargetCollectionIdRef.current ?? undefined;
+            const cardLanguage = parsedCard.language || profile?.preferredLanguage || 'en';
             const existingCard = await collectionService.findCard(
               currentUser.uid,
               {
                 name: parsedCard.name,
                 setCode: parsedCard.setCode,
                 collectorNumber: parsedCard.collectorNumber,
-                language: parsedCard.language || 'en',
+                language: cardLanguage,
               },
               targetCollId
             );
@@ -622,7 +623,7 @@ export function useCollection(userId?: string, collectionId?: string | null) {
                 collectorNumber: parsedCard.collectorNumber,
                 rarity: parsedCard.rarity || cardData.mtgData?.rarity,
                 condition: parsedCard.condition,
-                language: parsedCard.language || 'en',
+                language: cardLanguage,
                 mtgData: cardData.mtgData || undefined,
                 backImageUrl: cardData.backImageUrl,
                 backMultiverseid: cardData.backMultiverseid,

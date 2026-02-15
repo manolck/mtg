@@ -91,8 +91,22 @@ export async function getCollection(
 }
 
 /**
+ * Récupère le userId pour un user_collections id (fallback si l'expand ne le fournit pas).
+ */
+async function getUserIdFromCollectionId(collectionId: string): Promise<string | null> {
+  try {
+    const rec = await pb.collection('user_collections').getOne(collectionId, { fields: 'userId' });
+    const uid = rec.userId;
+    return typeof uid === 'string' ? uid : (uid?.id ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Récupère toutes les collections (tous les utilisateurs), paginé.
  * Utilise collection_items avec expand cardId, userCollectionId.
+ * Si userId manque sur l'expand (relation imbriquée), on le récupère via user_collections.
  */
 export async function getAllCollections(
   page: number = 1,
@@ -109,8 +123,47 @@ export async function getAllCollections(
     sort: '-created',
   });
 
+  const collIdToUserId = new Map<string, string>();
+  const itemsWithMissingUserId: { item: any; collId: string }[] = [];
+
+  for (const item of result.items) {
+    const collId =
+      typeof item.userCollectionId === 'string'
+        ? item.userCollectionId
+        : item.userCollectionId?.id ?? item.userCollectionId;
+    if (!collId) continue;
+    const rawUserId =
+      item.expand?.userCollectionId?.userId ??
+      (typeof item.userCollectionId === 'object' ? item.userCollectionId?.userId : undefined);
+    const userId = typeof rawUserId === 'string' ? rawUserId : rawUserId?.id ?? null;
+    if (userId) {
+      collIdToUserId.set(collId, userId);
+    } else {
+      itemsWithMissingUserId.push({ item, collId });
+    }
+  }
+
+  if (itemsWithMissingUserId.length > 0) {
+    const uniqueCollIds = [...new Set(itemsWithMissingUserId.map((x) => x.collId))];
+    await Promise.all(
+      uniqueCollIds.map(async (id) => {
+        const uid = await getUserIdFromCollectionId(id);
+        if (uid) collIdToUserId.set(id, uid);
+      })
+    );
+  }
+
+  const items = result.items.map((item) => {
+    const collId =
+      typeof item.userCollectionId === 'string'
+        ? item.userCollectionId
+        : item.userCollectionId?.id ?? item.userCollectionId;
+    const fallbackUserId = collId ? collIdToUserId.get(collId) : undefined;
+    return recordToUserCard(item, fallbackUserId ? { userId: fallbackUserId } : undefined);
+  });
+
   return {
-    items: result.items.map((item) => recordToUserCard(item)),
+    items,
     page: result.page,
     perPage: result.perPage,
     totalItems: result.totalItems,
