@@ -52,6 +52,24 @@ export async function getDecks(userId: string): Promise<Deck[]> {
   return records.map(recordToDeck);
 }
 
+/** Extrait un message lisible depuis une erreur PocketBase (ClientResponseError) ou autre */
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  if (err && typeof err === 'object' && 'response' in err) {
+    const res = (err as { response?: { message?: string; data?: Record<string, { message?: string }> } }).response;
+    if (res?.message) return res.message;
+    // Erreurs de validation PocketBase (ex. res.data.userId.message)
+    if (res?.data && typeof res.data === 'object') {
+      const first = Object.values(res.data).find((v) => v && typeof v === 'object' && 'message' in v);
+      const msg = first && typeof (first as { message?: string }).message === 'string' ? (first as { message: string }).message : null;
+      if (msg) return msg;
+    }
+  }
+  return '';
+}
+
 /**
  * Crée un nouveau deck
  */
@@ -60,12 +78,11 @@ export async function createDeck(userId: string, name: string): Promise<Deck> {
   if (!deckName) {
     throw new Error('Le nom du deck ne peut pas être vide');
   }
-  // Utiliser l'id du store auth pour que la createRule (@request.auth.id = userId) soit satisfaite
-  const authId = pb.authStore.model?.id;
-  const uid = (typeof authId === 'string' && authId) || (typeof userId === 'string' ? userId.trim() : '');
-  if (!uid) {
-    throw new Error('Vous devez être connecté pour créer un deck');
+  // La createRule PocketBase exige @request.auth.id = userId : il faut que la requête soit faite avec une session valide
+  if (!pb.authStore.isValid || !pb.authStore.model?.id) {
+    throw new Error('Session expirée ou invalide. Reconnectez-vous pour créer un deck.');
   }
+  const uid = pb.authStore.model.id as string;
 
   const deckData = cleanForPocketBase({
     userId: uid,
@@ -77,13 +94,9 @@ export async function createDeck(userId: string, name: string): Promise<Deck> {
     const record = await pb.collection('decks').create(deckData);
     return recordToDeck(record);
   } catch (err: unknown) {
-    // PocketBase ClientResponseError a .message (depuis response.message) ou .response.message
-    const msg =
-      err instanceof Error
-        ? err.message
-        : err && typeof err === 'object' && 'response' in err && (err as { response?: { message?: string } }).response?.message;
+    const msg = getErrorMessage(err);
     const message =
-      typeof msg === 'string' && msg !== 'Something went wrong.'
+      typeof msg === 'string' && msg.length > 0 && msg !== 'Something went wrong.'
         ? msg
         : 'Impossible de créer le deck. Vérifiez votre connexion et les droits.';
     throw new Error(message);

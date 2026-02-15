@@ -24,9 +24,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables
+# Environment variables (ne jamais committer de secrets)
 .env
 .env.local
+.env.*.local
+.env.production
 .env.production.local
 .env.development.local
 

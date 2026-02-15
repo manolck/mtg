@@ -1,7 +1,10 @@
 /**
  * Service pour déclencher un build/reload sur le serveur via un webhook.
  * Configure avec VITE_DEPLOY_HOOK_URL et VITE_DEPLOY_TOKEN (build time).
+ * Si le webhook exige un admin, le token PocketBase est envoyé (X-PocketBase-Auth).
  */
+
+import { pb } from './pocketbase';
 
 const DEPLOY_HOOK_URL = import.meta.env.VITE_DEPLOY_HOOK_URL as string | undefined;
 const DEPLOY_TOKEN = import.meta.env.VITE_DEPLOY_TOKEN as string | undefined;
@@ -35,6 +38,11 @@ export async function triggerDeploy(): Promise<DeployResult> {
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+    // Envoyer le token PocketBase pour que le webhook puisse vérifier que l'appelant est admin
+    const pbToken = pb.authStore.token;
+    if (pbToken) {
+      headers['X-PocketBase-Auth'] = pbToken;
     }
 
     const res = await fetch(url, {
