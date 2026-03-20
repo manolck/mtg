@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: 
 const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 const Statistics = lazy(() => import('./pages/Statistics').then(module => ({ default: module.Statistics })));
 const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default: module.Wishlist })));
+const Scan = lazy(() => import('./pages/Scan').then(module => ({ default: module.Scan })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
@@ -133,6 +134,8 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Temporairement accessible sans connexion pour tester le scan en local */}
+              <Route path="/scan" element={<Scan />} />
               <Route
                 path="/profile"
                 element={

@@ -21,7 +21,8 @@
     "setup-admin-simple": "node scripts/setup-admin-simple.js",
     "scrape-magiccorporation": "node scripts/scrape-magiccorporation.js",
     "test-scraping": "node scripts/test-scraping.js",
-    "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs"
+    "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
+    "build-scryfall-dictionary": "node --max-old-space-size=8192 scripts/build-scryfall-dictionary.cjs"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",
@@ -31,6 +32,7 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
     "react-window": "^1.8.11",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
@@ -57,12 +59,13 @@
     "jest-environment-jsdom": "^29.7.0",
     "lighthouse": "^13.0.1",
     "postcss": "^8.5.6",
+    "sharp": "^0.34.0",
+    "stream-json": "^1.9.1",
     "tailwindcss": "^3.4.19",
     "ts-jest": "^29.1.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
-    "vite-plugin-pwa": "^0.21.1",
-    "sharp": "^0.34.0"
+    "vite-plugin-pwa": "^0.21.1"
   }
 }

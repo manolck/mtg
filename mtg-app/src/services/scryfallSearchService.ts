@@ -404,3 +404,78 @@ export async function searchCardByName(
     return null;
   }
 }
+
+/**
+ * Search all printings of a card by exact name (for scanner confirmation step).
+ * Returns up to `limit` printings, optionally following next_page.
+ * @param exactName - Exact card name (English)
+ * @param limit - Max number of printings to return (default 50)
+ * @param preferredLanguage - If 'fr', enrich with French data
+ * @param setCode - Optional set code to filter results (e.g. "mid", "m21")
+ */
+export async function searchPrintingsByExactName(
+  exactName: string,
+  limit: number = 50,
+  preferredLanguage?: 'en' | 'fr',
+  setCode?: string | null
+): Promise<MTGCard[]> {
+  if (!exactName || !exactName.trim()) {
+    return [];
+  }
+
+  const name = exactName.trim();
+  let query = `!"${name.replace(/"/g, '\\"')}"`;
+  if (setCode && setCode.trim()) {
+    query += ` set:${setCode.trim().toLowerCase()}`;
+  }
+  let url: string | null = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(query)}&order=released&dir=desc&unique=prints&limit=${Math.min(limit, 175)}`;
+  const results: MTGCard[] = [];
+
+  try {
+    while (url && results.length < limit) {
+      const response = await scryfallQueue.enqueue(
+        () =>
+          fetchWithRetry(url!, {
+            headers: {
+              'User-Agent': 'MTGCollectionApp/1.0',
+              Accept: 'application/json',
+            },
+          }, {
+            maxRetries: 3,
+            initialDelay: 1000,
+            maxDelay: 16000,
+            retryableStatuses: [429, 500, 502, 503, 504],
+          }),
+        'normal'
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) break;
+        break;
+      }
+
+      const data = await response.json();
+      const cards = data.data || [];
+      for (const card of cards) {
+        let mtgCard = convertScryfallCardToMTGCard(card);
+        if (preferredLanguage === 'fr') {
+          mtgCard = await enrichCardWithFrenchData(mtgCard, true);
+          const frenchName = mtgCard.foreignNames?.find(
+            (fn) => fn.language === 'French' || fn.language === 'fr'
+          );
+          if (frenchName) {
+            if (frenchName.name) mtgCard.name = frenchName.name;
+            if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl;
+          }
+        }
+        results.push(mtgCard);
+        if (results.length >= limit) break;
+      }
+      url = data.has_more ? data.next_page : null;
+    }
+    return results;
+  } catch (error) {
+    console.error('Error searching printings by exact name:', error);
+    return [];
+  }
+}

@@ -56,6 +56,9 @@ export function Navbar() {
               <Link to="/wishlist" className={navLinkClass}>
                 Wishlist
               </Link>
+              <Link to="/scan" className={navLinkClass}>
+                Scanner
+              </Link>
               <Link to="/statistics" className={navLinkClass}>
                 Statistiques
               </Link>
@@ -165,6 +168,9 @@ export function Navbar() {
               </Link>
               <Link to="/wishlist" className={navLinkClass} onClick={closeMobileMenu}>
                 Wishlist
+              </Link>
+              <Link to="/scan" className={navLinkClass} onClick={closeMobileMenu}>
+                Scanner
               </Link>
               <Link to="/statistics" className={navLinkClass} onClick={closeMobileMenu}>
                 Statistiques
