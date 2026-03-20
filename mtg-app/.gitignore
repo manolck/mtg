@@ -23,6 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+#big files
+mtg-app/all-cards-*.json
 
 # Environment variables
 .env
