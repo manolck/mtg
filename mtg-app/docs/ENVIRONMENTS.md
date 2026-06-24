@@ -1,79 +1,88 @@
-# Configuration des Environnements
+# Configuration des environnements
 
 ## Vue d'ensemble
 
-L'application supporte trois environnements :
-- **Development** : Environnement local de développement
-- **Staging** : Environnement de test avant production
-- **Production** : Environnement de production
+| Environnement | Usage | Frontend | Backend |
+|---------------|-------|----------|---------|
+| **Development** | Machine locale | `npm run dev` (port 3000) | PocketBase local (`8090`) |
+| **Production** | Utilisateurs finaux | Build Vite + nginx (HTTPS) | PocketBase HTTPS (ex. `pb.mtg-app.duckdns.org`) |
 
-## Variables d'Environnement
+## Variables d'environnement (frontend)
 
-### Development (.env.local)
+Définies au **build** (Vite). Préfixe obligatoire : `VITE_`.
+
+| Variable | Requis | Description |
+|----------|--------|-------------|
+| `VITE_POCKETBASE_URL` | Recommandé | URL de l'instance PocketBase |
+| `VITE_PRICE_API_URL` | Non | API backend pour mise à jour des prix MTGJSON |
+| `VITE_SENTRY_DSN` | Non | DSN Sentry pour le monitoring |
+
+### Exemple `.env.local` (développement)
+
 ```env
-VITE_FIREBASE_API_KEY=dev-api-key
-VITE_FIREBASE_AUTH_DOMAIN=dev-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=dev-project
-VITE_FIREBASE_STORAGE_BUCKET=dev-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=dev-sender-id
-VITE_FIREBASE_APP_ID=dev-app-id
-VITE_APP_ENV=development
+VITE_POCKETBASE_URL=http://127.0.0.1:8090
+VITE_PRICE_API_URL=
+VITE_SENTRY_DSN=
 ```
 
-### Staging
-Variables configurées dans GitHub Secrets :
-- `VITE_FIREBASE_API_KEY_STAGING`
-- `VITE_FIREBASE_AUTH_DOMAIN_STAGING`
-- `VITE_FIREBASE_PROJECT_ID_STAGING`
-- `VITE_FIREBASE_STORAGE_BUCKET_STAGING`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID_STAGING`
-- `VITE_FIREBASE_APP_ID_STAGING`
-
 ### Production
-Variables configurées dans GitHub Secrets :
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
 
-## Déploiement
+```env
+VITE_POCKETBASE_URL=https://pb.mtg-app.duckdns.org
+VITE_SENTRY_DSN=https://xxx@sentry.io/xxx
+VITE_PRICE_API_URL=https://votre-api-prix.example.com
+```
 
-### Staging
-- Déclenché automatiquement sur push vers `develop`
-- Déploiement sur Firebase Hosting channel `staging`
-- URL : `https://staging--[project-id].web.app`
+Si `VITE_POCKETBASE_URL` est absent, `src/services/pocketbase.ts` déduit une URL (HTTPS prod ou IP locale dev).
 
-### Production
-- Déclenché automatiquement sur push vers `main` ou tag `v*`
-- Déploiement sur Firebase Hosting
-- URL : `https://[project-id].web.app`
+## Déploiement production (actuel)
 
-## Secrets GitHub
+Architecture documentée :
 
-### Firebase Service Account
-- `FIREBASE_SERVICE_ACCOUNT` : JSON du service account pour production
-- `FIREBASE_SERVICE_ACCOUNT_STAGING` : JSON du service account pour staging
+```
+Navigateur (HTTPS)
+    → nginx (mtg-app.duckdns.org) — SPA statique (dist/)
+    → PocketBase (pb.mtg-app.duckdns.org) — API + auth
+```
 
-### Firebase Token
-- `FIREBASE_TOKEN` : Token pour les opérations Firebase CLI
+- Build : `npm run build` → dossier `dist/`
+- Nginx front : [NGINX_CONFIG.md](../NGINX_CONFIG.md)
+- PocketBase HTTPS : [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HTTPS_SETUP.md)
 
-## Configuration Firebase
+## CI/CD (GitHub Actions)
 
-Chaque environnement doit avoir :
-1. Un projet Firebase séparé (ou un projet avec plusieurs apps)
-2. Des règles Firestore configurées
-3. Des index Firestore créés
-4. Firebase Storage activé
-5. Firebase Authentication configuré (Email/Password)
+### Actif
+
+- **`ci.yml`** — Lint, tests unitaires, build sur `main` / `develop`
+
+### Déploiement (legacy Firebase)
+
+Les workflows `deploy-production.yml` et `deploy-staging.yml` référencent encore :
+
+- Variables `VITE_FIREBASE_*`
+- Firebase Hosting, Firestore rules/indexes
+
+**Ces workflows ne reflètent pas le déploiement PocketBase + nginx actuel.** À migrer ou désactiver selon votre infra.
+
+Secrets GitHub historiques (Firebase) : à remplacer par les secrets du build actuel (`VITE_POCKETBASE_URL`, etc.) si vous automatisez le déploiement vers nginx.
+
+## Environnements suggérés pour la migration CI
+
+| Secret / variable | Staging | Production |
+|-------------------|---------|------------|
+| `VITE_POCKETBASE_URL` | URL PB staging | URL PB prod |
+| `VITE_SENTRY_DSN` | DSN staging | DSN prod |
+| `VITE_PRICE_API_URL` | API staging | API prod |
+
+Déploiement du `dist/` : rsync, SCP, ou artifact GitHub Actions vers le serveur nginx.
 
 ## Rollback
 
-En cas de problème en production :
-1. Utiliser Firebase Console pour revenir à une version précédente
-2. Ou créer un tag de la version précédente et redéployer
+1. Conserver les builds précédents (`dist/` tagués ou releases)
+2. Redéployer l'artifact nginx
+3. PocketBase : sauvegardes régulières de la base (`pb_data`)
 
+## Références
 
-
-
+- [DEVELOPMENT_LOCAL.md](./DEVELOPMENT_LOCAL.md)
+- [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md)

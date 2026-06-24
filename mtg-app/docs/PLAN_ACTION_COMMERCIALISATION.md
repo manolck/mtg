@@ -1,5 +1,7 @@
 # Plan d'Action - Commercialisation MTG Collection App
 
+> **Mise à jour 2025 :** L'application a migré vers **PocketBase**. Les sections Firestore/Firebase ci-dessous sont historiques. Référence actuelle : [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 **Date de création** : 2024  
 **Objectif** : Rendre l'application prête pour la commercialisation/production
 

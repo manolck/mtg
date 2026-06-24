@@ -1,110 +1,56 @@
 # Configuration du premier administrateur
 
-Ce guide explique comment créer le premier administrateur pour l'application MTG Collection.
+L'application utilise **PocketBase** pour l'authentification et les rôles. Il n'y a pas d'inscription publique dans l'app : les comptes sont créés par un admin ou via l'interface PocketBase.
 
-## Prérequis
+## Méthode 1 : Interface PocketBase Admin (recommandée)
 
-- Un compte Firebase configuré
-- Accès à la Firebase Console
-- Accès à Firestore Database
-
-## Étapes de configuration
-
-### 1. Créer le premier utilisateur dans Firebase Console
-
-1. Allez sur [Firebase Console](https://console.firebase.google.com)
-2. Sélectionnez votre projet
-3. Allez dans **Authentication** > **Users**
-4. Cliquez sur **Add user**
-5. Entrez un email et un mot de passe pour le premier administrateur
-6. Cliquez sur **Add user**
-
-### 2. Définir le rôle admin dans Firestore
-
-1. Dans Firebase Console, allez dans **Firestore Database**
-2. Naviguez vers la collection `users`
-3. Trouvez le document correspondant à l'UID de l'utilisateur créé (l'UID est visible dans Authentication > Users)
-4. Créez la structure suivante si elle n'existe pas :
-   ```
-   users/
-     {userId}/
-       profile/
-         data/
-   ```
-5. Dans le document `data`, ajoutez ou modifiez le champ `role` avec la valeur `"admin"` :
+1. Ouvrez l'admin PocketBase (ex. `http://127.0.0.1:8090/_/` ou `https://pb.mtg-app.duckdns.org/_/`)
+2. Allez dans **Collections** → **users**
+3. **Créez un utilisateur** avec email et mot de passe
+4. Définissez le champ **`roles`** (JSON) :
    ```json
-   {
-     "uid": "{userId}",
-     "email": "admin@example.com",
-     "role": "admin",
-     "pseudonym": "Administrateur",
-     "avatarId": "default",
-     "createdAt": [timestamp],
-     "updatedAt": [timestamp]
-   }
+   ["user", "admin"]
    ```
+5. Connectez-vous à l'application web : le lien **Admin** apparaît dans la navbar
 
-### 3. Vérifier la configuration
+## Méthode 2 : Via l'application (si un admin existe déjà)
 
-1. Connectez-vous à l'application avec le compte admin créé
-2. Vous devriez voir un lien "Admin" dans la barre de navigation
-3. Cliquez sur "Admin" pour accéder à la page de gestion des utilisateurs
+1. Connectez-vous avec un compte admin
+2. Allez sur `/admin`
+3. **+ Créer un utilisateur** — cochez **Admin** si besoin
+4. Ou **Modifier** un utilisateur existant pour ajouter le rôle admin
 
-## Structure Firestore attendue
+## Structure des rôles
 
-```
-users/
-  {userId}/
-    profile/
-      data/
-        - uid: string
-        - email: string
-        - role: "admin" | "user"
-        - pseudonym?: string
-        - avatarId?: string
-        - createdAt: timestamp
-        - updatedAt: timestamp
-```
+- Format actuel : tableau JSON `roles`, ex. `["user", "admin"]`
+- Tous les utilisateurs ont au minimum `"user"`
+- Le rôle `"admin"` donne accès à `/admin`
 
-## Créer d'autres administrateurs
+Détails et migration depuis l'ancien champ `role` : [docs/POCKETBASE_ROLES_MIGRATION.md](./docs/POCKETBASE_ROLES_MIGRATION.md).
 
-Une fois le premier admin créé, vous pouvez :
+## Vérification
 
-1. Vous connecter avec le compte admin
-2. Aller sur la page `/admin`
-3. Créer de nouveaux utilisateurs
-4. Définir leur rôle comme "admin" lors de la création ou via la modification
-
-## Notes importantes
-
-- Le rôle `admin` doit être défini explicitement dans Firestore
-- Par défaut, tous les nouveaux utilisateurs ont le rôle `user`
-- Seuls les administrateurs peuvent accéder à la page `/admin`
-- Les règles Firestore permettent aux admins de modifier tous les profils utilisateur
+1. Connexion avec le compte admin
+2. Lien **Admin** visible dans la navbar
+3. Page `/admin` : liste des utilisateurs, création, modification des rôles
 
 ## Dépannage
 
-### Le lien Admin n'apparaît pas
+| Problème | Solution |
+|----------|----------|
+| Pas de lien Admin | Vérifier `roles` contient `"admin"` dans PocketBase |
+| Accès refusé sur `/admin` | Se déconnecter / reconnecter ; vérifier les règles API PocketBase |
+| Utilisateur sans profil complet | Remplir `pseudonym`, `avatarId` via l'app Profil après première connexion |
 
-1. Vérifiez que le champ `role` est bien défini à `"admin"` dans Firestore
-2. Vérifiez que le chemin est correct : `users/{userId}/profile/data`
-3. Déconnectez-vous et reconnectez-vous pour rafraîchir les permissions
-4. Vérifiez la console du navigateur pour d'éventuelles erreurs
+## Script `setup-admin`
 
-### Erreur d'accès à la page Admin
+```bash
+npm run setup-admin
+```
 
-1. Vérifiez que les règles Firestore sont déployées :
-   ```bash
-   firebase deploy --only firestore:rules
-   ```
-2. Vérifiez que la fonction `isAdmin()` dans les règles Firestore fonctionne correctement
-3. Assurez-vous que le document de profil existe et contient le champ `role`
+Ce script affiche un message indiquant que l'administration se fait via PocketBase. Voir `scripts/setup-admin-simple.js`.
 
-## Sécurité
+## Documentation complète
 
-- Ne partagez jamais les identifiants d'administration
-- Utilisez des mots de passe forts pour les comptes admin
-- Limitez le nombre de comptes administrateurs
-- Surveillez régulièrement les accès admin dans Firebase Console
-
-
+- [PROTOCOLE_ADMIN.md](./PROTOCOLE_ADMIN.md)
+- [docs/POCKETBASE_ROLES_MIGRATION.md](./docs/POCKETBASE_ROLES_MIGRATION.md)

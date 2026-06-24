@@ -1,120 +1,94 @@
-# Guide de dépannage - Erreurs CORS Firebase Storage
+# Guide de dépannage
 
-## Erreur : "Access to XMLHttpRequest blocked by CORS policy"
+Problèmes courants avec l'application MTG Collection (stack **PocketBase** + React/Vite).
 
-Cette erreur se produit lorsque Firebase Storage n'est pas correctement configuré.
+## Connexion impossible
 
-### Solution étape par étape
+### Symptômes
 
-#### 1. Vérifier que Firebase Storage est activé
+- Erreur à la connexion sur `/login`
+- Requêtes vers PocketBase en échec dans la console (F12)
 
-1. Allez sur [Firebase Console](https://console.firebase.google.com)
-2. Sélectionnez votre projet
-3. Dans le menu latéral, cliquez sur **Storage**
-4. Si vous voyez "Get started" ou "Commencer", cliquez dessus
-5. Choisissez **"Start in production mode"**
-6. Sélectionnez un emplacement (recommandé : même région que Firestore)
-7. Cliquez sur **"Done"**
+### Solutions
 
-#### 2. Vérifier la configuration dans .env.local
+1. Vérifier que PocketBase tourne (`http://127.0.0.1:8090` en local)
+2. Vérifier `.env.local` :
+   ```env
+   VITE_POCKETBASE_URL=http://127.0.0.1:8090
+   ```
+3. Redémarrer `npm run dev` après modification de `.env.local`
+4. Vérifier que l'utilisateur existe dans PocketBase Admin → `users`
 
-Votre fichier `.env.local` doit contenir :
+## Mixed Content / CORS (production HTTPS)
 
-```env
-VITE_FIREBASE_STORAGE_BUCKET=mtg-base-68d21.firebasestorage.app
+### Symptômes
+
+```
+Mixed Content: The page at 'https://...' was loaded over HTTPS, but requested an insecure resource 'http://...'
 ```
 
-**Important** :
-- Le format doit être : `{project-id}.firebasestorage.app`
-- **SANS** le préfixe `gs://`
-- **SANS** de slash à la fin
+Le front est en **HTTPS** mais PocketBase est appelé en **HTTP**.
 
-Pour trouver votre storageBucket :
-1. Firebase Console > Storage
-2. Onglet "Files"
-3. Le bucket est affiché en haut (format : `gs://mtg-base-68d21.firebasestorage.app`)
-4. Retirez `gs://` pour obtenir : `mtg-base-68d21.firebasestorage.app`
+### Solutions
 
-#### 3. Déployer les règles Storage
+1. Exposer PocketBase en HTTPS (nginx + Let's Encrypt)
+2. Définir `VITE_POCKETBASE_URL=https://pb.votre-domaine.example` au build
+3. Voir [docs/POCKETBASE_HTTPS_SETUP.md](./docs/POCKETBASE_HTTPS_SETUP.md)
+
+## Lien « Admin » absent
+
+1. Dans PocketBase Admin → `users` → votre compte
+2. Champ `roles` doit contenir `"admin"` :
+   ```json
+   ["user", "admin"]
+   ```
+3. Se déconnecter et se reconnecter
+4. Voir [PROTOCOLE_ADMIN.md](./PROTOCOLE_ADMIN.md)
+
+## Import CSV lent ou en échec
+
+1. Vérifier la connexion réseau (appels Scryfall)
+2. Réduire la taille du fichier pour tester
+3. Consulter le rapport d'import dans **Profil** → Imports
+4. Vérifier les règles PocketBase sur la collection `collection` et `imports`
+
+## Prix / statistiques à 0
+
+1. En dev sans `VITE_PRICE_API_URL`, fallback Scryfall (moins complet que MTGJSON)
+2. Attendre le chargement initial MTGJSON (IndexedDB)
+3. Voir [docs/MTGJSON_PRICES.md](./docs/MTGJSON_PRICES.md)
+
+## Scan : caméra ne démarre pas
+
+1. Utiliser **localhost** ou **HTTPS** (requis par les navigateurs pour `getUserMedia`)
+2. Autoriser l'accès caméra dans le navigateur
+3. Sur mobile : préférer Chrome (Android) ou Safari (iOS)
+
+## Scan : icônes d'édition ne s'affichent pas
+
+En développement, le proxy Vite `/scryfall-icons` doit être actif (`vite.config.ts`). En production, les icônes Scryfall sont chargées directement si CORS le permet.
+
+## PWA : pas de mise à jour / hors ligne
+
+- Le service worker n'est actif qu'en **production** (`npm run build` + `npm run preview` ou déploiement nginx)
+- En dev, PWA désactivée volontairement
+
+## Build échoue
 
 ```bash
-cd mtg-app
-firebase deploy --only storage
+npm run lint
+npm test
+npm run build
 ```
 
-Vous devriez voir :
-```
-✔  Deployed Storage rules successfully
-```
+Vérifier TypeScript et variables d'environnement au build.
 
-#### 4. Vérifier les règles Storage
+## Firebase Storage (historique)
 
-Dans Firebase Console > Storage > Rules, vous devriez voir :
+L'application n'utilise plus Firebase Storage pour les avatars (avatars emoji en base). Si vous consultez d'anciennes notes sur les erreurs CORS Firebase Storage, voir [docs/LEGACY_FIREBASE.md](./docs/LEGACY_FIREBASE.md).
 
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /avatars/{userId}.{extension} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
+## Aide supplémentaire
 
-#### 5. Redémarrer le serveur
-
-Après avoir modifié `.env.local`, **redémarrez toujours le serveur** :
-
-```bash
-# Arrêtez le serveur (Ctrl+C)
-# Puis redémarrez
-npm run dev
-```
-
-### Vérifications supplémentaires
-
-#### Vérifier que Storage est bien initialisé
-
-Ouvrez la console du navigateur (F12) et cherchez :
-```
-✅ Firebase Storage initialisé { storageBucket: "..." }
-```
-
-Si vous voyez `storageBucket: "non configuré"`, le problème vient de `.env.local`.
-
-#### Vérifier les erreurs dans la console Firebase
-
-1. Firebase Console > Storage
-2. Onglet "Rules"
-3. Vérifiez qu'il n'y a pas d'erreurs de syntaxe
-
-### Erreurs courantes
-
-#### "storageBucket is not defined"
-- Vérifiez que `VITE_FIREBASE_STORAGE_BUCKET` est dans `.env.local`
-- Redémarrez le serveur après modification
-
-#### "Permission denied"
-- Les règles Storage ne sont pas déployées
-- Exécutez : `firebase deploy --only storage`
-
-#### "Bucket not found"
-- Firebase Storage n'est pas activé
-- Activez-le dans Firebase Console > Storage
-
-### Test rapide
-
-Pour tester si Storage fonctionne, ouvrez la console du navigateur et tapez :
-
-```javascript
-// Vérifier que storage est initialisé
-console.log(window.firebase?.storage);
-```
-
-Si c'est `undefined`, Firebase Storage n'est pas correctement configuré.
-
+- [docs/DEVELOPMENT_LOCAL.md](./docs/DEVELOPMENT_LOCAL.md)
+- [docs/SECURITY.md](./docs/SECURITY.md)
+- [docs/README.md](./docs/README.md)

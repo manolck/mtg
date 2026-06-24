@@ -1,262 +1,209 @@
-# Architecture Technique - MTG Collection App
+# Architecture technique — MTG Collection
 
 ## Vue d'ensemble
 
-Application web React/TypeScript pour la gestion de collections Magic: The Gathering avec authentification Firebase et stockage Firestore.
+Application web **React / TypeScript** (PWA) pour la gestion de collections Magic: The Gathering. Le frontend communique avec une instance **PocketBase** pour l'authentification et la persistance. Les données cartes proviennent principalement de **Scryfall**.
 
-## Stack Technologique
+## Stack technologique
 
 ### Frontend
-- **React 19.2.0** - Bibliothèque UI
-- **TypeScript 5.9.3** - Typage statique
-- **Vite 7.2.4** - Build tool et dev server
-- **React Router 7.11.0** - Routing
-- **Tailwind CSS 3.4.19** - Styling
 
-### Backend & Services
-- **Firebase Authentication** - Authentification utilisateurs
-- **Cloud Firestore** - Base de données NoSQL
-- **Firebase Storage** - Stockage des avatars
-- **Scryfall API** - Données des cartes MTG
-- **MTG Dev API** - API alternative pour les cartes
+| Technologie | Version | Rôle |
+|-------------|---------|------|
+| React | 19.x | UI |
+| TypeScript | 5.9 | Typage |
+| Vite | 7.x | Build, dev server |
+| React Router | 7.x | Routing |
+| Tailwind CSS | 3.4 | Styles |
+| react-window | 1.8 | Virtualisation (grilles) |
+| Tesseract.js | 7.x | OCR (scan) |
+| OpenCV.js | 4.8 (CDN) | Détection contours carte |
 
-## Architecture des Données
+### Backend & services
 
-### Structure Firestore
+| Service | Rôle |
+|---------|------|
+| **PocketBase** | Auth email/password, collections métier |
+| **Scryfall API** | Cartes, recherche, sets, icônes |
+| **MTG Dev API** | Fallback cartes |
+| **MTGJSON** | Prix (IndexedDB + API backend optionnelle) |
+| **Sentry** | Monitoring erreurs (si `VITE_SENTRY_DSN`) |
 
-```
-users/
-  {userId}/
-    collection/
-      {cardId}/
-        - id: string
-        - name: string
-        - quantity: number
-        - set?: string
-        - setCode?: string
-        - collectorNumber?: string
-        - rarity?: string
-        - condition?: string
-        - language?: string
-        - mtgData?: MTGCard
-        - userId: string
-        - createdAt: Timestamp
-    
-    decks/
-      {deckId}/
-        - id: string
-        - name: string
-        - cards: Array<{cardId: string, quantity: number}>
-        - userId: string
-        - createdAt: Timestamp
-    
-    profile/
-      data/
-        - uid: string
-        - email: string
-        - pseudonym?: string
-        - avatarId?: string
-        - role?: 'admin' | 'user'
-        - createdAt: Timestamp
-        - updatedAt: Timestamp
-    
-    imports/
-      {importId}/
-        - id: string
-        - status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-        - mode: 'add' | 'update'
-        - csvContent?: string
-        - progress?: ImportProgress
-        - report?: ImportReport
-        - createdAt: Timestamp
-        - updatedAt: Timestamp
-```
+### PWA
 
-### Types Principaux
+- `vite-plugin-pwa` + Workbox
+- Service worker enregistré uniquement en production (`src/main.tsx`)
+- Manifest : standalone, icônes 192/512
 
-#### UserCard
-Représente une carte dans la collection d'un utilisateur avec ses métadonnées.
+## Modèle de données PocketBase
 
-#### MTGCard
-Données complètes d'une carte depuis l'API Scryfall/MTG Dev.
+Collections utilisées par l'application :
 
-#### Deck
-Deck personnalisé avec liste de cartes et quantités.
+### `users` (auth intégrée PocketBase)
 
-#### UserProfile
-Profil utilisateur avec pseudonyme, avatar, et rôle.
+Champs applicatifs typiques :
 
-## Architecture des Composants
+- `email`, `password` (auth PocketBase)
+- `pseudonym`, `avatarId`, `preferredLanguage` (`en` | `fr`)
+- `roles` : JSON, ex. `["user", "admin"]` (voir [POCKETBASE_ROLES_MIGRATION.md](./POCKETBASE_ROLES_MIGRATION.md))
 
-### Structure des Dossiers
+### `collection`
+
+Cartes d'un utilisateur :
+
+- `userId` (relation ou string)
+- `name`, `quantity`, `set`, `setCode`, `collectorNumber`, `rarity`, `condition`, `language`
+- `mtgData` (JSON — objet carte Scryfall)
+- Champs faces arrière optionnels (`backImageUrl`, `backMtgData`, …)
+
+### `decks`
+
+- `userId`, `name`
+- `cards` : JSON — `[{ cardId, quantity }]`
+
+### `wishlist`
+
+- `userId`, `name`, `quantity`, métadonnées carte
+- `notes`, `targetPrice`, `scryfallId`, `mtgData`
+
+### `imports`
+
+Jobs d'import CSV :
+
+- `userId`, `status`, `mode` (`add` | `update`)
+- `csvContent`, `progress`, `report`, `error`, timestamps
+
+### `legal`
+
+Consentements RGPD :
+
+- `userId`, `type` (ex. `gdpr-consent`), métadonnées d'acceptation
+
+## Routes applicatives
+
+| Route | Accès | Page |
+|-------|-------|------|
+| `/login` | Public | Connexion |
+| `/collection` | Auth | Collection (+ vue autres utilisateurs) |
+| `/decks`, `/decks/:id` | Auth | Decks, éditeur |
+| `/wishlist` | Auth | Wishlist |
+| `/statistics` | Auth | Statistiques |
+| `/profile` | Auth | Profil |
+| `/scan` | Public* | Scan de cartes |
+| `/admin` | Admin | Gestion utilisateurs |
+| `/privacy-policy` | Public | Politique de confidentialité |
+
+\* `/scan` est actuellement ouvert sans connexion pour faciliter les tests ; l'ajout à la collection nécessite d'être connecté.
+
+## Architecture des dossiers
 
 ```
 src/
-  components/        # Composants réutilisables
-    Card/           # Composants liés aux cartes
-    Import/         # Composants d'import
-    Layout/         # Navigation, routes
-    UI/             # Composants UI génériques
-  
-  context/          # Context API (AuthContext)
-  
-  hooks/            # Hooks personnalisés React
-    useCollection.ts    # Gestion de la collection
-    useDecks.ts         # Gestion des decks
-    useAuth.ts          # Authentification
-    useProfile.ts       # Profil utilisateur
-    useImports.ts       # Gestion des imports
-    useAdmin.ts         # Fonctions admin
-    useAllCollections.ts # Vue globale collections
-  
-  pages/            # Pages de l'application
-    Collection.tsx      # Page principale collection
-    Decks.tsx           # Liste des decks
-    DeckBuilder.tsx     # Éditeur de deck
-    Profile.tsx         # Profil utilisateur
-    Admin.tsx           # Administration
-    Login.tsx           # Connexion
-  
-  services/         # Services externes
-    firebase.ts         # Configuration Firebase
-    scryfallApi.ts      # Intégration Scryfall
-    mtgApi.ts           # Intégration MTG Dev API
-    csvParser.ts        # Parsing CSV
-    adminAuth.ts        # Authentification admin
-  
-  types/            # Types TypeScript
-    card.ts
-    deck.ts
-    user.ts
-    import.ts
-  
-  utils/            # Utilitaires
-    keywordSearch.ts   # Recherche par mots-clés
+  components/
+    Card/           # Affichage cartes, grille virtualisée
+    Scan/           # Wizard scan (caméra, OCR, édition)
+    Import/         # Jobs d'import CSV
+    Export/         # Export collection
+    Layout/         # Navbar, ProtectedRoute, AdminRoute
+    Legal/          # GDPRConsent
+    UI/             # Button, Modal, Input, etc.
+    Wishlist/       # Recherche wishlist
+  context/          # AuthContext, ToastContext
+  hooks/            # useCollection, useDecks, useWishlist, useProfile…
+  pages/            # Pages par route
+  services/         # pocketbase, collection, deck, scryfall, prix…
+  types/            # card, deck, user, import
+  utils/            # cardOcr, cardEdgeDetection, validation, apiQueue
 ```
 
-## Flux de Données
+## Flux de données
 
 ### Authentification
-1. Utilisateur se connecte via `AuthContext`
-2. Firebase Auth gère la session
-3. `useAuth` hook expose l'utilisateur actuel
-4. Routes protégées vérifient l'authentification
 
-### Chargement de Collection
-1. `useCollection` hook charge depuis Firestore
-2. Chargement par batch (100 cartes initialement)
-3. Chargement progressif pour grandes collections
-4. Cache des profils utilisateurs (5 min TTL)
+1. `AuthProvider` (`src/context/AuthContext.tsx`) utilise `pb.authWithPassword`
+2. `pb.authStore.onChange` met à jour `currentUser`
+3. `ProtectedRoute` redirige vers `/login` si non authentifié
+4. `AdminRoute` vérifie le rôle `admin` via le profil PocketBase
+
+### Collection
+
+1. `useCollection` charge via `collectionService` (filtre `userId`)
+2. Chargement paginé / progressif pour grandes collections
+3. `useAllCollections` agrège les collections de tous les utilisateurs (lecture multi-joueurs)
+4. Filtres et recherche côté client (`useDeferredValue`, `useMemo`)
 
 ### Import CSV
-1. Fichier CSV parsé via `csvParser`
-2. Pour chaque carte :
-   - Recherche dans Scryfall/MTG Dev API
-   - Création document Firestore
-   - Mise à jour du progrès
-3. Support pause/reprise/annulation
-4. Rapport d'import généré
 
-### Recherche et Filtres
-1. Filtrage côté client (mémoire)
-2. Utilisation de `useDeferredValue` pour performance
-3. Recherche par nom, mots-clés, types, couleurs, etc.
-4. Optimisation avec `useMemo` pour éviter recalculs
+1. `csvParser` + validation Zod
+2. Pour chaque ligne : résolution carte via Scryfall / MTG Dev
+3. Persistance PocketBase + suivi dans `imports` (pause, reprise, rapport)
+
+### Scan
+
+1. `useCamera` → frame canvas
+2. `detectCardEdges` (OpenCV) → quad MTG
+3. `rectifyCardToCanvas` → image normalisée
+4. `extractCardNameWithOCR` (Tesseract) + dictionnaire Scryfall / Magic Corporation
+5. `matchCardLogoToSets` → éditions candidates
+6. `searchPrintingsByExactName` + `addCardToCollection`
+
+### Prix (statistiques)
+
+1. `initializeMTGJSONPrices` au démarrage (`App.tsx`)
+2. Cache IndexedDB (`mtgjsonPriceServiceIndexedDB`)
+3. Mise à jour via API backend si `VITE_PRICE_API_URL` configurée
+4. Fallback Scryfall en dev si API indisponible
 
 ## Sécurité
 
-### Règles Firestore
-- Collections : lecture publique (utilisateurs connectés), écriture privée
-- Decks : privés (propriétaire uniquement)
-- Profils : lecture publique, écriture propriétaire/admin
-- Imports : privés (propriétaire uniquement)
+- **PocketBase** : règles d'accès par collection (à configurer dans l'admin PocketBase)
+- Routes sensibles protégées côté client (`ProtectedRoute`, `AdminRoute`)
+- Validation Zod sur imports CSV
+- `errorHandler` centralisé + Sentry optionnel
+- HTTPS requis en prod (front + PocketBase) pour éviter Mixed Content
 
-### Authentification
-- Email/Password via Firebase Auth
-- Rôles admin gérés dans Firestore
-- Protection CSRF gérée par Firebase
+Voir [SECURITY.md](./SECURITY.md) et [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HTTPS_SETUP.md).
 
 ## Performance
 
-### Optimisations Actuelles
-- Chargement par batch (100 cartes)
-- Cache mémoire pour API Scryfall (1h)
-- Rate limiting API (100ms entre requêtes)
-- `useDeferredValue` pour filtres
-- `useMemo` pour calculs coûteux
-- Lazy loading des images (à implémenter)
+- Lazy loading des routes (`React.lazy` dans `App.tsx`)
+- Code splitting manuel (`react-vendor` chunk)
+- Cache Scryfall en mémoire + file d'attente API (`apiQueue`, `fetchWithRetry`)
+- Images lazy (`LazyImage`)
+- Virtualisation disponible (`VirtualizedCardGrid`)
 
-### Points d'Amélioration
-- Pagination virtuelle pour grandes collections
-- Service Worker pour cache offline
-- Index Firestore manquants
-- Code splitting plus agressif
-- Compression des images
+## État actuel & dette technique
 
-## APIs Externes
+### En place
 
-### Scryfall API
-- Base URL: `https://api.scryfall.com`
-- Rate limit: ~10 req/s (100ms delay)
-- Cache: 1 heure en mémoire
-- Endpoints utilisés:
-  - `/cards/{id}` - Par Scryfall ID
-  - `/cards/{set}/{number}` - Par set et numéro
-  - `/cards/search` - Recherche
+- Tests unitaires (hooks, services) et E2E Playwright (auth, collection, deck, wishlist)
+- CI : lint + tests + build sur PR
+- PWA, RGPD, export multi-formats, scan fonctionnel
 
-### MTG Dev API
-- Base URL: `https://api.magicthegathering.io/v1`
-- Rate limit: 5000 req/heure
-- Utilisé en fallback si Scryfall échoue
+### À améliorer
 
-## Dettes Techniques Identifiées
+- Couverture de tests (< 70 % objectif backlog)
+- Workflows de déploiement GitHub encore orientés Firebase (voir [ENVIRONMENTS.md](./ENVIRONMENTS.md))
+- Documentation utilisateur / page Aide
+- Fonctionnalités communauté (échanges, groupes) — non implémentées
+- Notifications prix wishlist — non implémentées
 
-1. **Tests** : Aucun test unitaire/intégration/E2E
-2. **Index Firestore** : Manquants pour certaines requêtes
-3. **Error Handling** : Gestion d'erreurs non centralisée
-4. **Performance** : Pas de pagination virtuelle
-5. **Offline** : Pas de support offline
-6. **Monitoring** : Pas de logging/monitoring
-7. **CI/CD** : Pas de pipeline automatisé
-8. **Documentation** : Documentation utilisateur incomplète
+## APIs externes
 
-## Points d'Attention
+### Scryfall
 
-### Rate Limiting API
-- Scryfall : 100ms delay entre requêtes
-- Risque de rate limit sur imports massifs
-- Solution : Queue système avec retry
+- Base : `https://api.scryfall.com`
+- Rate limiting via `scryfallQueue` (~100 ms entre requêtes)
+- Endpoints : search, cards, sets
 
-### Coûts Firestore
-- Lecture : ~$0.06/100k documents
-- Écriture : ~$0.18/100k documents
-- Attention aux requêtes non indexées
-- Optimiser les batch operations
+### MTG Dev
 
-### Sécurité
-- Règles Firestore à valider régulièrement
-- Pas de validation côté serveur (Cloud Functions)
-- Données sensibles dans Firestore
+- Fallback si Scryfall échoue
+- Limite : 5000 req/h
 
-## Plan de Refactoring Priorisé
+## Références
 
-### Priorité Haute
-1. Ajouter tests unitaires (hooks, services)
-2. Créer index Firestore manquants
-3. Centraliser gestion d'erreurs
-4. Implémenter pagination virtuelle
-
-### Priorité Moyenne
-5. Service Worker pour offline
-6. Monitoring et logging
-7. CI/CD pipeline
-8. Documentation utilisateur
-
-### Priorité Basse
-9. Migration vers Cloud Functions pour logique métier
-10. Optimisation bundle size
-11. Tests E2E complets
-
-
-
-
+- [DEVELOPMENT_LOCAL.md](./DEVELOPMENT_LOCAL.md)
+- [ENVIRONMENTS.md](./ENVIRONMENTS.md)
+- [POCKETBASE_ROLES_MIGRATION.md](./POCKETBASE_ROLES_MIGRATION.md)
+- [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md)

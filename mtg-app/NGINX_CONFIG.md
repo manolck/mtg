@@ -46,7 +46,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    # Taille maximale des uploads (si nécessaire pour Firebase Storage)
+    # Taille maximale des uploads
     client_max_body_size 10M;
 
     # Proxy vers Vite sur le port 3000
