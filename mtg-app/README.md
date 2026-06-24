@@ -117,7 +117,7 @@ En production, l'app est une **SPA statique** (build Vite) servie derrière **ng
 - Configuration PocketBase HTTPS : [docs/POCKETBASE_HTTPS_SETUP.md](./docs/POCKETBASE_HTTPS_SETUP.md)
 - Variables et environnements : [docs/ENVIRONMENTS.md](./docs/ENVIRONMENTS.md)
 
-> **Note :** Les workflows GitHub Actions (`.github/workflows/deploy-*.yml`) référencent encore Firebase Hosting. Le déploiement actuel documenté utilise nginx + build statique. Voir [docs/ENVIRONMENTS.md](./docs/ENVIRONMENTS.md).
+> **Note :** Le déploiement se fait via build Vite + nginx. Voir [NGINX_CONFIG.md](../NGINX_CONFIG.md).
 
 ## APIs externes
 
@@ -151,7 +151,7 @@ Respecter les conditions d’utilisation de Scryfall (notamment pas de revente d
 
 ## Historique Firebase
 
-L'application a migré de Firebase (Auth + Firestore) vers **PocketBase**. Des fichiers legacy (`firebase.json`, références Firestore dans certains docs) peuvent subsister ; la stack active est PocketBase. Voir [docs/LEGACY_FIREBASE.md](./docs/LEGACY_FIREBASE.md).
+Migration vers PocketBase terminée. Les fichiers Firebase legacy ont été supprimés du dépôt. Voir [docs/LEGACY_FIREBASE.md](./docs/LEGACY_FIREBASE.md).
 
 ## Licence
 

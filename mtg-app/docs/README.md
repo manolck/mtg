@@ -42,8 +42,7 @@ Index de la documentation du projet. **Stack actuelle : PocketBase + React/Vite.
 
 | Document | Description |
 |----------|-------------|
-| [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md) | Ancienne stack Firebase (archive) |
-| [FIRESTORE_INDEXES.md](./FIRESTORE_INDEXES.md) | ⚠️ Historique Firestore |
+| [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md) | Migration Firebase → PocketBase (fichiers supprimés) |
 
 ## Planification (peut contenir des références obsolètes)
 

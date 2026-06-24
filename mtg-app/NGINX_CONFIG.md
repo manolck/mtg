@@ -174,14 +174,6 @@ cd mtg-app
 npm run dev
 ```
 
-## Configuration Firebase Auth
-
-Si vous utilisez Firebase Authentication avec des providers OAuth (Google, Facebook, etc.) :
-
-1. Allez dans **Firebase Console** > **Authentication** > **Settings** > **Authorized domains**
-2. Ajoutez votre domaine : `votre-domaine.com`
-3. Les redirections OAuth fonctionneront automatiquement via HTTPS
-
 ## Vérification
 
 ### 1. Tester la connexion HTTPS

@@ -179,7 +179,7 @@ describe('useCollection', () => {
     });
 
     it('should handle loading error gracefully', async () => {
-      mockGetCollection.mockRejectedValue(new Error('Firestore error'));
+      mockGetCollection.mockRejectedValue(new Error('Database error'));
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 

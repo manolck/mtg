@@ -4,27 +4,35 @@
 
 L'application **MTG Collection** a migré de **Firebase** (Authentication + Firestore + Storage) vers **PocketBase**.
 
-La stack active est documentée dans :
+La stack active est documentée dans [README.md](../README.md) et [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-- [README.md](../README.md)
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
+## Fichiers supprimés (nettoyage 2025)
 
-## Fichiers legacy encore présents
+Les artefacts Firebase suivants ont été retirés du dépôt :
 
-| Fichier / dossier | Statut |
-|-------------------|--------|
-| `firebase.json` | Legacy — déploiement Firebase Hosting |
-| `.github/workflows/deploy-*.yml` | Références Firebase (Hosting, Firestore rules) |
-| `docs/FIRESTORE_INDEXES.md` | Historique Firestore |
-| Anciens docs mentionnant `VITE_FIREBASE_*` | Remplacés par `VITE_POCKETBASE_URL` |
+- `firebase.json`, `.firebaserc`
+- `firestore.rules`, `firestore.indexes.json`, `storage.rules`
+- Dossier `functions/` (Cloud Functions MTGJSON)
+- Workflows GitHub : `deploy-production.yml`, `deploy-staging.yml`, `firestore-backup.yml`
+- `docs/FIRESTORE_INDEXES.md`
 
-Ces fichiers peuvent être supprimés ou migrés lors d'une prochaine passe de nettoyage.
+## Équivalences fonctionnelles
+
+| Firebase (ancien) | PocketBase (actuel) |
+|-------------------|---------------------|
+| Firebase Auth | Auth intégrée collection `users` |
+| Firestore `users/{id}/collection` | Collection `collection` |
+| Firestore `users/{id}/decks` | Collection `decks` |
+| Firestore `users/{id}/profile` | Champs sur `users` |
+| Firestore `users/{id}/imports` | Collection `imports` |
+| Firebase Storage (avatars) | Avatars emoji (`avatarId` en base) |
+| Firebase Functions (prix MTGJSON) | API HTTP optionnelle (`VITE_PRICE_API_URL`) + cache IndexedDB client |
+| `firestore.rules` | Règles API PocketBase (admin UI) |
 
 ## Variables d'environnement obsolètes
 
-Ne plus utiliser :
-
 ```env
+# Ne plus utiliser
 VITE_FIREBASE_API_KEY
 VITE_FIREBASE_AUTH_DOMAIN
 VITE_FIREBASE_PROJECT_ID
@@ -34,28 +42,18 @@ VITE_FIREBASE_APP_ID
 VITE_FIREBASE_FUNCTIONS_URL
 ```
 
-Utiliser à la place :
+Utiliser :
 
 ```env
 VITE_POCKETBASE_URL=https://pb.votre-domaine.example
+VITE_PRICE_API_URL=   # optionnel
+VITE_SENTRY_DSN=      # optionnel
 ```
 
-## Équivalences fonctionnelles
+## Migration des données Firestore
 
-| Firebase | PocketBase |
-|----------|------------|
-| Firebase Auth | Auth intégrée collection `users` |
-| Firestore `users/{id}/collection` | Collection `collection` |
-| Firestore `users/{id}/decks` | Collection `decks` |
-| Firestore `users/{id}/profile` | Champs sur `users` |
-| Firestore `users/{id}/imports` | Collection `imports` |
-| Firebase Storage (avatars) | Avatars emoji (`avatarId` en base, pas de fichier) |
-| `firestore.rules` | Règles API PocketBase (admin UI) |
+Si vous avez encore des données Firestore à migrer, un script d'export/import dédié est nécessaire (non inclus). Schémas PocketBase : [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-## Migration des données
+## Admin
 
-Si vous avez encore des données Firestore à migrer, il faudra un script d'export/import dédié (non inclus dans ce dépôt). Les schémas PocketBase actuels sont décrits dans [ARCHITECTURE.md](./ARCHITECTURE.md).
-
-## Documentation admin historique
-
-Les procédures Firebase dans d'anciennes versions de `PROTOCOLE_ADMIN.md` et `ADMIN_SETUP.md` ne s'appliquent plus. Utiliser [PROTOCOLE_ADMIN.md](../PROTOCOLE_ADMIN.md) (version PocketBase).
+Voir [PROTOCOLE_ADMIN.md](../PROTOCOLE_ADMIN.md) (PocketBase uniquement).

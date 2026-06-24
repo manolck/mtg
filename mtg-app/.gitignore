@@ -32,7 +32,7 @@ mtg-app/all-cards-*.json
 .env.production.local
 .env.development.local
 
-# Firebase
+# Legacy Firebase (fichiers locaux ignorés si présents)
 .firebase
 firebase-debug.log
 firestore-debug.log

@@ -55,18 +55,15 @@ Navigateur (HTTPS)
 
 - **`ci.yml`** — Lint, tests unitaires, build sur `main` / `develop`
 
-### Déploiement (legacy Firebase)
+## CI/CD (GitHub Actions)
 
-Les workflows `deploy-production.yml` et `deploy-staging.yml` référencent encore :
+- **`ci.yml`** — Lint, tests unitaires, build sur `main` / `develop`
 
-- Variables `VITE_FIREBASE_*`
-- Firebase Hosting, Firestore rules/indexes
+Les anciens workflows Firebase Hosting (`deploy-production`, `deploy-staging`, `firestore-backup`) ont été supprimés.
 
-**Ces workflows ne reflètent pas le déploiement PocketBase + nginx actuel.** À migrer ou désactiver selon votre infra.
+Déploiement production : build `npm run build` avec les variables `VITE_*`, puis publication du dossier `dist/` sur nginx.
 
-Secrets GitHub historiques (Firebase) : à remplacer par les secrets du build actuel (`VITE_POCKETBASE_URL`, etc.) si vous automatisez le déploiement vers nginx.
-
-## Environnements suggérés pour la migration CI
+## Secrets suggérés pour un futur workflow de déploiement
 
 | Secret / variable | Staging | Production |
 |-------------------|---------|------------|

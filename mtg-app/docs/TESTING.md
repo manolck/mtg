@@ -116,9 +116,9 @@ test('should load collection page', async ({ page }) => {
 
 ## Mocking
 
-### Mock Firebase
+### Mock PocketBase
 
-Les services Firebase sont mockés dans `src/test/setup.ts`.
+PocketBase est mocké dans `src/test/setup.ts` (`pb.collection`, `pb.authStore`).
 
 ### Mock API
 
