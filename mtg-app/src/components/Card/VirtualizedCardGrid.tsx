@@ -21,8 +21,10 @@ interface VirtualizedCardGridProps {
   };
   onAddToDeck?: (cardId: string) => void;
   onAddToWishlist?: (card: UserCard) => void;
+  isInWishlist?: boolean | ((card: UserCard) => boolean);
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
+  onMoveToCollection?: (card: UserCard) => void;
   onEdit?: (card: UserCard) => void;
   showActions?: boolean;
   gap?: number;
@@ -47,8 +49,10 @@ export function VirtualizedCardGrid({
   cardsByNameMap,
   onAddToDeck,
   onAddToWishlist,
+  isInWishlist,
   onDelete,
   onUpdateQuantity,
+  onMoveToCollection,
   onEdit,
   showActions = false,
   gap = 24,
@@ -160,6 +164,9 @@ export function VirtualizedCardGrid({
           ? cardsByNameMap.map.get(card.name) || [card]
           : [card];
 
+        const wishlistFlag =
+          typeof isInWishlist === 'function' ? isInWishlist(card) : Boolean(isInWishlist);
+
         const cardElement = (
           <CardDisplay
             key={card.id}
@@ -167,10 +174,13 @@ export function VirtualizedCardGrid({
             allCardsWithSameName={cardsWithSameName}
             onAddToDeck={onAddToDeck}
             onAddToWishlist={onAddToWishlist}
+            isInWishlist={wishlistFlag}
             onDelete={onDelete}
             onUpdateQuantity={onUpdateQuantity}
+            onMoveToCollection={onMoveToCollection}
             onEdit={onEdit}
             showActions={showActions}
+            imagePriority={index < 5 ? 'high' : 'low'}
           />
         );
 
@@ -199,8 +209,10 @@ export function VirtualizedCardGrid({
       cardsByNameMap,
       onAddToDeck,
       onAddToWishlist,
+      isInWishlist,
       onDelete,
       onUpdateQuantity,
+      onMoveToCollection,
       onEdit,
       showActions,
       gap,

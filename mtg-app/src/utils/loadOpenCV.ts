@@ -1,6 +1,7 @@
 /**
- * Load OpenCV.js from CDN for use in card edge detection.
- * Only loaded when the user opens the scanner (lazy).
+ * Load OpenCV.js lazily for card edge detection.
+ * Prefer a self-hosted copy under /vendor/opencv.js (no third-party runtime).
+ * Falls back to the official CDN only if the local file is missing.
  */
 
 declare global {
@@ -38,30 +39,62 @@ declare global {
   }
 }
 
-const OPENCV_SCRIPT_URL = 'https://docs.opencv.org/4.8.0/opencv.js';
+const LOCAL_OPENCV_URL = `${import.meta.env.BASE_URL}vendor/opencv.js`;
+const CDN_OPENCV_URL = 'https://docs.opencv.org/4.8.0/opencv.js';
 
 let loadPromise: Promise<void> | null = null;
+
+function injectScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    (window as Window & { Module?: { onRuntimeInitialized?: () => void } }).Module = {
+      onRuntimeInitialized: () => resolve(),
+    };
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = src;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => {
+      if (!window.cv) {
+        reject(new Error('OpenCV failed to load'));
+      }
+      // Some builds resolve via onRuntimeInitialized; if cv is already ready, resolve now
+      if (window.cv && typeof window.cv.Mat === 'function') {
+        resolve();
+      }
+    };
+    script.onerror = () => reject(new Error(`Failed to load OpenCV from ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function localOpenCvAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(LOCAL_OPENCV_URL, { method: 'HEAD', cache: 'no-cache' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function loadOpenCV(): Promise<void> {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('OpenCV only available in browser'));
   }
   if (loadPromise) return loadPromise;
-  loadPromise = new Promise((resolve, reject) => {
-    (window as any).Module = {
-      onRuntimeInitialized: () => resolve(),
-    };
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = OPENCV_SCRIPT_URL;
-    script.onload = () => {
-      if (!window.cv) {
-        reject(new Error('OpenCV failed to load'));
-      }
-    };
-    script.onerror = () => reject(new Error('Failed to load OpenCV script'));
-    document.head.appendChild(script);
-  });
+
+  loadPromise = (async () => {
+    if (await localOpenCvAvailable()) {
+      await injectScript(LOCAL_OPENCV_URL);
+      return;
+    }
+    if (import.meta.env.DEV) {
+      console.warn(
+        'OpenCV: /public/vendor/opencv.js missing — falling back to CDN. For production, download opencv.js 4.8.0 into public/vendor/.'
+      );
+    }
+    await injectScript(CDN_OPENCV_URL);
+  })();
+
   return loadPromise;
 }
 

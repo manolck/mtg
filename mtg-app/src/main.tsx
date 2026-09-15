@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/Layout/ErrorBoundary'
 
 // Enregistrer le Service Worker en production (PWA)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
@@ -31,6 +32,8 @@ if (savedDarkMode === 'true') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

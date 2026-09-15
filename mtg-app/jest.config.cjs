@@ -24,10 +24,10 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 0, // Désactivé temporairement - à augmenter progressivement
-      functions: 0,
-      lines: 0,
-      statements: 0,
+      branches: 8,
+      functions: 10,
+      lines: 12,
+      statements: 12,
     },
     // Seuils spécifiques par fichier testé
     './src/services/csvParser.ts': {
@@ -37,6 +37,12 @@ module.exports = {
       statements: 80,
     },
     './src/hooks/useAuth.ts': {
+      branches: 80,
+      functions: 100,
+      lines: 80,
+      statements: 80,
+    },
+    './src/utils/pocketbaseFilter.ts': {
       branches: 80,
       functions: 100,
       lines: 80,

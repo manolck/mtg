@@ -1,6 +1,8 @@
 // src/context/AuthContext.tsx (version PocketBase)
 import { createContext, useContext, useEffect, useState } from 'react';
 import { pb } from '../services/pocketbase';
+import { rateLimiter, RATE_LIMITS } from '../services/rateLimiter';
+import { errorHandler } from '../services/errorHandler';
 import type { User } from '../types/user';
 
 interface AuthContextType {
@@ -55,11 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function login(email: string, password: string) {
+    const rateKey = `login:${email.trim().toLowerCase()}`;
+    if (!rateLimiter.canMakeRequest(rateKey, RATE_LIMITS.LOGIN)) {
+      throw new Error('Trop de tentatives. Réessayez dans 15 minutes.');
+    }
+
     try {
       await pb.collection('users').authWithPassword(email, password);
-      // currentUser sera mis à jour automatiquement via onChange
-    } catch (error: any) {
-      throw new Error(error.message || 'Erreur de connexion');
+      rateLimiter.reset(rateKey);
+    } catch (error: unknown) {
+      const appError = errorHandler.handleError(error);
+      throw new Error(appError.message);
     }
   }
 

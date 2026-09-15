@@ -43,6 +43,7 @@ La page Collection permet de consulter les collections d'autres utilisateurs (`u
 ## Validation des données
 
 - Validation **Zod** sur les imports CSV
+- Rate limiting client (login + imports CSV)
 - Nettoyage des objets avant envoi PocketBase (`cleanForPocketBase` — suppression des `undefined`)
 - Pas de sanitization HTML systématique sur tous les champs utilisateur (backlog)
 

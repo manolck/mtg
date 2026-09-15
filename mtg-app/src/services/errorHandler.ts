@@ -87,8 +87,18 @@ class ErrorHandler {
    */
   private normalizeError(error: unknown): AppError {
     if (error instanceof Error) {
+      const status =
+        'status' in error && typeof (error as { status?: unknown }).status === 'number'
+          ? (error as { status: number }).status
+          : undefined;
+
       // Erreur réseau
-      if (error.message.includes('fetch') || error.message.includes('network')) {
+      if (
+        error.message.includes('fetch') ||
+        error.message.includes('network') ||
+        error.message.includes('Failed to fetch') ||
+        error.name === 'TypeError'
+      ) {
         return {
           type: ErrorTypeValues.NETWORK,
           message: 'Erreur de connexion. Vérifiez votre connexion internet.',
@@ -101,11 +111,12 @@ class ErrorHandler {
       if (
         error.message.includes('pocketbase') ||
         error.message.includes('permission') ||
-        error.message.includes('autocancelled')
+        error.message.includes('autocancelled') ||
+        status === 403
       ) {
         return {
           type: ErrorTypeValues.DATABASE,
-          message: 'Erreur d\'accès aux données. Vérifiez vos permissions.',
+          message: "Erreur d'accès aux données. Vérifiez vos permissions.",
           originalError: error,
         };
       }
@@ -114,7 +125,9 @@ class ErrorHandler {
       if (
         error.message.includes('auth/') ||
         error.message.includes('Failed to authenticate') ||
-        error.message.includes('Invalid login credentials')
+        error.message.includes('Invalid login credentials') ||
+        (status === 400 &&
+          /authenticat|credential|password|email|login/i.test(error.message))
       ) {
         return {
           type: ErrorTypeValues.AUTH,
@@ -134,10 +147,10 @@ class ErrorHandler {
         };
       }
 
-      // Erreur générique
+      // Ne jamais exposer le message technique brut à l'utilisateur
       return {
         type: ErrorTypeValues.UNKNOWN,
-        message: error.message || 'Une erreur est survenue',
+        message: 'Une erreur est survenue. Veuillez réessayer.',
         originalError: error,
       };
     }

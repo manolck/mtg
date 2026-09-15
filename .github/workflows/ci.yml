@@ -41,6 +41,31 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mtg-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E smoke tests
+        run: npx playwright test e2e/auth.spec.ts --project=chromium
+        env:
+          CI: true
+          VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090' }}
+
   build:
     name: Build
     runs-on: ubuntu-latest

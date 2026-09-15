@@ -38,24 +38,17 @@ VITE_SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
 
 ### 4. Configuration en Production
 
-#### Option A : Firebase Hosting
+Définir le secret GitHub / variable d'environnement au **build** :
 
-1. Dans Firebase Console, allez dans **Hosting** > **Paramètres**
-2. Ajoutez la variable d'environnement :
-   - Nom : `VITE_SENTRY_DSN`
-   - Valeur : Votre DSN Sentry
+```
+VITE_SENTRY_DSN=https://xxxxx@xxxxx.ingest.sentry.io/xxxxx
+```
 
-#### Option B : Vercel
+Quand `VITE_SENTRY_DSN` est présent, Vite génère des source maps `hidden` (présentes dans `dist/` pour upload Sentry, non référencées dans le JS servi). Uploadez-les via le CLI Sentry ou votre pipeline CI.
 
-1. Dans le dashboard Vercel, allez dans **Settings** > **Environment Variables**
-2. Ajoutez :
-   - Name : `VITE_SENTRY_DSN`
-   - Value : Votre DSN Sentry
-   - Environment : Production (et Preview si souhaité)
+L'application initialise Sentry au démarrage (`errorHandler.init`) et capture aussi les crashes de rendu via `ErrorBoundary`.
 
-#### Option C : Autres plateformes
-
-Ajoutez la variable d'environnement `VITE_SENTRY_DSN` dans les paramètres de votre plateforme de déploiement.
+> Ancienne doc Firebase Hosting / Vercel : l'hébergement actuel est nginx + artifact CI. Voir [ENVIRONMENTS.md](./ENVIRONMENTS.md).
 
 ## Utilisation
 

@@ -460,29 +460,30 @@ export function Profile() {
       setConfirmPassword('');
       setShowPasswordForm(false);
       showSuccess('Mot de passe modifié avec succès !');
-    } catch (err: any) {
-      console.error('Error changing password:', err);
-      console.error('Error details:', {
-        status: err.status,
-        message: err.message,
-        response: err.response,
-        data: err.data,
-      });
-      
-      // Gestion des erreurs spécifiques
-      if (err.status === 400) {
-        const errorMessage = err.message || err.data?.message || '';
-        if (errorMessage.includes('password') || errorMessage.includes('incorrect') || errorMessage.includes('invalid')) {
+    } catch (err: unknown) {
+      const status =
+        err && typeof err === 'object' && 'status' in err
+          ? Number((err as { status?: number }).status)
+          : undefined;
+      const rawMessage =
+        err instanceof Error
+          ? err.message
+          : err && typeof err === 'object' && 'message' in err
+            ? String((err as { message?: unknown }).message ?? '')
+            : '';
+
+      if (status === 400) {
+        if (/password|incorrect|invalid/i.test(rawMessage)) {
           showError('Mot de passe actuel incorrect ou nouveau mot de passe invalide');
-        } else if (errorMessage.includes('weak') || errorMessage.includes('minimum')) {
+        } else if (/weak|minimum/i.test(rawMessage)) {
           showError('Le nouveau mot de passe est trop faible (minimum 6 caractères)');
-        } else if (errorMessage.includes('match') || errorMessage.includes('confirm')) {
+        } else if (/match|confirm/i.test(rawMessage)) {
           showError('Les mots de passe ne correspondent pas');
         } else {
-          showError(`Erreur lors du changement de mot de passe: ${errorMessage || 'Erreur inconnue'}`);
+          showError('Impossible de changer le mot de passe. Vérifiez vos informations.');
         }
-      } else if (err.status === 403 || err.status === 401) {
-        showError('Vous n\'avez pas la permission de modifier votre mot de passe');
+      } else if (status === 403 || status === 401) {
+        showError("Vous n'avez pas la permission de modifier votre mot de passe");
       } else {
         errorHandler.handleAndShowError(err);
       }

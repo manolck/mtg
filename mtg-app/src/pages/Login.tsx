@@ -22,8 +22,12 @@ export function Login() {
     try {
       await login(email, password);
       navigate('/collection');
-    } catch (err: any) {
-      setError(err.message || 'Une erreur est survenue');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Une erreur est survenue. Veuillez réessayer.';
+      setError(message);
     } finally {
       setLoading(false);
     }

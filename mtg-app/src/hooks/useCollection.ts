@@ -5,12 +5,12 @@ import * as importService from '../services/importService';
 import { parseCSV } from '../services/csvParser';
 import { searchCardByName, searchCardsByName, searchCardByMultiverseId, searchCardByNameAndNumber } from '../services/mtgApi';
 import { searchCardByScryfallId, searchCardBySetAndNumber, searchCardByNameAndNumberScryfall } from '../services/scryfallApi';
+import { rateLimiter, RATE_LIMITS } from '../services/rateLimiter';
 import type { MTGCard } from '../types/card';
 import type { UserCard } from '../types/card';
 import type { CardImportStatus } from '../types/import';
 import { useAuth } from './useAuth';
 import { useProfile } from './useProfile';
-// useImports n'est plus nécessaire car on utilise directement importService
 import type { UserProfile } from '../types/user';
 import { LRUCache } from '../utils/LRUCache';
 
@@ -523,6 +523,12 @@ export function useCollection(userId?: string, collectionId?: string | null) {
     if (!currentUser) {
       throw new Error('Vous devez être connecté pour importer des cartes');
     }
+
+    const rateKey = `import:${currentUser.uid}`;
+    if (!importId && !rateLimiter.canMakeRequest(rateKey, RATE_LIMITS.IMPORT)) {
+      throw new Error('Trop d\'imports. Réessayez dans une heure.');
+    }
+
     importTargetCollectionIdRef.current = targetCollectionId ?? null;
     try {
       // Créer l'import job

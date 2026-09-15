@@ -3,6 +3,9 @@ import { pb } from './pocketbase';
 import { pbEqual } from '../utils/pocketbaseFilter';
 import type { ImportJob, ImportStatus, ImportReport } from '../types/import';
 
+/** Statuts pour lesquels le CSV brut n'est plus nécessaire (reprise impossible / terminée). */
+const CSV_CLEAR_STATUSES: ImportStatus[] = ['completed', 'failed', 'cancelled'];
+
 /**
  * Nettoie un objet en retirant tous les champs undefined pour PocketBase
  */
@@ -112,6 +115,11 @@ export async function updateImportStatus(
     updateData.completedAt = new Date().toISOString();
   }
 
+  if (CSV_CLEAR_STATUSES.includes(status)) {
+    // Ne pas conserver le CSV brut une fois l'import terminé / annulé / en échec
+    updateData.csvContent = '';
+  }
+
   await pb.collection('imports').update(importId, updateData);
 }
 
@@ -139,6 +147,7 @@ export async function saveImportReport(importId: string, report: ImportReport): 
     report,
     status: 'completed',
     completedAt: new Date().toISOString(),
+    csvContent: '',
   });
 }
 

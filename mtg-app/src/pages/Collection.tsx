@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
+import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
 import { Button } from '../components/UI/Button';
 import { SearchInput } from '../components/UI/SearchInput';
 import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword } from '../utils/keywordSearch';
@@ -909,26 +910,43 @@ export function Collection() {
           </button>
         </div>
       ) : cardsByNameMap ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {(cardsByNameMap?.deduplicatedCards || []).map((card, index) => {
-            const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
-            return (
-              <CardDisplay
-                key={card.id}
-                card={card}
-                allCardsWithSameName={cardsWithSameName}
-                onAddToDeck={isViewingOwnCollection ? handleAddToDeck : undefined}
-                onAddToWishlist={isViewingOwnCollection ? handleToggleWishlist : undefined}
-                isInWishlist={isCardInWishlist(card)}
-                onDelete={canModify ? deleteCard : undefined}
-                onUpdateQuantity={canModify ? updateCardQuantity : undefined}
-                onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
-                showActions={true}
-                imagePriority={index < 5 ? 'high' : 'low'}
-              />
-            );
-          })}
-        </div>
+        (cardsByNameMap.deduplicatedCards.length > 100 ? (
+          <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
+            <VirtualizedCardGrid
+              cards={cardsByNameMap.deduplicatedCards}
+              cardsByNameMap={cardsByNameMap}
+              onAddToDeck={isViewingOwnCollection ? handleAddToDeck : undefined}
+              onAddToWishlist={isViewingOwnCollection ? handleToggleWishlist : undefined}
+              isInWishlist={isCardInWishlist}
+              onDelete={canModify ? deleteCard : undefined}
+              onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+              onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
+              showActions={true}
+              gap={24}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {(cardsByNameMap?.deduplicatedCards || []).map((card, index) => {
+              const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
+              return (
+                <CardDisplay
+                  key={card.id}
+                  card={card}
+                  allCardsWithSameName={cardsWithSameName}
+                  onAddToDeck={isViewingOwnCollection ? handleAddToDeck : undefined}
+                  onAddToWishlist={isViewingOwnCollection ? handleToggleWishlist : undefined}
+                  isInWishlist={isCardInWishlist(card)}
+                  onDelete={canModify ? deleteCard : undefined}
+                  onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+                  onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
+                  showActions={true}
+                  imagePriority={index < 5 ? 'high' : 'low'}
+                />
+              );
+            })}
+          </div>
+        ))
       ) : null}
 
       {/* IntersectionObserver trigger pour charger plus de cartes */}

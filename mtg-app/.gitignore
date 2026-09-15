@@ -43,3 +43,7 @@ serviceAccountKey.json
 
 # OCR / webcam test captures
 test-fixtures/
+
+# Self-hosted OpenCV (large); keep public/vendor/README.md
+public/vendor/opencv.js
+public/vendor/opencv.js.map
