@@ -183,7 +183,7 @@ Voir [SECURITY.md](./SECURITY.md) et [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HT
 ### À améliorer
 
 - Couverture de tests (< 70 % objectif backlog)
-- Workflows de déploiement : build via `ci.yml` ; déploiement manuel ou à automatiser vers nginx
+- Workflows CI/CD : `.github/workflows/` à la racine du repo (`ci.yml`, `build-production.yml`)
 - Documentation utilisateur / page Aide
 - Fonctionnalités communauté (échanges, groupes) — non implémentées
 - Notifications prix wishlist — non implémentées

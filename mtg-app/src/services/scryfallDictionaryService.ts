@@ -23,6 +23,15 @@ function normalizeAccents(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Nettoie artefacts OCR avant matching. */
+function cleanOcrKey(s: string): string {
+  return (s ?? '')
+    .replace(/[|\[\](){}«»<>]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s'\-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function jaroWinkler(s1: string, s2: string): number {
   if (s1 === s2) return 1;
   if (!s1.length || !s2.length) return 0;
@@ -55,9 +64,84 @@ function jaroWinkler(s1: string, s2: string): number {
   }
   const jaro =
     (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
-  const prefixLen = Math.min(4, [...s1].filter((c, i) => s2[i] === c).length);
+  let prefixLen = 0;
+  for (let i = 0; i < Math.min(4, len1, len2); i++) {
+    if (s1[i] === s2[i]) prefixLen++;
+    else break;
+  }
   const winkler = jaro + prefixLen * 0.1 * (1 - jaro);
   return Math.min(1, winkler);
+}
+
+function tokenize(s: string): string[] {
+  return normalizeAccents(s.toLowerCase())
+    .split(/[\s'\-]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2);
+}
+
+/** Score multi-signal : Jaro-Winkler + chevauchement de mots + ratio de longueur. */
+function scoreNameMatch(ocrText: string, cardName: string, lang?: string): number {
+  const ocr = cleanOcrKey(ocrText);
+  if (!ocr || !cardName) return 0;
+  const oNorm = normalizeAccents(ocr.toLowerCase());
+  const nNorm = normalizeAccents(cardName.toLowerCase());
+  if (oNorm === nNorm) return 1;
+
+  const jw = Math.max(
+    jaroWinkler(oNorm, nNorm),
+    jaroWinkler(ocr.toLowerCase(), cardName.toLowerCase())
+  );
+
+  const oTokens = tokenize(ocr);
+  const nTokens = tokenize(cardName);
+  let tokenHits = 0;
+  const significantO = oTokens.filter((t) => t.length >= 3);
+  for (const ot of significantO) {
+    const hit = nTokens.some(
+      (nt) =>
+        nt === ot ||
+        (ot.length >= 4 && (nt.includes(ot) || ot.includes(nt))) ||
+        jaroWinkler(ot, nt) >= 0.88
+    );
+    if (hit) tokenHits++;
+  }
+  const tokenDenom = Math.max(significantO.length, nTokens.filter((t) => t.length >= 3).length, 1);
+  const tokenScore = tokenHits / tokenDenom;
+
+  const lenRatio =
+    Math.min(oNorm.length, nNorm.length) / Math.max(oNorm.length, nNorm.length, 1);
+
+  // Pénalité si le nom dictionnaire est beaucoup plus court que l'OCR multi-mots
+  const wordCountPenalty =
+    oTokens.length >= 3 && nTokens.length === 1 && tokenScore < 0.5 ? 0.15 : 0;
+
+  let score = 0.4 * jw + 0.5 * tokenScore + 0.1 * lenRatio - wordCountPenalty;
+
+  // Légère préférence FR quand l'OCR contient des accents ou des mots FR typiques
+  if (lang === 'fr' && (/[àâäéèêëïîôùûüçœæ]/i.test(ocr) || /\b(des|de|la|le|du)\b/i.test(ocr))) {
+    score += 0.03;
+  }
+
+  // Préserve la structure "X à Y" fréquente en FR (évite Cache elfique vs Golem à relique)
+  const ocrHasA = /\bà\b/i.test(ocr) || /(^|\s)a(\s|$)/i.test(normalizeAccents(ocr));
+  const nameHasA = /\bà\b/i.test(cardName);
+  if (ocrHasA && nameHasA) score += 0.1;
+  if (ocrHasA && !nameHasA) score -= 0.1;
+
+  // Bonus si un long token OCR est contenu dans un token du nom (lique ⊂ relique)
+  let containmentBonus = 0;
+  for (const ot of significantO) {
+    if (ot.length < 4) continue;
+    for (const nt of nTokens) {
+      if (nt.length > ot.length && nt.includes(ot)) {
+        containmentBonus = Math.max(containmentBonus, 0.08 * (ot.length / nt.length));
+      }
+    }
+  }
+  score += containmentBonus;
+
+  return Math.max(0, Math.min(1, score));
 }
 
 async function loadDictionary(): Promise<ScryfallDictionaryEntry[]> {
@@ -91,17 +175,18 @@ async function loadDictionary(): Promise<ScryfallDictionaryEntry[]> {
  * Réduit les candidats aux noms dont la longueur est proche de keyLen (évite de scorer 278k entrées).
  * Pour un OCR très court (keyLen <= 6), on inclut aussi les noms plus longs (mal reconnus).
  */
-function getCandidateIndices(keyLen: number): number[] {
+function getCandidateIndices(keyLen: number, wordCount: number = 1): number[] {
   if (!dictionary || !byLength) return [];
   let maxLen: number;
   let minLen: number;
   if (keyLen <= 6) {
     minLen = 0;
-    maxLen = Math.min(50, keyLen + 20);
+    maxLen = Math.min(60, keyLen + 25);
   } else {
-    const maxLenDiff = Math.max(8, Math.floor(keyLen * 0.5));
+    // OCR bruité peut être plus court que le vrai nom (lettres manquantes)
+    const maxLenDiff = Math.max(12, Math.floor(keyLen * 0.7));
     minLen = Math.max(0, keyLen - maxLenDiff);
-    maxLen = keyLen + maxLenDiff;
+    maxLen = keyLen + maxLenDiff + (wordCount >= 3 ? 10 : 0);
   }
   const indices: number[] = [];
   for (let len = minLen; len <= maxLen; len++) {
@@ -118,7 +203,7 @@ function getCandidateIndices(keyLen: number): number[] {
 export async function resolveOcrToDictionary(
   ocrText: string
 ): Promise<ScryfallDictionaryEntry | null> {
-  const key = (ocrText ?? '').trim();
+  const key = cleanOcrKey(ocrText ?? '');
   if (!key || key.length < 2) return null;
 
   const entries = await loadDictionary();
@@ -126,6 +211,7 @@ export async function resolveOcrToDictionary(
 
   const keyLower = key.toLowerCase();
   const keyNorm = normalizeAccents(keyLower);
+  const wordCount = tokenize(key).length;
 
   // Correspondance exacte (insensible à la casse et aux accents)
   for (const e of entries) {
@@ -135,26 +221,13 @@ export async function resolveOcrToDictionary(
     if (normalizeAccents(nameLower) === keyNorm) return e;
   }
 
-  const candidateIndices = getCandidateIndices(key.length);
+  const candidateIndices = getCandidateIndices(key.length, wordCount);
   let best: { entry: ScryfallDictionaryEntry; score: number } | null = null;
 
   for (const i of candidateIndices) {
     const e = entries[i];
-    const name = (e.name ?? '').toLowerCase();
-    if (!name) continue;
-    const nameNorm = normalizeAccents(name);
-    let score: number;
-    if (name === keyLower || nameNorm === keyNorm) {
-      return e;
-    }
-    if (name.startsWith(keyLower) || keyLower.startsWith(name)) {
-      score = 0.95;
-    } else {
-      score = Math.max(
-        jaroWinkler(keyLower, name),
-        jaroWinkler(keyNorm, nameNorm)
-      );
-    }
+    if (!e.name) continue;
+    const score = scoreNameMatch(key, e.name, e.lang);
     if (best === null || score > best.score) {
       best = { entry: e, score };
     }
@@ -163,12 +236,8 @@ export async function resolveOcrToDictionary(
   // Si aucun candidat dans la fenêtre de longueur, parcourir tout le dictionnaire (plus lent)
   if (best === null) {
     for (const e of entries) {
-      const name = (e.name ?? '').toLowerCase();
-      if (!name) continue;
-      const score = Math.max(
-        jaroWinkler(keyLower, name),
-        jaroWinkler(keyNorm, normalizeAccents(name))
-      );
+      if (!e.name) continue;
+      const score = scoreNameMatch(key, e.name, e.lang);
       if (best === null || score > best.score) {
         best = { entry: e, score };
       }
@@ -180,25 +249,23 @@ export async function resolveOcrToDictionary(
 
 /**
  * Parmi plusieurs chaînes OCR (ex. auto + inversé), retourne l’entrée du dictionnaire
- * qui a le meilleur score (Jaro-Winkler) sur l’une des chaînes.
+ * qui a le meilleur score multi-signal sur l’une des chaînes.
  */
 export async function resolveOcrToDictionaryBestOf(
   candidates: string[]
 ): Promise<ScryfallDictionaryEntry | null> {
   if (!candidates.length) return null;
+  await loadDictionary();
   let globalBest: { entry: ScryfallDictionaryEntry; score: number } | null = null;
-  for (const ocrText of candidates) {
+
+  // Aussi scorér la concaténation des meilleurs tokens des candidats
+  const cleaned = candidates.map(cleanOcrKey).filter((c) => c.length >= 2);
+  const allCandidates = [...new Set(cleaned)];
+
+  for (const ocrText of allCandidates) {
     const entry = await resolveOcrToDictionary(ocrText);
     if (!entry) continue;
-    const key = (ocrText ?? '').trim().toLowerCase();
-    const name = (entry.name ?? '').toLowerCase();
-    const score =
-      key === name
-        ? 1
-        : Math.max(
-            jaroWinkler(key, name),
-            jaroWinkler(normalizeAccents(key), normalizeAccents(name))
-          );
+    const score = scoreNameMatch(ocrText, entry.name, entry.lang);
     if (globalBest === null || score > globalBest.score) {
       globalBest = { entry, score };
     }

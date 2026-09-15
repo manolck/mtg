@@ -1,6 +1,10 @@
 {
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
+    "verbatimModuleSyntax": false,
+    "erasableSyntaxOnly": false,
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "module": "ESNext",
@@ -8,6 +12,5 @@
     "resolveJsonModule": true,
     "types": ["jest", "@testing-library/jest-dom", "node", "vite/client"]
   },
-  "include": ["src/**/*", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*"]
 }
-

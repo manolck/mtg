@@ -1,20 +1,17 @@
 /**
  * Extract card name from a cropped card image using Tesseract.js.
- * PSM 7 (single line). Prétraitement adapté aux cartes MTG : texte noir sur fond gris, ou texte blanc sur fond noir.
+ * Plusieurs prétraitements + PSM 6/7 ; le meilleur texte non vide gagne.
  */
 
 import Tesseract from 'tesseract.js';
 
 /** Name region on a standard MTG card: x%, y%, width%, height% (from top-left). Exporté pour afficher le cadre dans le wizard. */
-export const CARD_NAME_REGION = { x: 0.06, y: 0.03, width: 0.69, height: 0.08 };
+export const CARD_NAME_REGION = { x: 0.05, y: 0.025, width: 0.72, height: 0.09 };
 
 export type NameRegion = { x: number; y: number; width: number; height: number };
 
-const MIN_HEIGHT_FOR_OCR = 80;
+const MIN_HEIGHT_FOR_OCR = 160;
 
-/**
- * Create an off-screen image from a data URL and return dimensions.
- */
 function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -25,9 +22,6 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Crop a region from the image to a new canvas (for better OCR on just the name zone).
- */
 function cropToRegion(
   img: HTMLImageElement,
   region: { x: number; y: number; width: number; height: number }
@@ -46,14 +40,13 @@ function cropToRegion(
   return canvas;
 }
 
-/** Options for preprocessing: forceInvert overrides auto detection when set. */
 function preprocessForOCR(
   source: HTMLCanvasElement,
-  options?: { forceInvert?: boolean }
+  options?: { forceInvert?: boolean; binarize?: boolean }
 ): HTMLCanvasElement {
   const w = source.width;
   const h = source.height;
-  const scale = h < MIN_HEIGHT_FOR_OCR ? MIN_HEIGHT_FOR_OCR / h : 1;
+  const scale = h < MIN_HEIGHT_FOR_OCR ? MIN_HEIGHT_FOR_OCR / h : Math.max(1, 120 / h);
   const outW = Math.round(w * scale);
   const outH = Math.round(h * scale);
 
@@ -70,29 +63,32 @@ function preprocessForOCR(
   const data = imageData.data;
   let sum = 0;
   const len = data.length / 4;
+  const grayValues: number[] = new Array(len);
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    grayValues[p] = gray;
     sum += gray;
-    data[i] = gray;
-    data[i + 1] = gray;
-    data[i + 2] = gray;
   }
 
   const mean = len > 0 ? sum / len : 128;
   const invert =
     options?.forceInvert !== undefined ? options.forceInvert : mean < 128;
+  const binarize = options?.binarize ?? false;
 
-  for (let i = 0; i < data.length; i += 4) {
-    let v = data[i];
-    if (invert) {
-      v = 255 - v;
-    } else {
-      v = Math.min(255, Math.max(0, (v - 128) * 1.15 + 128));
+  const sorted = [...grayValues].sort((a, b) => a - b);
+  const thresholdSrc = sorted[Math.floor(sorted.length * 0.42)] ?? 128;
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    let v = grayValues[p];
+    if (invert) v = 255 - v;
+    else v = Math.min(255, Math.max(0, (v - 128) * 1.4 + 128));
+
+    if (binarize) {
+      const thr = invert ? 255 - thresholdSrc : Math.min(thresholdSrc + 20, 190);
+      v = v < thr ? 0 : 255;
     }
+
     data[i] = v;
     data[i + 1] = v;
     data[i + 2] = v;
@@ -102,23 +98,28 @@ function preprocessForOCR(
   return canvas;
 }
 
-function normalizeOcrText(text: string): string {
-  return (text ?? '').replace(/\s+/g, ' ').trim();
+/** Nettoie le texte brut OCR (artefacts | ( [ etc.). */
+export function cleanOcrText(text: string): string {
+  return (text ?? '')
+    .replace(/[|\[\](){}«»<>]/g, ' ')
+    .replace(/[_~`]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s'\-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export interface OCRNameResult {
-  /** Best guess from confidence (auto or inverted). */
+  /** Best guess from confidence among non-empty variants. */
   text: string;
-  /** Raw OCR with auto preprocessing. */
+  /** Primary OCR candidate. */
   textAuto: string;
-  /** Raw OCR with inverted preprocessing. */
+  /** Alternate OCR candidate. */
   textInverted: string;
 }
 
 /**
  * Extract the card name from a cropped card image (data URL).
- * Runs OCR twice (auto preprocessing + opposite inversion) and returns both variants plus the confidence winner.
- * Uses PSM 7 (single line), eng+fra. MIN_HEIGHT_FOR_OCR ensures sufficient resolution for Tesseract.
+ * Variantes soft/binarized × invert + PSM 6/7.
  */
 export async function extractCardNameWithOCR(
   cardImageDataUrl: string,
@@ -126,28 +127,37 @@ export async function extractCardNameWithOCR(
 ): Promise<OCRNameResult> {
   const img = await loadImage(cardImageDataUrl);
   const cropped = cropToRegion(img, region);
-  const preprocessedAuto = preprocessForOCR(cropped);
-  const preprocessedInverted = preprocessForOCR(cropped, { forceInvert: true });
+
+  const variants = [
+    preprocessForOCR(cropped, { forceInvert: false, binarize: false }),
+    preprocessForOCR(cropped, { forceInvert: true, binarize: false }),
+    preprocessForOCR(cropped, { forceInvert: false, binarize: true }),
+    preprocessForOCR(cropped, { forceInvert: true, binarize: true }),
+  ];
 
   const worker = await Tesseract.createWorker('eng+fra', 1, { logger: () => {} });
   try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: '7', // PSM 7 = SINGLE_LINE
-    } as Record<string, unknown>);
+    const scored: { text: string; confidence: number }[] = [];
+    for (const psm of ['6', '7'] as const) {
+      await worker.setParameters({
+        tessedit_pageseg_mode: psm,
+      } as Record<string, unknown>);
+      const results = await Promise.all(variants.map((v) => worker.recognize(v)));
+      for (const r of results) {
+        const text = cleanOcrText(r.data?.text ?? '');
+        if (text.length >= 2) {
+          scored.push({ text, confidence: r.data?.confidence ?? 0 });
+        }
+      }
+    }
 
-    const [resultAuto, resultInverted] = await Promise.all([
-      worker.recognize(preprocessedAuto),
-      worker.recognize(preprocessedInverted),
-    ]);
-
-    const textAuto = normalizeOcrText(resultAuto.data?.text ?? '');
-    const textInverted = normalizeOcrText(resultInverted.data?.text ?? '');
-    const confAuto = resultAuto.data?.confidence ?? 0;
-    const confInverted = resultInverted.data?.confidence ?? 0;
-
-    const text =
-      textInverted && confInverted > confAuto ? textInverted : textAuto || textInverted;
-    return { text, textAuto, textInverted };
+    scored.sort((a, b) => b.confidence - a.confidence || b.text.length - a.text.length);
+    const texts = [...new Set(scored.map((s) => s.text))];
+    return {
+      text: scored[0]?.text ?? '',
+      textAuto: texts[0] ?? '',
+      textInverted: texts[1] ?? texts[0] ?? '',
+    };
   } finally {
     await worker.terminate();
   }

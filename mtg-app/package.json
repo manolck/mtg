@@ -22,7 +22,8 @@
     "scrape-magiccorporation": "node scripts/scrape-magiccorporation.js",
     "test-scraping": "node scripts/test-scraping.js",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
-    "build-scryfall-dictionary": "node --max-old-space-size=8192 scripts/build-scryfall-dictionary.cjs"
+    "build-scryfall-dictionary": "node --max-old-space-size=8192 scripts/build-scryfall-dictionary.cjs",
+    "test:scan-ocr": "node scripts/scan-ocr-benchmark.mjs --runs=10"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",

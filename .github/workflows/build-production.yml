@@ -1,0 +1,58 @@
+name: Build Production
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: mtg-app
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mtg-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --coverage=false
+
+      - name: Build for production
+        run: npm run build
+        env:
+          VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL }}
+          VITE_PRICE_API_URL: ${{ secrets.VITE_PRICE_API_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtg-app-dist
+          path: mtg-app/dist
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "### Build production" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branche / tag: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifact: \`mtg-app-dist\` (dossier \`mtg-app/dist\`)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Déployez en copiant le contenu de \`dist/\` vers nginx (voir \`mtg-app/NGINX_CONFIG.md\`)." >> $GITHUB_STEP_SUMMARY

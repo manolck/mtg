@@ -51,27 +51,32 @@ Navigateur (HTTPS)
 
 ## CI/CD (GitHub Actions)
 
-### Actif
+Workflows à la **racine du dépôt** : `.github/workflows/` (le repo Git est `mtg/`, l'app dans `mtg-app/`).
 
-- **`ci.yml`** — Lint, tests unitaires, build sur `main` / `develop`
+| Workflow | Déclencheur | Rôle |
+|----------|-------------|------|
+| **`ci.yml`** | PR + push `main` / `develop` | Lint, tests, build, artifact `dist-{sha}` (7 jours) |
+| **`build-production.yml`** | Push `main`, tags `v*`, manuel | Lint, tests, build prod, artifact `mtg-app-dist` (30 jours) |
 
-## CI/CD (GitHub Actions)
+### Secrets GitHub (Settings → Secrets → Actions)
 
-- **`ci.yml`** — Lint, tests unitaires, build sur `main` / `develop`
+| Secret | Requis | Description |
+|--------|--------|-------------|
+| `VITE_POCKETBASE_URL` | Recommandé (prod) | URL PocketBase injectée au build |
+| `VITE_PRICE_API_URL` | Non | API prix MTGJSON |
+| `VITE_SENTRY_DSN` | Non | Monitoring Sentry |
 
-Les anciens workflows Firebase Hosting (`deploy-production`, `deploy-staging`, `firestore-backup`) ont été supprimés.
+Pour `build-production.yml`, configurez l’environnement **production** dans GitHub (optionnel) pour isoler les secrets prod.
 
-Déploiement production : build `npm run build` avec les variables `VITE_*`, puis publication du dossier `dist/` sur nginx.
+En CI sur les PR, si `VITE_POCKETBASE_URL` est absent, le build utilise `https://pb.mtg-app.duckdns.org` par défaut.
 
-## Secrets suggérés pour un futur workflow de déploiement
+### Déploiement manuel après build
 
-| Secret / variable | Staging | Production |
-|-------------------|---------|------------|
-| `VITE_POCKETBASE_URL` | URL PB staging | URL PB prod |
-| `VITE_SENTRY_DSN` | DSN staging | DSN prod |
-| `VITE_PRICE_API_URL` | API staging | API prod |
+1. Télécharger l’artifact **mtg-app-dist** depuis l’onglet Actions
+2. Copier le contenu vers le répertoire nginx (ex. `/var/www/mtg-app/`)
+3. Vérifier la config nginx : [NGINX_CONFIG.md](../NGINX_CONFIG.md)
 
-Déploiement du `dist/` : rsync, SCP, ou artifact GitHub Actions vers le serveur nginx.
+Les anciens workflows Firebase ont été supprimés.
 
 ## Rollback
 

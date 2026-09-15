@@ -1,0 +1,68 @@
+[
+  {
+    "run": 1,
+    "success": false,
+    "results": [
+      {
+        "expected": "Tigorille féroce",
+        "got": null,
+        "ok": false,
+        "ocr": {
+          "text": "",
+          "textAuto": "",
+          "textInverted": ""
+        }
+      },
+      {
+        "expected": "Vaurien avide",
+        "got": null,
+        "ok": false,
+        "ocr": {
+          "text": "",
+          "textAuto": "",
+          "textInverted": ""
+        }
+      },
+      {
+        "expected": "Force de la meute",
+        "got": null,
+        "ok": false,
+        "ocr": {
+          "text": "",
+          "textAuto": "",
+          "textInverted": ""
+        }
+      },
+      {
+        "expected": "Golem à relique",
+        "got": "Reprise hostile",
+        "ok": false,
+        "ocr": {
+          "text": "REPRISE",
+          "textAuto": "REPRISE",
+          "textInverted": ""
+        }
+      },
+      {
+        "expected": "Voleur des vents ondin",
+        "got": "K-9 マークI型",
+        "ok": false,
+        "ocr": {
+          "text": "- —",
+          "textAuto": "- —",
+          "textInverted": ""
+        }
+      },
+      {
+        "expected": "Échardes d'ailes",
+        "got": "_____",
+        "ok": false,
+        "ocr": {
+          "text": "= —_",
+          "textAuto": "= —_",
+          "textInverted": "— _—_"
+        }
+      }
+    ]
+  }
+]
