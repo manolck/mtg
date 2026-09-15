@@ -468,16 +468,32 @@ export function detectOcrLangHint(ocr: string): "fr" | "en" | null {
   return null;
 }
 
-const indexCache = new WeakMap();
+type MatchIndex = {
+  pool: OcrMatchEntry[];
+  byExact: Map<string, OcrMatchEntry[]>;
+  byNorm: Map<string, OcrMatchEntry[]>;
+  byToken: Map<string, OcrMatchEntry[]>;
+  byPrefix: Map<string, OcrMatchEntry[]>;
+};
+
+type ResolveCandidate = {
+  entry: OcrMatchEntry;
+  score: number;
+  ocr: string;
+  coverage: number;
+  ocrPrecision: number;
+};
+
+const indexCache = new WeakMap<OcrMatchEntry[], MatchIndex>();
 
 /** Index FR+EN pour exact lookup + narrowing par tokens. */
-export function buildMatchIndex(entries: OcrMatchEntry[]) {
+export function buildMatchIndex(entries: OcrMatchEntry[]): MatchIndex {
   const pool = entries.filter((e) => (e.lang === 'fr' || e.lang === 'en') && e.name);
-  const byExact = new Map();
-  const byNorm = new Map();
-  const byToken = new Map();
-  const byPrefix = new Map();
-  const push = (map, key, e) => {
+  const byExact = new Map<string, OcrMatchEntry[]>();
+  const byNorm = new Map<string, OcrMatchEntry[]>();
+  const byToken = new Map<string, OcrMatchEntry[]>();
+  const byPrefix = new Map<string, OcrMatchEntry[]>();
+  const push = (map: Map<string, OcrMatchEntry[]>, key: string, e: OcrMatchEntry) => {
     if (!key) return;
     let arr = map.get(key);
     if (!arr) {
@@ -504,7 +520,7 @@ export function buildMatchIndex(entries: OcrMatchEntry[]) {
   return { pool, byExact, byNorm, byToken, byPrefix };
 }
 
-function getMatchIndex(entries) {
+function getMatchIndex(entries: OcrMatchEntry[]): MatchIndex {
   let idx = indexCache.get(entries);
   if (!idx) {
     idx = buildMatchIndex(entries);
@@ -513,7 +529,7 @@ function getMatchIndex(entries) {
   return idx;
 }
 
-function pickExact(list, langHint) {
+function pickExact(list: OcrMatchEntry[] | undefined, langHint: string | null): OcrMatchEntry | null {
   if (!list?.length) return null;
   const ok = list.filter((e) => (e.name?.length ?? 0) >= 8 || tokenize(e.name).length >= 2);
   if (!ok.length) return null;
@@ -524,10 +540,10 @@ function pickExact(list, langHint) {
   return ok[0];
 }
 
-function narrowEntries(ocrText, index) {
+function narrowEntries(ocrText: string, index: MatchIndex): OcrMatchEntry[] {
   const tokens = tokenize(ocrText).filter((t) => t.length >= 3);
   if (!tokens.length) return index.pool;
-  const scored = new Map();
+  const scored = new Map<OcrMatchEntry, number>();
   for (const t of tokens) {
     if (t.length >= 4) {
       for (const e of index.byToken.get(t) || []) {
@@ -559,7 +575,7 @@ export function resolveBestOf(candidates: string[], entries: OcrMatchEntry[]) {
       return true;
     });
   const expanded = [...new Set(cleaned.flatMap((c) => expandOcrCandidates(c)))];
-  let best: { entry: OcrMatchEntry; score: number; ocr: string; coverage: number } | null = null;
+  let best: ResolveCandidate | null = null;
   const MIN = 0.55;
   for (const ocrText of expanded) {
     if (ocrText.length < 12 && tokenize(ocrText).filter((t) => t.length >= 3).length < 2) {

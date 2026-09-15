@@ -134,12 +134,17 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Accessible sans auth en local pour tester le scan dans l'IDE ; ProtectedRoute en production via build */}
               <Route
                 path="/scan"
                 element={
-                  <ProtectedRoute>
+                  import.meta.env.PROD ? (
+                    <ProtectedRoute>
+                      <Scan />
+                    </ProtectedRoute>
+                  ) : (
                     <Scan />
-                  </ProtectedRoute>
+                  )
                 }
               />
               <Route

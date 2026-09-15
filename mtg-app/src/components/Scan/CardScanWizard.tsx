@@ -4,14 +4,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCamera } from '../../hooks/useCamera';
 import { detectCardEdges, drawQuadOnContext, type Quadrilateral } from '../../utils/cardEdgeDetection';
 import { rectifyCardToCanvas } from '../../utils/rectifyCard';
-import { extractCardNameWithOCR, CARD_NAME_REGION, type NameRegion } from '../../utils/cardOcr';
+import { extractCardNameWithOCR, CARD_NAME_REGION } from '../../utils/cardOcr';
 import { searchPrintingsByExactName } from '../../services/scryfallSearchService';
 import { getEnglishNameForSearch, findBestMatchingCardName } from '../../services/magicCorporationService';
 import {
   matchCardLogoToSets,
   defaultLogoMatchOptions,
   type LogoRegion,
-  type LogoMatchOptions,
   type SetMatch,
 } from '../../services/scryfallSetIconsService';
 import {
@@ -65,8 +64,8 @@ function SetIconImage({ iconUri, name, className }: { iconUri: string; name: str
 
 type Step = 1 | 2 | 3;
 
-/** Zone logo d'extension par défaut : 82%, 54%, 13%, 8%. */
-const DEFAULT_LOGO_REGION: LogoRegion = { x: 0.82, y: 0.54, width: 0.13, height: 0.08 };
+/** Zone logo d'extension fixe (pas d'overlay UI) — utilisée uniquement après résolution du nom. */
+const LOGO_REGION: LogoRegion = { x: 0.82, y: 0.54, width: 0.13, height: 0.08 };
 
 interface WizardState {
   step: Step;
@@ -75,13 +74,9 @@ interface WizardState {
   cropWidth: number;
   cropHeight: number;
   croppedImageUrl: string | null;
-  /** Zone de lecture du titre (0–1). Ajustable par sliders, utilisée pour l’overlay et l’OCR. */
-  nameRegion: NameRegion;
   detectedName: string;
   /** Si résolu via le dictionnaire Scryfall, permet d'utiliser le nom anglais pour la recherche. */
   detectedOracleId: string | null;
-  /** Zone de recherche du logo d'extension (0–1), déplaçable. */
-  logoRegion: LogoRegion;
   detectedSetCode: string | null;
   detectedSetName: string | null;
   setMatches: SetMatch[];
@@ -91,8 +86,6 @@ interface WizardState {
   addSuccess: boolean;
 }
 
-const defaultNameRegion: NameRegion = { ...CARD_NAME_REGION };
-
 const initialState: WizardState = {
   step: 1,
   contourPoints: null,
@@ -100,10 +93,8 @@ const initialState: WizardState = {
   cropWidth: 0,
   cropHeight: 0,
   croppedImageUrl: null,
-  nameRegion: defaultNameRegion,
   detectedName: '',
   detectedOracleId: null,
-  logoRegion: { ...DEFAULT_LOGO_REGION },
   detectedSetCode: null,
   detectedSetName: null,
   setMatches: [],
@@ -112,34 +103,6 @@ const initialState: WizardState = {
   adding: false,
   addSuccess: false,
 };
-
-/** Identifie TL, TR, BR, BL à partir des 4 points du quad (carte éventuellement de travers) */
-function orderCardCorners(points: [number, number][]): { tl: [number, number]; tr: [number, number]; br: [number, number]; bl: [number, number] } {
-  const byY = [...points].sort((a, b) => a[1] - b[1]);
-  const [top0, top1] = byY.slice(0, 2);
-  const [bot0, bot1] = byY.slice(2, 4);
-  const tl = top0[0] < top1[0] ? top0 : top1;
-  const tr = top0[0] < top1[0] ? top1 : top0;
-  const bl = bot0[0] < bot1[0] ? bot0 : bot1;
-  const br = bot0[0] < bot1[0] ? bot1 : bot0;
-  return { tl, tr, br, bl };
-}
-
-/** Zone titre : parallèle au bord supérieur de la carte, selon region (x, y, width, height en 0–1) */
-function getTitleZoneQuad(cardPoints: [number, number][], region: NameRegion): [number, number][] {
-  if (cardPoints.length !== 4) return [];
-  const { tl, tr, br, bl } = orderCardCorners(cardPoints);
-  const { x, y, width, height } = region;
-  const topLeft = [tl[0] + y * (bl[0] - tl[0]), tl[1] + y * (bl[1] - tl[1])] as [number, number];
-  const topRight = [tr[0] + y * (br[0] - tr[0]), tr[1] + y * (br[1] - tr[1])] as [number, number];
-  const p0: [number, number] = [topLeft[0] + x * (topRight[0] - topLeft[0]), topLeft[1] + x * (topRight[1] - topLeft[1])];
-  const p1: [number, number] = [topLeft[0] + (x + width) * (topRight[0] - topLeft[0]), topLeft[1] + (x + width) * (topRight[1] - topLeft[1])];
-  const botLeft = [tl[0] + (y + height) * (bl[0] - tl[0]), tl[1] + (y + height) * (bl[1] - tl[1])] as [number, number];
-  const botRight = [tr[0] + (y + height) * (br[0] - tr[0]), tr[1] + (y + height) * (br[1] - tr[1])] as [number, number];
-  const r0: [number, number] = [botLeft[0] + x * (botRight[0] - botLeft[0]), botLeft[1] + x * (botRight[1] - botLeft[1])];
-  const r1: [number, number] = [botLeft[0] + (x + width) * (botRight[0] - botLeft[0]), botLeft[1] + (x + width) * (botRight[1] - botLeft[1])];
-  return [p0, p1, r1, r0];
-}
 
 /** Crop canvas to the axis-aligned bounding box of the quad */
 function cropCanvasToQuad(canvas: HTMLCanvasElement, quad: Quadrilateral): HTMLCanvasElement {
@@ -243,11 +206,20 @@ export function CardScanWizard() {
       cropWidth,
       cropHeight,
       croppedImageUrl: dataUrl,
+      detectedName: '',
+      detectedOracleId: null,
+      detectedSetCode: null,
+      detectedSetName: null,
+      setMatches: [],
+      selectedCard: null,
+      addSuccess: false,
     }));
   }, [captureFrame, stopCamera]);
 
   const handleValidateDetectionRef = useRef(handleValidateDetection);
-  handleValidateDetectionRef.current = handleValidateDetection;
+  useEffect(() => {
+    handleValidateDetectionRef.current = handleValidateDetection;
+  }, [handleValidateDetection]);
 
   /** Détection continue pendant ce délai (ms) avant passage automatique à l'étape 2 */
   const STABLE_DETECTION_MS = 500;
@@ -329,11 +301,10 @@ export function CardScanWizard() {
   useEffect(() => {
     if (state.step !== 2 || !state.croppedImageUrl) return;
     const imageUrl = state.croppedImageUrl;
-    const region = state.nameRegion;
     const t = setTimeout(() => {
       setOcrLoading(true);
       setOcrError(null);
-      extractCardNameWithOCR(imageUrl, region)
+      extractCardNameWithOCR(imageUrl, CARD_NAME_REGION)
         .then(async (result) => {
           let fromDict: Awaited<ReturnType<typeof resolveOcrToDictionaryBestOf>> = null;
           try {
@@ -350,6 +321,9 @@ export function CardScanWizard() {
               ...s,
               detectedName: fromDict.name,
               detectedOracleId: fromDict.oracle_id,
+              setMatches: [],
+              detectedSetCode: null,
+              detectedSetName: null,
             }));
             return;
           }
@@ -361,6 +335,9 @@ export function CardScanWizard() {
             ...s,
             detectedName: displayName,
             detectedOracleId: null,
+            setMatches: [],
+            detectedSetCode: null,
+            detectedSetName: null,
           }));
         })
         .catch((err) => {
@@ -369,42 +346,60 @@ export function CardScanWizard() {
         .finally(() => setOcrLoading(false));
     }, OCR_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [state.step, state.croppedImageUrl, state.nameRegion]);
+  }, [state.step, state.croppedImageUrl]);
 
   const [logoMatchLoading, setLogoMatchLoading] = useState(false);
   const [logoMatchError, setLogoMatchError] = useState<string | null>(null);
-  const [logoMatchOptions, setLogoMatchOptions] = useState<LogoMatchOptions>(() => ({ ...defaultLogoMatchOptions }));
-  const [logoOptionsOpen, setLogoOptionsOpen] = useState(false);
   const [saveCardLoading, setSaveCardLoading] = useState(false);
   const [saveCardError, setSaveCardError] = useState<string | null>(null);
 
-  const handleSearchSetLogo = useCallback(async () => {
-    if (!state.croppedImageUrl) return;
-    setLogoMatchLoading(true);
-    setLogoMatchError(null);
-    const cardNameEnglish = state.detectedOracleId
-      ? (getEnglishNameForOracleId(state.detectedOracleId) ?? state.detectedName)
-      : await getEnglishNameForSearch(state.detectedName).then((n) => n ?? state.detectedName);
-    matchCardLogoToSets(
-      state.croppedImageUrl,
-      state.logoRegion,
-      10,
-      logoMatchOptions,
-      cardNameEnglish || undefined
-    )
-      .then((matches) => {
-        setState((s) => ({
-          ...s,
-          setMatches: matches,
-          detectedSetCode: matches[0]?.set.code ?? null,
-          detectedSetName: matches[0]?.set.name ?? null,
-        }));
-      })
-      .catch((err) => {
-        setLogoMatchError(err instanceof Error ? err.message : 'Recherche extension échouée');
-      })
-      .finally(() => setLogoMatchLoading(false));
-  }, [state.croppedImageUrl, state.logoRegion, state.detectedName, state.detectedOracleId, logoMatchOptions]);
+  const LOGO_SEARCH_DEBOUNCE_MS = 400;
+
+  /** Recherche d'extension uniquement après qu'un nom de carte ait été trouvé / saisi. */
+  useEffect(() => {
+    if (state.step !== 2 || !state.croppedImageUrl || ocrLoading) return;
+    const name = state.detectedName.trim();
+    if (!name) return;
+
+    const imageUrl = state.croppedImageUrl;
+    const oracleId = state.detectedOracleId;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setLogoMatchLoading(true);
+      setLogoMatchError(null);
+      void (async () => {
+        try {
+          const cardNameEnglish = oracleId
+            ? (getEnglishNameForOracleId(oracleId) ?? name)
+            : (await getEnglishNameForSearch(name)) ?? name;
+          const matches = await matchCardLogoToSets(
+            imageUrl,
+            LOGO_REGION,
+            10,
+            { ...defaultLogoMatchOptions, useNameFilter: true },
+            cardNameEnglish || undefined
+          );
+          if (cancelled) return;
+          setState((s) => ({
+            ...s,
+            setMatches: matches,
+            detectedSetCode: matches[0]?.set.code ?? null,
+            detectedSetName: matches[0]?.set.name ?? null,
+          }));
+        } catch (err) {
+          if (cancelled) return;
+          setLogoMatchError(err instanceof Error ? err.message : 'Recherche extension échouée');
+        } finally {
+          if (!cancelled) setLogoMatchLoading(false);
+        }
+      })();
+    }, LOGO_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [state.step, state.croppedImageUrl, state.detectedName, state.detectedOracleId, ocrLoading]);
 
   /** Au clic sur une édition : recherche nom+set puis passage à la sauvegarde. */
   const handleSelectEdition = useCallback(
@@ -535,96 +530,24 @@ export function CardScanWizard() {
         </div>
       )}
 
-      {/* Step 2: Nom + édition sur la même image ; clic sur l’édition → sauvegarde */}
+      {/* Step 2: Nom puis extension automatiquement ; clic sur l’édition → sauvegarde */}
       {state.step === 2 && (
         <div className="space-y-4">
           <p className="text-gray-600 dark:text-gray-400">
-            Vérifiez le nom, choisissez l&apos;édition en cliquant sur le logo. Le clic sur l&apos;édition enregistre la carte.
+            Vérifiez le nom. L&apos;extension est recherchée ensuite automatiquement — cliquez sur le logo pour enregistrer.
           </p>
           {state.croppedImageUrl && (
             <>
-              <div className="flex flex-col sm:flex-row gap-4 items-start">
-                <div className="relative shrink-0 max-w-full">
-                  <img
-                    src={state.croppedImageUrl}
-                    alt="Carte cadrée"
-                    className="max-w-full max-h-64 object-contain rounded-lg border border-gray-300 dark:border-gray-600 block"
-                  />
-                  {/* Zone titre */}
-                  {state.contourPointsInCrop && state.cropWidth > 0 && state.cropHeight > 0 ? (
-                    (() => {
-                      const titleZone = getTitleZoneQuad(state.contourPointsInCrop, state.nameRegion);
-                      if (titleZone.length !== 4) return null;
-                      const pointsStr = titleZone.map(([x, y]) => `${x},${y}`).join(' ');
-                      const strokeW = Math.max(1, (state.cropWidth + state.cropHeight) / 300);
-                      const fontSize = Math.max(10, state.cropWidth / 40);
-                      return (
-                        <svg
-                          className="absolute inset-0 w-full h-full pointer-events-none"
-                          viewBox={`0 0 ${state.cropWidth} ${state.cropHeight}`}
-                          preserveAspectRatio="xMidYMid meet"
-                          aria-hidden
-                        >
-                          <defs>
-                            <linearGradient id="titleZoneFill" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0" stopColor="rgb(34, 211, 238)" stopOpacity="0.25" />
-                              <stop offset="1" stopColor="rgb(34, 211, 238)" stopOpacity="0.1" />
-                            </linearGradient>
-                          </defs>
-                          <polygon points={pointsStr} fill="url(#titleZoneFill)" stroke="rgb(34, 211, 238)" strokeWidth={strokeW} />
-                          <text x={titleZone[0][0] + 4} y={titleZone[0][1] + fontSize} fill="rgb(34, 211, 238)" fontSize={fontSize} fontWeight="500">Titre</text>
-                        </svg>
-                      );
-                    })()
-                  ) : (
-                    <div
-                      className="absolute border-2 border-cyan-400 bg-cyan-400/20 pointer-events-none rounded"
-                      style={{ left: `${state.nameRegion.x * 100}%`, top: `${state.nameRegion.y * 100}%`, width: `${state.nameRegion.width * 100}%`, height: `${state.nameRegion.height * 100}%` }}
-                      aria-hidden
-                    />
-                  )}
-                  {/* Zone logo */}
-                  <div
-                    className="absolute border-2 border-amber-400 bg-amber-400/25 pointer-events-none rounded"
-                    style={{
-                      left: `${state.logoRegion.x * 100}%`,
-                      top: `${state.logoRegion.y * 100}%`,
-                      width: `${state.logoRegion.width * 100}%`,
-                      height: `${state.logoRegion.height * 100}%`,
-                    }}
-                    aria-hidden
-                  />
+              <img
+                src={state.croppedImageUrl}
+                alt="Carte cadrée"
+                className="max-w-full max-h-64 object-contain rounded-lg border border-gray-300 dark:border-gray-600 block"
+              />
+              {ocrLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <Spinner /> Lecture du nom…
                 </div>
-                <div className="w-full sm:w-52 shrink-0 space-y-3 rounded-lg border border-gray-200 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block">Zone titre</span>
-                  {[{ key: 'x' as const, label: 'X', min: 0, max: 0.4 }, { key: 'y' as const, label: 'Y', min: 0, max: 0.3 }, { key: 'width' as const, label: 'Larg.', min: 0.3, max: 1 }, { key: 'height' as const, label: 'Haut.', min: 0.04, max: 0.25 }].map(({ key, label, min, max }) => (
-                    <div key={key}>
-                      <label className="flex justify-between text-xs text-gray-600 dark:text-gray-400"><span>{label}</span><span>{Math.round(state.nameRegion[key] * 100)}%</span></label>
-                      <input type="range" min={min} max={max} step={0.01} value={state.nameRegion[key]} onChange={(e) => setState((s) => ({ ...s, nameRegion: { ...s.nameRegion, [key]: parseFloat(e.target.value) } }))} className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-600 accent-cyan-500" />
-                    </div>
-                  ))}
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block pt-1">Zone logo</span>
-                  {[{ key: 'x' as const, label: 'X', min: 0, max: 0.9 }, { key: 'y' as const, label: 'Y', min: 0, max: 0.85 }, { key: 'width' as const, label: 'Larg.', min: 0.05, max: 0.5 }, { key: 'height' as const, label: 'Haut.', min: 0.03, max: 0.25 }].map(({ key, label, min, max }) => (
-                    <div key={key}>
-                      <label className="flex justify-between text-xs text-gray-600 dark:text-gray-400"><span>{label}</span><span>{Math.round(state.logoRegion[key] * 100)}%</span></label>
-                      <input type="range" min={min} max={max} step={0.01} value={state.logoRegion[key]} onChange={(e) => setState((s) => ({ ...s, logoRegion: { ...s.logoRegion, [key]: parseFloat(e.target.value) } }))} className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-600 accent-amber-500" />
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setLogoOptionsOpen((o) => !o)} className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline">{logoOptionsOpen ? '− Options' : '+ Options'}</button>
-                  {logoOptionsOpen && (
-                    <div className="space-y-2 pt-1 border-t border-gray-200 dark:border-gray-600">
-                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={logoMatchOptions.useNameFilter} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, useNameFilter: e.target.checked }))} className="rounded accent-amber-500" />Filtre par nom</label>
-                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={logoMatchOptions.useNormalization} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, useNormalization: e.target.checked }))} className="rounded accent-amber-500" />Normalisation</label>
-                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={logoMatchOptions.useBinarization} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, useBinarization: e.target.checked }))} className="rounded accent-amber-500" />Binarisation</label>
-                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={logoMatchOptions.useMultiScale} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, useMultiScale: e.target.checked }))} className="rounded accent-amber-500" />Multi-échelle</label>
-                      <div className="flex items-center gap-2 text-xs"><span>Taille:</span><select value={logoMatchOptions.iconSize} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, iconSize: Number(e.target.value) as 32 | 64 }))} className="rounded border bg-white dark:bg-gray-800">{[32, 64].map((n) => <option key={n} value={n}>{n}×{n}</option>)}</select></div>
-                      <div className="flex items-center gap-2 text-xs"><span>Métrique:</span><select value={logoMatchOptions.metric} onChange={(e) => setLogoMatchOptions((o) => ({ ...o, metric: e.target.value as 'mse' | 'gradient' }))} className="rounded border bg-white dark:bg-gray-800"><option value="mse">MSE</option><option value="gradient">Gradient</option></select></div>
-                    </div>
-                  )}
-                  <Button onClick={() => void handleSearchSetLogo()} disabled={logoMatchLoading} loading={logoMatchLoading}>Rechercher l&apos;extension</Button>
-                </div>
-              </div>
-              {ocrLoading && <Spinner />}
+              )}
               {ocrError && <p className="text-amber-600 dark:text-amber-400">{ocrError}</p>}
               <div ref={nameAutocompleteRef} className="relative">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom de la carte</label>
@@ -633,7 +556,14 @@ export function CardScanWizard() {
                   value={state.detectedName}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setState((s) => ({ ...s, detectedName: value, detectedOracleId: null }));
+                    setState((s) => ({
+                      ...s,
+                      detectedName: value,
+                      detectedOracleId: null,
+                      setMatches: [],
+                      detectedSetCode: null,
+                      detectedSetName: null,
+                    }));
                     if (nameAutocompleteDebounceRef.current) clearTimeout(nameAutocompleteDebounceRef.current);
                     if (!value.trim()) { setNameSuggestions([]); return; }
                     nameAutocompleteDebounceRef.current = setTimeout(() => { searchCardNamesForAutocomplete(value, 15).then(setNameSuggestions); nameAutocompleteDebounceRef.current = null; }, AUTOCOMPLETE_DEBOUNCE_MS);
@@ -647,13 +577,18 @@ export function CardScanWizard() {
                 {nameSuggestions.length > 0 && (
                   <ul className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg" role="listbox">
                     {nameSuggestions.map((entry) => (
-                      <li key={`${entry.oracle_id}-${entry.lang}-${entry.name}`} role="option" className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 last:border-b-0" onMouseDown={(e) => { e.preventDefault(); setState((s) => ({ ...s, detectedName: entry.name, detectedOracleId: entry.oracle_id })); setNameSuggestions([]); }}>
+                      <li key={`${entry.oracle_id}-${entry.lang}-${entry.name}`} role="option" className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 last:border-b-0" onMouseDown={(e) => { e.preventDefault(); setState((s) => ({ ...s, detectedName: entry.name, detectedOracleId: entry.oracle_id, setMatches: [], detectedSetCode: null, detectedSetName: null })); setNameSuggestions([]); }}>
                         {entry.name}{entry.lang !== 'en' && <span className="ml-2 text-xs text-gray-500">({entry.lang})</span>}
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
+              {logoMatchLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <Spinner /> Recherche de l&apos;extension…
+                </div>
+              )}
               {logoMatchError && <p className="text-amber-600 dark:text-amber-400">{logoMatchError}</p>}
               {saveCardLoading && <Spinner />}
               {saveCardError && <p className="text-red-600 dark:text-red-400">{saveCardError}</p>}
