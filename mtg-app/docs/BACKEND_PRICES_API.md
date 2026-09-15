@@ -1,160 +1,67 @@
-# API Backend pour les Prix MTGJSON
+# API backend pour les prix MTGJSON
 
 ## Vue d'ensemble
 
-Le fichier MTGJSON (1-2 GB) est maintenant téléchargé et indexé **côté serveur** via Firebase Functions. Les clients font des requêtes légères à l'API au lieu de télécharger le fichier entier.
+L'application peut récupérer les prix des cartes de deux façons :
 
-## Architecture
+1. **Côté client (par défaut)** — cache IndexedDB + téléchargement MTGJSON (`mtgjsonPriceService.ts`, `mtgjsonPriceServiceIndexedDB.ts`)
+2. **API HTTP optionnelle** — si `VITE_PRICE_API_URL` est configurée (`mtgjsonPriceServiceAPI.ts`)
 
-### Backend (Firebase Functions)
-- **Télécharge** le fichier AllPrices.json depuis MTGJSON
-- **Indexe** chaque carte dans Firestore
-- **Expose** une API REST pour rechercher les prix
-- **Mise à jour automatique** 2 fois par mois via cron job
+L'ancienne implémentation via **Firebase Cloud Functions** + Firestore a été supprimée du dépôt.
 
-### Frontend (Client)
-- **Requêtes légères** à l'API (quelques KB par requête)
-- **Cache en mémoire** pour éviter les requêtes répétées
-- **Pas de téléchargement** du fichier 1-2 GB
+## Configuration client
 
-## Installation
-
-### 1. Installer les dépendances Firebase Functions
-
-```bash
-cd functions
-npm install
+```env
+VITE_PRICE_API_URL=https://votre-api-prix.example.com
 ```
 
-### 2. Configurer Firebase Functions
+En développement, si cette variable est absente ou l'API ne répond pas, l'app utilise un **fallback Scryfall** via `priceService.ts`.
 
-Assurez-vous d'avoir Firebase CLI installé :
+## Endpoints attendus (API optionnelle)
 
-```bash
-npm install -g firebase-tools
-firebase login
-```
+### `GET /getCardPrice`
 
-### 3. Déployer les Functions
+Paramètres query : `cardName` (requis), `setCode` (optionnel).
 
-```bash
-# Depuis la racine du projet
-firebase deploy --only functions
-```
+Réponse JSON :
 
-## Endpoints API
-
-### GET /getCardPrice
-
-Recherche le prix d'une carte.
-
-**Paramètres :**
-- `cardName` (requis) : Nom de la carte
-- `setCode` (optionnel) : Code du set (ex: "LEA", "M21")
-
-**Exemple :**
-```
-GET /getCardPrice?cardName=Lightning Bolt&setCode=LEA
-```
-
-**Réponse :**
 ```json
 {
   "price": {
-    "usd": "10.50",
-    "usdFoil": "25.00",
-    "eur": "9.50",
-    "eurFoil": "22.00"
+    "usd": "1.50",
+    "usdFoil": "3.00",
+    "eur": "1.20",
+    "eurFoil": "2.50"
   }
 }
 ```
 
-### POST /updateMTGJSONPrices
+### `POST /updateMTGJSONPrices`
 
-Force la mise à jour manuelle des prix (télécharge et indexe le fichier).
+Déclenche une mise à jour des prix côté serveur. Réponse :
 
-**Réponse :**
 ```json
-{
-  "success": true,
-  "message": "Prices updated successfully"
-}
+{ "success": true }
 ```
 
-## Mise à jour automatique
+## Comportement dans l'app
 
-Un cron job s'exécute automatiquement **2 fois par mois** (1er et 15 de chaque mois à 2h du matin) pour télécharger et indexer le nouveau fichier MTGJSON.
+- `App.tsx` appelle `initializeMTGJSONPrices()` au démarrage
+- Si `shouldUpdatePrices()` (dernière MAJ > 15 jours en localStorage), `updateMTGJSONPrices()` est appelé en arrière-plan
+- En dev sans API : pas d'erreur bloquante, fallback Scryfall
 
-## Téléchargement Initial
+## Implémenter votre propre API
 
-**IMPORTANT** : Après le déploiement des functions, vous devez déclencher le téléchargement initial **une seule fois** :
+Vous pouvez héberger un service séparé (Node, Python, etc.) qui :
 
-```bash
-curl -X POST https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/updateMTGJSONPrices
-```
+1. Télécharge périodiquement [MTGJSON AllPrices](https://mtgjson.com/downloads/all-files/)
+2. Indexe les prix (base SQL, Redis, fichiers, etc.)
+3. Expose les endpoints ci-dessus avec CORS autorisé pour votre domaine front
 
-Ou via le frontend, l'app vérifie automatiquement au démarrage si une mise à jour est nécessaire.
+Le dossier `functions/` (Firebase) n'existe plus ; utilisez ce document comme contrat d'API.
 
-## Configuration
+## Références
 
-### Variables d'environnement
-
-Ajoutez dans `.env.local` :
-
-```env
-VITE_FIREBASE_FUNCTIONS_URL=https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net
-```
-
-Remplacez `YOUR-PROJECT-ID` par votre ID de projet Firebase.
-
-## Structure Firestore
-
-Les prix sont indexés dans la collection `mtgjson_prices` :
-
-```
-mtgjson_prices/
-  {cardName}/
-    - cardName: string
-    - pricesBySet: {
-        {setCode}: {
-          usd?: string
-          usdFoil?: string
-          eur?: string
-          eurFoil?: string
-          tix?: string
-        }
-      }
-    - updatedAt: Timestamp
-```
-
-## Avantages
-
-1. **Pas de téléchargement côté client** : Le fichier 1-2 GB reste sur le serveur
-2. **Requêtes légères** : Seulement quelques KB par recherche de prix
-3. **Mise à jour centralisée** : Un seul téléchargement pour tous les utilisateurs
-4. **Performance** : Recherche rapide via Firestore indexé
-5. **Mise à jour automatique** : Cron job gère les mises à jour
-
-## Coûts
-
-- **Firebase Functions** : ~$0.40 par million d'invocations
-- **Firestore** : Lecture ~$0.06/100k documents, Écriture ~$0.18/100k documents
-- **Stockage** : ~$0.18/GB/mois
-
-Pour une application avec 1000 utilisateurs recherchant 10 prix/jour :
-- ~10k requêtes/jour = ~300k/mois
-- Coût Functions : ~$0.12/mois
-- Coût Firestore (lectures) : ~$0.18/mois
-- **Total : ~$0.30/mois**
-
-## Développement local
-
-Pour tester les functions localement :
-
-```bash
-cd functions
-npm run serve
-```
-
-Les endpoints seront disponibles sur `http://localhost:5001/YOUR-PROJECT-ID/us-central1/`
-
+- [MTGJSON_PRICES.md](./MTGJSON_PRICES.md)
+- [MTGJSON_DOWNLOAD_EXPLANATION.md](./MTGJSON_DOWNLOAD_EXPLANATION.md) — note : partie historique Firestore
+- [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md)

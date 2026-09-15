@@ -1,188 +1,105 @@
-# Audit de Sécurité - MTG Collection App
+# Audit de sécurité — MTG Collection App
 
 ## Vue d'ensemble
 
-Ce document décrit l'audit de sécurité effectué sur l'application MTG Collection et les mesures de sécurité en place.
+Ce document décrit les mesures de sécurité de l'application MTG Collection. L'application s'appuie sur **PocketBase** pour l'authentification et le stockage des données.
 
-## Règles Firestore
-
-### Analyse des Règles Actuelles
-
-Les règles Firestore sont définies dans `firestore.rules` :
-
-#### Points Forts
-1. **Authentification requise** : Toutes les opérations nécessitent une authentification
-2. **Isolation des données** : Chaque utilisateur ne peut modifier que ses propres données
-3. **Rôle admin** : Fonction helper pour vérifier les admins
-4. **Lecture publique contrôlée** : Collections lisibles par tous les utilisateurs connectés
-
-#### Points d'Attention
-
-1. **Collection Group Query** : 
-   ```javascript
-   match /{path=**}/collection/{cardId} {
-     allow read: if request.auth != null;
-   }
-   ```
-   - Permet la lecture de toutes les collections
-   - Nécessite un index Firestore
-   - Risque : Performance si beaucoup d'utilisateurs
-
-2. **Pas de validation côté serveur** :
-   - Validation uniquement côté client
-   - Risque : Données invalides possibles
-   - Solution : Cloud Functions pour validation
-
-3. **Règles Storage** :
-   - Pas de règles Storage définies dans le repo
-   - À vérifier dans Firebase Console
-
-### Recommandations
-
-1. **Ajouter validation Cloud Functions** pour opérations critiques
-2. **Limiter les requêtes collectionGroup** avec pagination
-3. **Ajouter règles Storage** pour les avatars
-4. **Audit régulier** des règles de sécurité
+> **Note :** Une version antérieure de ce document décrivait Firebase / Firestore. Voir [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md).
 
 ## Authentification
 
-### Firebase Authentication
+### PocketBase Auth
 
-- **Méthode** : Email/Password
-- **Sécurité** : Gérée par Firebase (sécurisé)
-- **Sessions** : Gérées automatiquement par Firebase
-- **CSRF** : Protection intégrée Firebase
+- **Méthode** : Email / mot de passe (`pb.collection('users').authWithPassword`)
+- **Sessions** : Token géré par `pb.authStore` (auto-refresh côté client)
+- **Déconnexion** : `pb.authStore.clear()`
 
-### Points d'Attention
+### Côté application
 
-1. **Pas de 2FA** : À considérer pour production
-2. **Pas de rate limiting côté client** : Firebase gère cela
-3. **Mots de passe** : Validation minimale (6 caractères)
-
-### Recommandations
-
-1. **Ajouter validation mot de passe** plus stricte (8+ caractères, complexité)
-2. **Considérer 2FA** pour comptes admin
-3. **Ajouter rate limiting** pour login attempts
-
-## API Externes
-
-### Scryfall API
-
-- **Rate Limiting** : 100ms delay entre requêtes
-- **Cache** : 1 heure en mémoire
-- **Sécurité** : HTTPS uniquement
-
-### Points d'Attention
-
-1. **Pas de retry automatique** : Erreurs réseau non gérées
-2. **Cache en mémoire** : Perdu au refresh
-3. **Pas de validation réponse API**
+- Routes protégées via `ProtectedRoute` (redirection `/login`)
+- Page admin via `AdminRoute` (vérification rôle `admin` dans le profil)
+- Pas d'inscription publique dans l'UI (création de comptes par admin ou PocketBase Admin)
 
 ### Recommandations
 
-1. **Implémenter retry** avec backoff exponentiel
-2. **Cache persistant** (localStorage/IndexedDB)
-3. **Validation schéma** des réponses API
+- Mots de passe minimum 6 caractères (PocketBase) — envisager une politique plus stricte côté app
+- Limiter l'exposition de l'interface admin PocketBase (`/_/`)
+- Envisager 2FA si PocketBase / votre infra le supporte pour les admins
+- HTTPS obligatoire en production (front + API PocketBase)
 
-## Données Sensibles
+## Contrôle d'accès aux données
 
-### Données Stockées
+### PocketBase — règles API
 
-- **Collections** : Données utilisateur (non sensibles)
-- **Profils** : Email, pseudonyme (non sensibles)
-- **Decks** : Données utilisateur (non sensibles)
+La sécurité des données repose sur les **règles d'API** configurées dans l'admin PocketBase pour chaque collection :
 
-### Conformité RGPD
+| Collection | Principe attendu |
+|------------|------------------|
+| `collection` | Lecture/écriture limitée au propriétaire (`userId`) ; lecture possible pour utilisateurs authentifiés si vue multi-collections |
+| `decks` | Privé au propriétaire |
+| `wishlist` | Privé au propriétaire |
+| `imports` | Privé au propriétaire |
+| `users` | Lecture profil selon besoins ; écriture propriétaire ou admin |
+| `legal` | Consentements liés à `userId` |
 
-- **Consentement** : À ajouter
-- **Droit à l'oubli** : Fonction de suppression compte
-- **Export données** : À implémenter (Phase 1)
-- **Politique confidentialité** : À créer
+**Action requise** : auditer et documenter les règles exactes dans votre instance PocketBase (non versionnées dans ce dépôt).
 
-### Recommandations
+### Vue multi-collections
 
-1. **Ajouter consentement RGPD** au premier login
-2. **Implémenter suppression compte** complète
-3. **Créer politique confidentialité**
-4. **Ajouter export données** utilisateur
+La page Collection permet de consulter les collections d'autres utilisateurs (`useAllCollections`). Cela suppose des règles PocketBase autorisant la **lecture** des cartes des autres utilisateurs connectés. À valider selon votre politique de confidentialité.
 
-## Rate Limiting
+## Validation des données
 
-### Côté Client
+- Validation **Zod** sur les imports CSV
+- Nettoyage des objets avant envoi PocketBase (`cleanForPocketBase` — suppression des `undefined`)
+- Pas de sanitization HTML systématique sur tous les champs utilisateur (backlog)
 
-- **Scryfall API** : 100ms delay entre requêtes
-- **Firebase** : Rate limiting géré par Firebase
+## API externes
 
-### Points d'Attention
+### Scryfall
 
-1. **Pas de rate limiting global** côté application
-2. **Imports massifs** peuvent surcharger l'API
+- HTTPS uniquement
+- File d'attente + retry (`apiQueue`, `fetchWithRetry`)
+- Respecter les [conditions Scryfall](https://scryfall.com/docs/api) (User-Agent, pas de surcharge)
 
-### Recommandations
+### MTGJSON / API prix
 
-1. **Ajouter queue système** pour imports
-2. **Limiter taille imports** (ex: 1000 cartes max)
-3. **Ajouter pause/reprise** (déjà implémenté)
+- Données mises en cache localement (IndexedDB)
+- API backend optionnelle (`VITE_PRICE_API_URL`)
 
-## Validation des Entrées
+## Frontend
 
-### Côté Client
+- Pas de secrets dans le code source (variables `VITE_*` exposées au client — normal pour URL PocketBase)
+- Sentry optionnel pour le suivi d'erreurs (ne pas logger de mots de passe)
+- Consentement RGPD (`GDPRConsent`) stocké dans collection `legal`
 
-- **Validation React** : Basique
-- **TypeScript** : Typage statique
-- **Pas de sanitization** HTML
+## PWA & Service Worker
 
-### Points d'Attention
+- Service worker actif uniquement en production
+- Precache des assets statiques (Workbox)
+- Pas de cache des données utilisateur sensibles dans le SW
 
-1. **XSS potentiel** : Données utilisateur affichées directement
-2. **Pas de validation serveur**
-3. **CSV parsing** : Pas de validation stricte
+## RGPD
 
-### Recommandations
+- Composant de consentement au premier login
+- Page [Privacy Policy](../src/pages/PrivacyPolicy.tsx) (`/privacy-policy`)
+- Export collection (CSV/JSON) disponible
+- Suppression de compte : via page Admin (admin) — export complet utilisateur à renforcer si exigence RGPD stricte
 
-1. **Sanitizer HTML** pour contenu utilisateur
-2. **Validation Zod** pour données
-3. **Validation Cloud Functions** pour opérations critiques
+Voir [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md).
 
-## Checklist de Sécurité
+## Checklist production
 
-### À Faire Immédiatement
+- [ ] PocketBase en HTTPS avec certificat valide
+- [ ] Règles API PocketBase revues pour chaque collection
+- [ ] `VITE_POCKETBASE_URL` correct en build prod
+- [ ] Interface admin PocketBase protégée (réseau, mot de passe fort)
+- [ ] Sauvegardes `pb_data` planifiées
+- [ ] `VITE_SENTRY_DSN` configuré pour le monitoring
+- [ ] Politique de confidentialité à jour
 
-- [ ] Vérifier règles Storage dans Firebase Console
-- [ ] Ajouter validation mot de passe plus stricte
-- [ ] Implémenter retry automatique pour API
-- [ ] Ajouter sanitization HTML
+## Références
 
-### Court Terme
-
-- [ ] Cloud Functions pour validation
-- [ ] Rate limiting global
-- [ ] Conformité RGPD
-- [ ] Audit sécurité régulier
-
-### Moyen Terme
-
-- [ ] 2FA pour admins
-- [ ] Monitoring sécurité
-- [ ] Tests de pénétration
-- [ ] Documentation sécurité
-
-## Outils Recommandés
-
-1. **Sentry** : Monitoring erreurs et sécurité
-2. **npm audit** : Vérification vulnérabilités
-3. **Snyk** : Scan sécurité dépendances
-4. **Firebase Security Rules Tester** : Tests règles
-
-## Conclusion
-
-L'application a une base de sécurité solide avec Firebase, mais nécessite des améliorations pour la production :
-- Validation côté serveur
-- Conformité RGPD
-- Rate limiting
-- Monitoring sécurité
-
-
-
-
+- [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HTTPS_SETUP.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md)

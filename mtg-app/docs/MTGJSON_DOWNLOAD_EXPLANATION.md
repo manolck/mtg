@@ -1,5 +1,7 @@
 # Quand et Où le Fichier MTGJSON est Téléchargé
 
+> **Note :** Les sections décrivant l'indexation dans **Firestore** sont historiques. L'app utilise le cache **IndexedDB** côté client et/ou une API HTTP optionnelle. Voir [MTGJSON_PRICES.md](./MTGJSON_PRICES.md) et [BACKEND_PRICES_API.md](./BACKEND_PRICES_API.md).
+
 ## Quand le Serveur Télécharge le Fichier
 
 ### 1. Téléchargement Initial (Manuel)

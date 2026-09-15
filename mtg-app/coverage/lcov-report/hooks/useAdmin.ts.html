@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/33</span>
+                <span class='fraction'>0/35</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/11</span>
+                <span class='fraction'>0/14</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/33</span>
+                <span class='fraction'>0/35</span>
             </div>
         
             
@@ -121,21 +121,13 @@
 <a name='L56'></a><a href='#L56'>56</a>
 <a name='L57'></a><a href='#L57'>57</a>
 <a name='L58'></a><a href='#L58'>58</a>
-<a name='L59'></a><a href='#L59'>59</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -144,8 +136,12 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -155,6 +151,24 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -177,12 +191,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >import { useState, useEffect } from 'react';</span>
-<span class="cstat-no" title="statement not covered" >import { doc, getDoc } from 'firebase/firestore';</span>
-<span class="cstat-no" title="statement not covered" >import { db } from '../services/firebase';</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// src/hooks/useAdmin.ts
+<span class="cstat-no" title="statement not covered" >import { useState, useEffect } from 'react';</span>
+<span class="cstat-no" title="statement not covered" >import { pb } from '../services/pocketbase';</span>
 <span class="cstat-no" title="statement not covered" >import { useAuth } from './useAuth';</span>
+import { isAdmin as checkIsAdmin } from '../types/user';
 &nbsp;
 <span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >u</span>seAdmin(</span>) {
   const { currentUser } = <span class="cstat-no" title="statement not covered" >useAuth();</span>
@@ -200,12 +213,19 @@
       }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >      try {</span>
-        const profileRef = <span class="cstat-no" title="statement not covered" >doc(db, 'users', currentUser.uid, 'profile', 'data');</span>
-        const profileSnap = <span class="cstat-no" title="statement not covered" >await getDoc(profileRef);</span>
+        const profileRecord = <span class="cstat-no" title="statement not covered" >await pb.collection('users').getOne(currentUser.uid);</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >        if (profileSnap.exists()) {</span>
-          const data = <span class="cstat-no" title="statement not covered" >profileSnap.data();</span>
-          const adminStatus = <span class="cstat-no" title="statement not covered" >data.role === 'admin';</span>
+<span class="cstat-no" title="statement not covered" >        if (profileRecord) {</span>
+          // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+          let roles: string[] = <span class="cstat-no" title="statement not covered" >['user'];</span>
+<span class="cstat-no" title="statement not covered" >          if (profileRecord.roles &amp;&amp; Array.isArray(profileRecord.roles)) {</span>
+<span class="cstat-no" title="statement not covered" >            roles = profileRecord.roles;</span>
+          } else <span class="cstat-no" title="statement not covered" ><span class="missing-if-branch" title="if path not taken" >I</span>if (profileRecord.role) {</span>
+            // Migration depuis l'ancien format
+<span class="cstat-no" title="statement not covered" >            roles = profileRecord.role === 'admin' ? ['user', 'admin'] : ['user'];</span>
+          }
+&nbsp;
+          const adminStatus = <span class="cstat-no" title="statement not covered" >roles.includes('admin');</span>
 <span class="cstat-no" title="statement not covered" >          <span class="missing-if-branch" title="if path not taken" >I</span>if (isMounted) {</span>
 <span class="cstat-no" title="statement not covered" >            setIsAdmin(adminStatus);</span>
           }
@@ -235,8 +255,6 @@
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  return { isAdmin, loading };</span>
 }
-&nbsp;
-&nbsp;
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -244,7 +262,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-07T23:55:42.305Z
+                at 2026-06-24T11:46:06.231Z
             </div>
         <script src="../prettify.js"></script>
         <script>

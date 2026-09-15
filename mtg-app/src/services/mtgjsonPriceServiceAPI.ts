@@ -154,7 +154,7 @@ export async function initializeMTGJSONPrices(): Promise<void> {
 }
 
 /**
- * Force la mise à jour des prix (appelle la Cloud Function)
+ * Force la mise à jour des prix (appelle l'API backend)
  */
 export async function updateMTGJSONPrices(): Promise<boolean> {
   if (!API_BASE_URL || API_BASE_URL.trim() === '') {
@@ -175,7 +175,7 @@ export async function updateMTGJSONPrices(): Promise<boolean> {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn('Cloud Function not found. Make sure it is deployed: firebase deploy --only functions');
+        console.warn('Price API endpoint not found. Check VITE_PRICE_API_URL and server deployment.');
         return false;
       }
       throw new Error(`Failed to update prices: ${response.status}`);
@@ -186,7 +186,7 @@ export async function updateMTGJSONPrices(): Promise<boolean> {
   } catch (error: any) {
     // Ne pas afficher d'erreur CORS si c'est juste que la fonction n'existe pas
     if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
-      console.warn('Cloud Function not accessible. Make sure it is deployed and CORS is configured.');
+      console.warn('Price API not accessible. Check VITE_PRICE_API_URL and CORS configuration.');
     } else {
       console.error('Error updating prices:', error);
     }
@@ -199,8 +199,7 @@ export async function updateMTGJSONPrices(): Promise<boolean> {
  */
 export async function getLastUpdateDate(): Promise<Date | null> {
   try {
-    // Récupérer depuis Firestore via l'API ou directement
-    // Pour simplifier, on peut stocker ça dans localStorage côté client
+    // Date stockée côté client après une mise à jour réussie
     const lastUpdateStr = localStorage.getItem('mtgjson_last_update');
     if (lastUpdateStr) {
       return new Date(lastUpdateStr);

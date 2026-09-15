@@ -1,74 +1,93 @@
-# Développement Local avec `npm run dev`
+# Développement local
 
-## Comportement en Développement
+## Prérequis
 
-Quand vous lancez `npm run dev`, l'application fonctionne mais **les Firebase Functions ne sont pas disponibles** par défaut.
+1. **Node.js 18+** et `npm install` dans `mtg-app/`
+2. **PocketBase** en cours d'exécution (local ou réseau)
+3. Fichier **`.env.local`** (optionnel mais recommandé)
 
-### Solution Automatique : Fallback vers Scryfall
+## Démarrage rapide
 
-L'application détecte automatiquement si elle est en mode développement et si l'API backend n'est pas disponible. Dans ce cas, elle utilise **automatiquement Scryfall** comme source de prix.
-
-**Vous n'avez rien à faire** - ça marche automatiquement ! ✅
-
-## Options pour Utiliser l'API Backend en Local
-
-Si vous voulez tester l'API backend en local, vous avez 2 options :
-
-### Option 1 : Utiliser l'Émulateur Firebase (Recommandé)
-
-1. **Installer Firebase CLI** :
 ```bash
-npm install -g firebase-tools
-firebase login
-```
+# Terminal 1 — PocketBase (exemple)
+./pocketbase serve
+# Par défaut : http://127.0.0.1:8090
 
-2. **Démarrer l'émulateur** :
-```bash
-# Depuis la racine du projet
-firebase emulators:start --only functions
-```
-
-3. **Configurer l'URL dans `.env.local`** :
-```env
-VITE_FIREBASE_FUNCTIONS_URL=http://localhost:5001/YOUR-PROJECT-ID/us-central1
-```
-
-4. **Dans un autre terminal, lancer l'app** :
-```bash
+# Terminal 2 — Frontend
+cd mtg-app
 npm run dev
+# Par défaut : http://localhost:3000
 ```
 
-### Option 2 : Utiliser les Functions Déployées
+### `.env.local` recommandé
 
-Si vous avez déjà déployé les functions sur Firebase :
-
-1. **Configurer l'URL dans `.env.local`** :
 ```env
-VITE_FIREBASE_FUNCTIONS_URL=https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net
+VITE_POCKETBASE_URL=http://127.0.0.1:8090
 ```
 
-2. **Lancer l'app** :
+Sans cette variable, `src/services/pocketbase.ts` utilise une URL par défaut (IP locale ou HTTPS prod selon le contexte).
+
+## PocketBase
+
+### Collections requises
+
+L'app attend au minimum : `users`, `collection`, `decks`, `wishlist`, `imports`, `legal`.
+
+Configurez les **règles d'API** dans l'admin PocketBase pour que chaque utilisateur accède à ses données et que les admins puissent gérer les comptes.
+
+### Premier admin
+
+Voir [PROTOCOLE_ADMIN.md](../PROTOCOLE_ADMIN.md) et [POCKETBASE_ROLES_MIGRATION.md](./POCKETBASE_ROLES_MIGRATION.md).
+
+## Prix MTGJSON
+
+### Comportement par défaut (sans API backend)
+
+- Au démarrage, l'app tente de charger les prix depuis le **cache IndexedDB**
+- Si l'API backend (`VITE_PRICE_API_URL`) n'est pas configurée, un **fallback Scryfall** est utilisé en développement
+- Message console typique : indiquant que l'API prix n'est pas disponible
+
+### Avec API backend des prix
+
+```env
+VITE_PRICE_API_URL=https://votre-api-prix.example.com
+```
+
+Voir [MTGJSON_PRICES.md](./MTGJSON_PRICES.md) et [BACKEND_PRICES_API.md](./BACKEND_PRICES_API.md).
+
+## Scan en local
+
+- Route `/scan` accessible sans login (tests)
+- **OpenCV.js** chargé depuis le CDN au premier usage
+- **Tesseract.js** pour l'OCR
+- En dev, proxy Vite `/scryfall-icons` pour les icônes SVG Scryfall (CORS)
+
+La caméra nécessite **HTTPS ou localhost** selon le navigateur.
+
+## PWA en développement
+
+Le service worker est **désactivé** en dev (`devOptions.enabled: false` dans `vite.config.ts`). Pour tester la PWA :
+
 ```bash
-npm run dev
+npm run build
+npm run preview
 ```
 
-## Comportement par Défaut
+## Tests
 
-**Sans configuration supplémentaire**, l'app fonctionne en développement avec :
-- ✅ **Scryfall** comme source de prix (fallback automatique)
-- ✅ Toutes les autres fonctionnalités fonctionnent normalement
-- ⚠️ Les prix peuvent être moins complets (Scryfall vs MTGJSON)
+```bash
+npm test              # Unitaires (Jest)
+npm run test:e2e      # E2E (Playwright — app + PocketBase requis)
+npm run lint
+```
 
-## Vérification
+## Dépannage
 
-Pour vérifier quelle source est utilisée, ouvrez la console du navigateur :
-- Si vous voyez : `"MTGJSON API not available in development, will use Scryfall fallback"` → Scryfall est utilisé
-- Si vous voyez des requêtes vers `/getCardPrice` → L'API backend est utilisée
+| Problème | Piste |
+|----------|--------|
+| Erreur CORS / Mixed Content | Front en HTTPS mais PocketBase en HTTP → utiliser HTTPS pour PB ou `.env.local` avec URL HTTP en local |
+| Login échoue | Vérifier `VITE_POCKETBASE_URL` et que PocketBase tourne |
+| Pas de lien Admin | Champ `roles` doit contenir `"admin"` sur l'utilisateur |
+| Icônes sets en scan | Vérifier le proxy `/scryfall-icons` en dev |
 
-## Recommandation
-
-Pour le développement quotidien, **vous n'avez pas besoin de configurer l'API backend**. Le fallback vers Scryfall fonctionne automatiquement et c'est suffisant pour développer.
-
-Utilisez l'émulateur uniquement si vous développez/testez les functions elles-mêmes.
-
-
+Voir aussi [TROUBLESHOOTING.md](../TROUBLESHOOTING.md).

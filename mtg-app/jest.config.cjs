@@ -17,9 +17,8 @@ module.exports = {
     '!src/**/*.stories.{ts,tsx}',
     '!src/test/**',
     '!src/main.tsx',
-    '!src/services/firebase.ts', // Utilise import.meta.env
-    '!src/services/errorHandler.ts', // Utilise import.meta.env
-    '!src/services/adminAuth.ts', // Utilise import.meta.env
+    '!src/services/errorHandler.ts',
+    '!src/services/adminAuth.ts',
     '!src/components/UI/ManaSymbol.tsx', // Utilise des imports d'images
     '!src/utils/keywordSearch.ts', // Utilise des imports JSON
   ],
@@ -45,12 +44,15 @@ module.exports = {
     },
   },
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.jest.json',
-    }],
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: 'tsconfig.jest.json',
+        useESM: false,
+      },
+    ],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   transformIgnorePatterns: [
     'node_modules/(?!(@testing-library/jest-dom)/)',
   ],

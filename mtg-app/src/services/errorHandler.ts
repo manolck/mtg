@@ -9,7 +9,7 @@ export const ErrorTypeValues = {
   API: 'API',
   VALIDATION: 'VALIDATION',
   AUTH: 'AUTH',
-  FIRESTORE: 'FIRESTORE',
+  DATABASE: 'DATABASE',
   UNKNOWN: 'UNKNOWN',
 } as const;
 
@@ -97,22 +97,30 @@ class ErrorHandler {
         };
       }
 
-      // Erreur Firebase Auth
-      if (error.message.includes('auth/')) {
+      // Erreur PocketBase / accès données
+      if (
+        error.message.includes('pocketbase') ||
+        error.message.includes('permission') ||
+        error.message.includes('autocancelled')
+      ) {
+        return {
+          type: ErrorTypeValues.DATABASE,
+          message: 'Erreur d\'accès aux données. Vérifiez vos permissions.',
+          originalError: error,
+        };
+      }
+
+      // Erreur auth (codes PocketBase ou legacy auth/)
+      if (
+        error.message.includes('auth/') ||
+        error.message.includes('Failed to authenticate') ||
+        error.message.includes('Invalid login credentials')
+      ) {
         return {
           type: ErrorTypeValues.AUTH,
           message: this.getAuthErrorMessage(error.message),
           originalError: error,
           code: error.message,
-        };
-      }
-
-      // Erreur Firestore
-      if (error.message.includes('firestore') || error.message.includes('permission')) {
-        return {
-          type: ErrorTypeValues.FIRESTORE,
-          message: 'Erreur d\'accès aux données. Vérifiez vos permissions.',
-          originalError: error,
         };
       }
 
@@ -142,7 +150,7 @@ class ErrorHandler {
   }
 
   /**
-   * Convertit un message d'erreur Firebase Auth en message utilisateur
+   * Convertit un message d'erreur d'authentification en message utilisateur
    */
   private getAuthErrorMessage(errorCode: string): string {
     const messages: Record<string, string> = {
@@ -152,6 +160,8 @@ class ErrorHandler {
       'auth/weak-password': 'Le mot de passe est trop faible.',
       'auth/invalid-email': 'Email invalide.',
       'auth/too-many-requests': 'Trop de tentatives. Réessayez plus tard.',
+      'Failed to authenticate.': 'Email ou mot de passe incorrect.',
+      'Invalid login credentials': 'Email ou mot de passe incorrect.',
     };
 
     return messages[errorCode] || 'Erreur d\'authentification.';

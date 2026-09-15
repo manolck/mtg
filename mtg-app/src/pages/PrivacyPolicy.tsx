@@ -170,8 +170,8 @@ export function PrivacyPolicy() {
                 sauf dans les cas suivants :
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4 mt-3">
-                <li><strong>Prestataires de services</strong> : Nous utilisons Firebase (Google) pour l'hébergement 
-                et l'authentification. Ces services sont conformes au RGPD.</li>
+                <li><strong>Prestataires de services</strong> : Nous utilisons PocketBase (auto-hébergé) pour l&apos;authentification 
+                et le stockage des données de l&apos;application.</li>
                 <li><strong>Obligations légales</strong> : Si la loi l'exige</li>
                 <li><strong>Protection de nos droits</strong> : Pour protéger nos droits et notre sécurité</li>
               </ul>
@@ -211,9 +211,8 @@ export function PrivacyPolicy() {
                 11. Transferts Internationaux
               </h2>
               <p className="text-gray-700 dark:text-gray-300">
-                Vos données peuvent être stockées et traitées par Firebase (Google) dans des centres de 
-                données situés en dehors de l'Union Européenne. Ces transferts sont encadrés par des 
-                garanties appropriées conformes au RGPD (clauses contractuelles types, Privacy Shield, etc.).
+                Vos données sont stockées sur notre instance PocketBase (serveur que nous administrons). 
+                L&apos;emplacement physique dépend de l&apos;hébergement choisi pour ce serveur.
               </p>
             </section>
 

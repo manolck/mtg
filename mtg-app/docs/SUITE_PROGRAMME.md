@@ -1,5 +1,7 @@
 # Suite du Programme - Commercialisation MTG Collection App
 
+> **Mise à jour 2025 :** L'application utilise **PocketBase** (plus Firebase). Pour l'architecture actuelle, voir [ARCHITECTURE.md](./ARCHITECTURE.md) et [README.md](../README.md).
+
 **Date** : 2024-01-07  
 **État actuel** : Sprint 1 complété à ~80%
 

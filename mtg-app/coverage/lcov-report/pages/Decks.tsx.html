@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/55</span>
+                <span class='fraction'>0/52</span>
             </div>
         
             
@@ -39,7 +39,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/15</span>
+                <span class='fraction'>0/12</span>
             </div>
         
             
@@ -238,7 +238,6 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -268,6 +267,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -402,7 +402,6 @@
 <span class="cstat-no" title="statement not covered" >import { Input } from '../components/UI/Input';</span>
 <span class="cstat-no" title="statement not covered" >import { Modal } from '../components/UI/Modal';</span>
 <span class="cstat-no" title="statement not covered" >import { Spinner } from '../components/UI/Spinner';</span>
-import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 &nbsp;
 <span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >D</span>ecks(</span>) {
   const { decks, loading, error, createDeck, deleteDeck } = <span class="cstat-no" title="statement not covered" >useDecks();</span>
@@ -412,7 +411,7 @@ import { ConfirmDialog } from '../components/UI/ConfirmDialog';
   const [isCreating, setIsCreating] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
   const [showDeleteConfirm, setShowDeleteConfirm] = <span class="cstat-no" title="statement not covered" >useState&lt;{ deckId: string; deckName: string } | null&gt;(null);</span>
 &nbsp;
-  const handleCreateDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async () =</span>&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" > {</span></span></span>
+  const handleCreateDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async </span>() =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!newDeckName.trim()) {</span>
 <span class="cstat-no" title="statement not covered" >      showError('Le nom du deck ne peut pas être vide');</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
@@ -431,11 +430,12 @@ import { ConfirmDialog } from '../components/UI/ConfirmDialog';
     }
   };
 &nbsp;
-  const handleDeleteDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async (d</span>eckId: string, deckName: string) =&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" > {</span></span></span>
+  const handleDeleteDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async </span>(deckId: string, deckName: string) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    setShowDeleteConfirm({ deckId, deckName });</span>
   };
 &nbsp;
-  const confirmDeleteDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async () =</span>&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" > {</span></span></span>
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _confirmDeleteDeck = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async </span>() =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!showDeleteConfirm) <span class="cstat-no" title="statement not covered" >return;</span></span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      await deleteDeck(showDeleteConfirm.deckId);</span>
@@ -565,7 +565,7 @@ import { ConfirmDialog } from '../components/UI/ConfirmDialog';
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-07T23:55:42.305Z
+                at 2026-06-24T11:46:06.231Z
             </div>
         <script src="../prettify.js"></script>
         <script>

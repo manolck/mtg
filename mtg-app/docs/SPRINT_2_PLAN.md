@@ -1,5 +1,7 @@
 # Sprint 2 - Plan d'Action
 
+> **Mise à jour 2025 :** Stack actuelle = **PocketBase**. Les tâches mentionnant Firestore/Firebase sont à adapter. Voir [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 **Date de début** : 2024-01-07  
 **Objectif** : Préparer l'application pour le lancement (conformité, performance, documentation)
 

@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/68</span>
+                <span class='fraction'>0/67</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/24</span>
+                <span class='fraction'>0/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/17</span>
+                <span class='fraction'>0/15</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/61</span>
+                <span class='fraction'>0/62</span>
             </div>
         
             
@@ -240,13 +240,7 @@
 <a name='L175'></a><a href='#L175'>175</a>
 <a name='L176'></a><a href='#L176'>176</a>
 <a name='L177'></a><a href='#L177'>177</a>
-<a name='L178'></a><a href='#L178'>178</a>
-<a name='L179'></a><a href='#L179'>179</a>
-<a name='L180'></a><a href='#L180'>180</a>
-<a name='L181'></a><a href='#L181'>181</a>
-<a name='L182'></a><a href='#L182'>182</a>
-<a name='L183'></a><a href='#L183'>183</a>
-<a name='L184'></a><a href='#L184'>184</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L178'></a><a href='#L178'>178</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -292,16 +286,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -436,8 +424,8 @@
 <span class="cstat-no" title="statement not covered" >import { CardDisplay } from '../components/Card/CardDisplay';</span>
 <span class="cstat-no" title="statement not covered" >import { Button } from '../components/UI/Button';</span>
 <span class="cstat-no" title="statement not covered" >import { Spinner } from '../components/UI/Spinner';</span>
-<span class="cstat-no" title="statement not covered" >import { doc, getDoc } from 'firebase/firestore';</span>
-<span class="cstat-no" title="statement not covered" >import { db } from '../services/firebase';</span>
+<span class="cstat-no" title="statement not covered" >import { pb } from '../services/pocketbase';</span>
+<span class="cstat-no" title="statement not covered" >import * as collectionService from '../services/collectionService';</span>
 import type { UserCard } from '../types/card';
 &nbsp;
 <span class="cstat-no" title="statement not covered" >export function <span class="fstat-no" title="function not covered" >D</span>eckBuilder(</span>) {
@@ -472,19 +460,13 @@ import type { UserCard } from '../types/card';
               quantity: deckCard.quantity,
             });
           } else {
-            // Si la carte n'est pas dans la collection, essayer de la charger depuis Firestore
+            // Si la carte n'est pas dans la collection, essayer de la charger depuis PocketBase
 <span class="cstat-no" title="statement not covered" >            try {</span>
-              const cardDoc = <span class="cstat-no" title="statement not covered" >await getDoc(</span>
-                doc(db, 'users', deck.userId, 'collection', deckCard.cardId)
-              );
-<span class="cstat-no" title="statement not covered" >              <span class="missing-if-branch" title="if path not taken" >I</span>if (cardDoc.exists()) {</span>
-                const data = <span class="cstat-no" title="statement not covered" >cardDoc.data();</span>
-<span class="cstat-no" title="statement not covered" >                deckCardsData.push({</span>
-                  id: cardDoc.id,
-                  ...data,
-                  quantity: deckCard.quantity,
-                  createdAt: data.createdAt?.toDate() || new Date(),
-                } as UserCard);
+              const cardRecord = <span class="cstat-no" title="statement not covered" >await pb.collection('collection').getOne(deckCard.cardId);</span>
+<span class="cstat-no" title="statement not covered" >              <span class="missing-if-branch" title="if path not taken" >I</span>if (cardRecord) {</span>
+                const card = <span class="cstat-no" title="statement not covered" >collectionService.recordToUserCard(cardRecord);</span>
+<span class="cstat-no" title="statement not covered" >                card.quantity = deckCard.quantity; </span>// Utiliser la quantité du deck
+<span class="cstat-no" title="statement not covered" >                deckCardsData.push(card);</span>
               }
             } catch (err) {
 <span class="cstat-no" title="statement not covered" >              console.error(`Error loading card ${deckCard.cardId}:`, err);</span>
@@ -503,7 +485,7 @@ import type { UserCard } from '../types/card';
 <span class="cstat-no" title="statement not covered" >    loadDeckCards();</span>
   }, [deckId, deck, collectionCards]);
 &nbsp;
-  const handleRemoveCard = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async (c</span>ardId: string) =&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" > {</span></span></span>
+  const handleRemoveCard = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async </span>(cardId: string) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!deckId) <span class="cstat-no" title="statement not covered" >return;</span></span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      await removeCardFromDeck(deckId, cardId);</span>
@@ -512,7 +494,7 @@ import type { UserCard } from '../types/card';
     }
   };
 &nbsp;
-  const handleUpdateQuantity = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async (c</span>ardId: string, newQuantity: number) =&gt;<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" > {</span></span></span>
+  const handleUpdateQuantity = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >async </span>(cardId: string, newQuantity: number) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >    <span class="missing-if-branch" title="if path not taken" >I</span>if (!deckId || newQuantity &lt; 1) <span class="cstat-no" title="statement not covered" >return;</span></span>
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      await updateCardQuantity(deckId, cardId, newQuantity);</span>
@@ -619,7 +601,7 @@ import type { UserCard } from '../types/card';
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-07T23:55:42.305Z
+                at 2026-06-24T11:46:06.231Z
             </div>
         <script src="../prettify.js"></script>
         <script>

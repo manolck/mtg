@@ -62,5 +62,13 @@ export default defineConfig({
       'localhost',
       '.duckdns.org', // Permet tous les sous-domaines duckdns.org
     ],
+    proxy: {
+      // Contourner CORS pour les icônes Scryfall (sets) en dev
+      '/scryfall-icons': {
+        target: 'https://svgs.scryfall.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/scryfall-icons/, ''),
+      },
+    },
   },
 })

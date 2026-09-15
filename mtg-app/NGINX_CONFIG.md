@@ -46,7 +46,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    # Taille maximale des uploads (si nécessaire pour Firebase Storage)
+    # Taille maximale des uploads
     client_max_body_size 10M;
 
     # Proxy vers Vite sur le port 3000
@@ -173,14 +173,6 @@ ss -tlnp | grep 3000
 cd mtg-app
 npm run dev
 ```
-
-## Configuration Firebase Auth
-
-Si vous utilisez Firebase Authentication avec des providers OAuth (Google, Facebook, etc.) :
-
-1. Allez dans **Firebase Console** > **Authentication** > **Settings** > **Authorized domains**
-2. Ajoutez votre domaine : `votre-domaine.com`
-3. Les redirections OAuth fonctionneront automatiquement via HTTPS
 
 ## Vérification
 

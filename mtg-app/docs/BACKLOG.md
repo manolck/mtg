@@ -1,5 +1,7 @@
 # Backlog Priorisé - MTG Collection App
 
+> **Mise à jour 2025 :** Backend = **PocketBase**. Les items P0-2 (index Firestore) et références Firebase sont obsolètes. Voir [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Épiques
 
 ### Phase 0: Stabilisation & Fondations

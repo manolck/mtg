@@ -1,30 +1,40 @@
-# Déploiement des Règles Firestore pour RGPD
+# Consentement RGPD — configuration PocketBase
 
-## Problème
+## Collection `legal`
 
-L'erreur "Missing or insufficient permissions" apparaît lors de la vérification du consentement RGPD car les règles Firestore pour `users/{userId}/legal/{document=**}` ne sont pas encore déployées.
+Le composant `GDPRConsent` enregistre le consentement dans la collection PocketBase **`legal`** :
 
-## Solution
+- Filtre : `userId = "{uid}"` et `type = "gdpr-consent"`
 
-Les règles ont été ajoutées dans `firestore.rules`. Il faut maintenant les déployer :
+## Règles API recommandées
 
-```bash
-cd mtg-app
-firebase deploy --only firestore:rules
+Dans PocketBase Admin → Collections → `legal` :
+
+- **List / View** : utilisateur authentifié, uniquement ses enregistrements (`userId = @request.auth.id`)
+- **Create / Update** : même restriction
+- **Delete** : propriétaire ou admin
+
+Exemple de règle (à adapter à votre schéma) :
+
 ```
+@request.auth.id != "" && userId = @request.auth.id
+```
+
+## Erreur « Missing or insufficient permissions »
+
+1. Vérifier que la collection `legal` existe
+2. Vérifier les règles API pour les opérations `list`, `create`
+3. Vérifier que le champ `userId` est bien renseigné à la création du consentement
 
 ## Vérification
 
-Après le déploiement, l'erreur devrait disparaître et le consentement RGPD devrait fonctionner correctement.
+1. Créer un nouvel utilisateur ou supprimer son enregistrement `legal` existant
+2. Se connecter → la modale RGPD doit s'afficher
+3. Accepter → un document est créé dans `legal`
+4. Recharger → la modale ne réapparaît pas
 
-## Règles ajoutées
+## Références
 
-```javascript
-// Règles pour les données légales (consentement RGPD, etc.)
-match /users/{userId}/legal/{document=**} {
-  allow read, write: if request.auth != null && request.auth.uid == userId;
-}
-```
-
-Ces règles permettent à chaque utilisateur de lire et écrire ses propres données légales (consentement RGPD).
-
+- `src/components/Legal/GDPRConsent.tsx`
+- [Privacy Policy](../src/pages/PrivacyPolicy.tsx)
+- [SECURITY.md](./SECURITY.md)
