@@ -134,8 +134,14 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* Temporairement accessible sans connexion pour tester le scan en local */}
-              <Route path="/scan" element={<Scan />} />
+              <Route
+                path="/scan"
+                element={
+                  <ProtectedRoute>
+                    <Scan />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/profile"
                 element={

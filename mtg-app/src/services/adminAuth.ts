@@ -1,5 +1,6 @@
 // src/services/adminAuth.ts
 import { pb } from './pocketbase';
+import { pbEqual } from '../utils/pocketbaseFilter';
 import type { UserProfile, AdminUser } from '../types/user';
 
 /**
@@ -156,31 +157,31 @@ export async function deleteUserAccount(uid: string): Promise<void> {
     // Supprimer toutes les données de l'utilisateur
     // User collections (cascade supprime les collection_items)
     const userCollections = await pb.collection('user_collections').getFullList({
-      filter: `userId = "${uid}"`,
+      filter: pbEqual('userId', uid),
     });
     await Promise.all(userCollections.map(c => pb.collection('user_collections').delete(c.id)));
 
     // Decks
     const decks = await pb.collection('decks').getFullList({
-      filter: `userId = "${uid}"`,
+      filter: pbEqual('userId', uid),
     });
     await Promise.all(decks.map(d => pb.collection('decks').delete(d.id)));
 
     // Imports
     const imports = await pb.collection('imports').getFullList({
-      filter: `userId = "${uid}"`,
+      filter: pbEqual('userId', uid),
     });
     await Promise.all(imports.map(i => pb.collection('imports').delete(i.id)));
 
     // Wishlist
     const wishlist = await pb.collection('wishlist').getFullList({
-      filter: `userId = "${uid}"`,
+      filter: pbEqual('userId', uid),
     });
     await Promise.all(wishlist.map(w => pb.collection('wishlist').delete(w.id)));
 
     // Legal (GDPR consent)
     const legal = await pb.collection('legal').getFullList({
-      filter: `userId = "${uid}"`,
+      filter: pbEqual('userId', uid),
     });
     await Promise.all(legal.map(l => pb.collection('legal').delete(l.id)));
 

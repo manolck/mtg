@@ -3,6 +3,7 @@ import {
   addWishlistItem,
   updateWishlistItem,
   deleteWishlistItem,
+  isCardInWishlist,
 } from '../wishlistService';
 import type { WishlistItem } from '../../types/card';
 
@@ -151,6 +152,20 @@ describe('wishlistService', () => {
       mockDelete.mockRejectedValue(new Error('API error'));
 
       await expect(deleteWishlistItem(userId, 'item-1')).rejects.toThrow('API error');
+    });
+  });
+
+  describe('isCardInWishlist', () => {
+    it('escapes quotes in card names used in filters', async () => {
+      mockGetFullList.mockResolvedValue([]);
+
+      await isCardInWishlist(userId, 'Kongming, "Sleeping Dragon"');
+
+      expect(mockGetFullList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filter: `userId = "${userId}" && name = "Kongming, \\"Sleeping Dragon\\""`,
+        })
+      );
     });
   });
 });

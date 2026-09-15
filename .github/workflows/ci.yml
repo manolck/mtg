@@ -60,7 +60,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL || 'https://pb.mtg-app.duckdns.org' }}
+          VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090' }}
           VITE_PRICE_API_URL: ${{ secrets.VITE_PRICE_API_URL }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 

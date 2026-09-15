@@ -1,5 +1,6 @@
 // src/services/wishlistService.ts
 import { pb } from './pocketbase';
+import { pbEqual } from '../utils/pocketbaseFilter';
 import type { WishlistItem } from '../types/card';
 import type { MTGCard } from '../types/card';
 
@@ -56,7 +57,7 @@ function recordToWishlistItem(record: any): WishlistItem {
  */
 export async function getWishlistItems(userId: string): Promise<WishlistItem[]> {
   const records = await pb.collection('wishlist').getFullList({
-    filter: `userId = "${userId}"`,
+    filter: pbEqual('userId', userId),
     sort: '-created',
   });
 
@@ -144,14 +145,14 @@ export async function isCardInWishlist(
   setCode?: string,
   collectorNumber?: string
 ): Promise<boolean> {
-  let filter = `userId = "${userId}" && name = "${cardName}"`;
+  let filter = `${pbEqual('userId', userId)} && ${pbEqual('name', cardName)}`;
   
   if (setCode) {
-    filter += ` && setCode = "${setCode}"`;
+    filter += ` && ${pbEqual('setCode', setCode)}`;
   }
   
   if (collectorNumber) {
-    filter += ` && collectorNumber = "${collectorNumber}"`;
+    filter += ` && ${pbEqual('collectorNumber', collectorNumber)}`;
   }
 
   try {

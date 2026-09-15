@@ -29,20 +29,12 @@ Ce document décrit les mesures de sécurité de l'application MTG Collection. L
 
 ## Contrôle d'accès aux données
 
-### PocketBase — règles API
+La sécurité des données repose sur les **règles d'API PocketBase**, versionnées dans le dépôt :
 
-La sécurité des données repose sur les **règles d'API** configurées dans l'admin PocketBase pour chaque collection :
+- Source de vérité : [`pocketbase/api-rules.json`](../pocketbase/api-rules.json)
+- Procédure d'application : [POCKETBASE_API_RULES.md](./POCKETBASE_API_RULES.md)
 
-| Collection | Principe attendu |
-|------------|------------------|
-| `collection` | Lecture/écriture limitée au propriétaire (`userId`) ; lecture possible pour utilisateurs authentifiés si vue multi-collections |
-| `decks` | Privé au propriétaire |
-| `wishlist` | Privé au propriétaire |
-| `imports` | Privé au propriétaire |
-| `users` | Lecture profil selon besoins ; écriture propriétaire ou admin |
-| `legal` | Consentements liés à `userId` |
-
-**Action requise** : auditer et documenter les règles exactes dans votre instance PocketBase (non versionnées dans ce dépôt).
+**Action requise à chaque instance** : coller ces règles dans l'admin PocketBase (elles ne se déploient pas toutes seules).
 
 ### Vue multi-collections
 
@@ -81,18 +73,18 @@ La page Collection permet de consulter les collections d'autres utilisateurs (`u
 
 ## RGPD
 
-- Composant de consentement au premier login
+- Composant de consentement au premier login (un refus déconnecte ; l'app n'est pas utilisable sans acceptation)
 - Page [Privacy Policy](../src/pages/PrivacyPolicy.tsx) (`/privacy-policy`)
 - Export collection (CSV/JSON) disponible
-- Suppression de compte : via page Admin (admin) — export complet utilisateur à renforcer si exigence RGPD stricte
+- Suppression de compte en self-service (page Profil) et via l'admin
 
 Voir [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md).
 
 ## Checklist production
 
 - [ ] PocketBase en HTTPS avec certificat valide
-- [ ] Règles API PocketBase revues pour chaque collection
-- [ ] `VITE_POCKETBASE_URL` correct en build prod
+- [x] Règles API PocketBase revues pour chaque collection ([POCKETBASE_API_RULES.md](./POCKETBASE_API_RULES.md) — à appliquer sur l'instance)
+- [ ] `VITE_POCKETBASE_URL` correct en build prod (obligatoire, plus de fallback)
 - [ ] Interface admin PocketBase protégée (réseau, mot de passe fort)
 - [ ] Sauvegardes `pb_data` planifiées
 - [ ] `VITE_SENTRY_DSN` configuré pour le monitoring
@@ -100,6 +92,7 @@ Voir [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md).
 
 ## Références
 
+- [POCKETBASE_API_RULES.md](./POCKETBASE_API_RULES.md)
 - [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HTTPS_SETUP.md)
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
 - [LEGACY_FIREBASE.md](./LEGACY_FIREBASE.md)

@@ -1,5 +1,6 @@
 // src/services/collectionService.ts
 import { pb } from './pocketbase';
+import { pbEqual } from '../utils/pocketbaseFilter';
 import type { UserCard, UserCollection } from '../types/card';
 
 // Réexporter pb pour utilisation dans les hooks
@@ -78,9 +79,9 @@ export async function getCollection(
 ): Promise<UserCard[]> {
   let filter: string;
   if (collectionId != null && collectionId !== '') {
-    filter = `userCollectionId = "${collectionId}"`;
+    filter = pbEqual('userCollectionId', collectionId);
   } else {
-    filter = `userCollectionId.userId = "${userId}"`;
+    filter = pbEqual('userCollectionId.userId', userId);
   }
   const records = await pb.collection('collection_items').getFullList({
     filter,
@@ -274,10 +275,6 @@ export async function deleteCards(itemIds: string[]): Promise<void> {
   );
 }
 
-function escapeFilter(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
 /**
  * Recherche une carte existante par critères (optionnellement dans une collection).
  * Filtre sur collection_items + cardId (relation).
@@ -292,18 +289,18 @@ export async function findCard(
   },
   collectionId?: string | null
 ): Promise<UserCard | null> {
-  let filter = `userCollectionId.userId = "${userId}" && cardId.name = "${escapeFilter(criteria.name)}"`;
+  let filter = `${pbEqual('userCollectionId.userId', userId)} && ${pbEqual('cardId.name', criteria.name)}`;
   if (collectionId != null && collectionId !== '') {
-    filter += ` && userCollectionId = "${collectionId}"`;
+    filter += ` && ${pbEqual('userCollectionId', collectionId)}`;
   }
   if (criteria.setCode) {
-    filter += ` && cardId.setCode = "${escapeFilter(criteria.setCode)}"`;
+    filter += ` && ${pbEqual('cardId.setCode', criteria.setCode)}`;
   }
   if (criteria.collectorNumber) {
-    filter += ` && cardId.collectorNumber = "${escapeFilter(criteria.collectorNumber)}"`;
+    filter += ` && ${pbEqual('cardId.collectorNumber', criteria.collectorNumber)}`;
   }
   if (criteria.language) {
-    filter += ` && language = "${escapeFilter(criteria.language)}"`;
+    filter += ` && ${pbEqual('language', criteria.language)}`;
   }
   try {
     const records = await pb.collection('collection_items').getFullList({
@@ -336,7 +333,7 @@ export async function getUserCollections(
   userId: string
 ): Promise<UserCollection[]> {
   const records = await pb.collection('user_collections').getFullList({
-    filter: `userId = "${userId}"`,
+    filter: pbEqual('userId', userId),
     sort: 'created',
   });
   return records.map(recordToUserCollection);
@@ -377,7 +374,7 @@ export async function getCollectionCounts(
   userId: string
 ): Promise<Record<string, number>> {
   const items = await pb.collection('collection_items').getFullList({
-    filter: `userCollectionId.userId = "${userId}"`,
+    filter: pbEqual('userCollectionId.userId', userId),
     fields: 'userCollectionId',
   });
   const counts: Record<string, number> = {};
@@ -409,7 +406,7 @@ export async function mergeCollections(
 
   for (const sourceId of sources) {
     const items = await pb.collection('collection_items').getFullList({
-      filter: `userCollectionId = "${sourceId}"`,
+      filter: pbEqual('userCollectionId', sourceId),
       expand: 'cardId',
     });
     for (const item of items) {
@@ -417,7 +414,7 @@ export async function mergeCollections(
       if (!cardId) continue;
       const itemLang = item.language ?? 'en';
       const targetItems = await pb.collection('collection_items').getFullList({
-        filter: `userCollectionId = "${targetId}" && cardId = "${cardId}"`,
+        filter: `${pbEqual('userCollectionId', targetId)} && ${pbEqual('cardId', cardId)}`,
       });
       const sameLanguage = targetItems.find(
         (t) => (t.language ?? 'en') === itemLang

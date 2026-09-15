@@ -13,7 +13,7 @@ Définies au **build** (Vite). Préfixe obligatoire : `VITE_`.
 
 | Variable | Requis | Description |
 |----------|--------|-------------|
-| `VITE_POCKETBASE_URL` | Recommandé | URL de l'instance PocketBase |
+| `VITE_POCKETBASE_URL` | **Oui** | URL de l'instance PocketBase |
 | `VITE_PRICE_API_URL` | Non | API backend pour mise à jour des prix MTGJSON |
 | `VITE_SENTRY_DSN` | Non | DSN Sentry pour le monitoring |
 
@@ -33,7 +33,7 @@ VITE_SENTRY_DSN=https://xxx@sentry.io/xxx
 VITE_PRICE_API_URL=https://votre-api-prix.example.com
 ```
 
-Si `VITE_POCKETBASE_URL` est absent, `src/services/pocketbase.ts` déduit une URL (HTTPS prod ou IP locale dev).
+Si `VITE_POCKETBASE_URL` est absent, `vite` et `src/services/pocketbase.ts` échouent (plus de fallback duckdns / IP LAN).
 
 ## Déploiement production (actuel)
 
@@ -62,13 +62,13 @@ Workflows à la **racine du dépôt** : `.github/workflows/` (le repo Git est `m
 
 | Secret | Requis | Description |
 |--------|--------|-------------|
-| `VITE_POCKETBASE_URL` | Recommandé (prod) | URL PocketBase injectée au build |
+| `VITE_POCKETBASE_URL` | **Oui** (prod) | URL PocketBase injectée au build |
 | `VITE_PRICE_API_URL` | Non | API prix MTGJSON |
 | `VITE_SENTRY_DSN` | Non | Monitoring Sentry |
 
 Pour `build-production.yml`, configurez l’environnement **production** dans GitHub (optionnel) pour isoler les secrets prod.
 
-En CI sur les PR, si `VITE_POCKETBASE_URL` est absent, le build utilise `https://pb.mtg-app.duckdns.org` par défaut.
+En CI sur les PR, si le secret `VITE_POCKETBASE_URL` est absent, le build utilise `http://127.0.0.1:8090` uniquement pour compiler l'artifact (ne pas déployer cet artifact). Le workflow production **échoue** si le secret est vide.
 
 ### Déploiement manuel après build
 

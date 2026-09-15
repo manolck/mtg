@@ -170,37 +170,15 @@ Ou si vous utilisez un sous-chemin :
 VITE_POCKETBASE_URL=https://mtg-app.duckdns.org/api/pocketbase
 ```
 
-### Détection automatique du protocole
+### URL PocketBase
 
-Vous pouvez également modifier `src/services/pocketbase.ts` pour détecter automatiquement le protocole :
+Définir `VITE_POCKETBASE_URL` au build (obligatoire, pas de fallback) :
 
-```typescript
-// src/services/pocketbase.ts
-import PocketBase from 'pocketbase';
-
-// Détecter le protocole basé sur l'environnement
-const getPocketBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_POCKETBASE_URL;
-  if (envUrl) {
-    return envUrl;
-  }
-  
-  // En production, utiliser HTTPS si la page est en HTTPS
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    return 'https://pb.mtg-app.duckdns.org';
-  }
-  
-  // En développement, utiliser HTTP local
-  return 'http://192.168.1.62:8090';
-};
-
-const POCKETBASE_URL = getPocketBaseUrl();
-
-export const pb = new PocketBase(POCKETBASE_URL);
-pb.autoCancellation(false);
-
-export default pb;
+```env
+VITE_POCKETBASE_URL=https://pb.mtg-app.duckdns.org
 ```
+
+Voir `src/services/pocketbase.ts` et `.env.example`.
 
 ## Vérification
 

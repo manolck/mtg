@@ -1,6 +1,8 @@
 // src/components/Legal/GDPRConsent.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { pb } from '../../services/pocketbase';
+import { pbEqual } from '../../utils/pocketbaseFilter';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
@@ -11,42 +13,38 @@ interface GDPRConsentProps {
 }
 
 export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
-  useEffect(() => {
-    checkConsent();
-  }, [currentUser]);
-
-  async function checkConsent() {
+  const checkConsent = useCallback(async () => {
     if (!currentUser) {
+      setShow(false);
       setLoading(false);
       return;
     }
 
     try {
-      // Vérifier si le consentement existe dans la collection 'legal' ou dans le profil utilisateur
-      // Pour PocketBase, on peut stocker le consentement dans une collection séparée ou dans le profil
-      // Ici, on utilise une collection 'legal' avec une relation vers users
       const consentRecords = await pb.collection('legal').getFullList({
-        filter: `userId = "${currentUser.uid}" && type = "gdpr-consent"`,
+        filter: `${pbEqual('userId', currentUser.uid)} && ${pbEqual('type', 'gdpr-consent')} && accepted = true`,
         limit: 1,
       });
 
-      if (consentRecords.length === 0) {
-        // Pas de consentement enregistré, afficher le modal
-        setShow(true);
-      }
+      setShow(consentRecords.length === 0);
     } catch (error) {
       console.error('Error checking GDPR consent:', error);
-      // En cas d'erreur, afficher le modal par sécurité
       setShow(true);
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentUser]);
+
+  useEffect(() => {
+    checkConsent();
+  }, [checkConsent]);
 
   async function handleAccept() {
     if (!currentUser) return;
@@ -58,26 +56,28 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
         type: 'gdpr-consent',
         accepted: true,
         timestamp: new Date().toISOString(),
-        version: '1.0', // Version de la politique de confidentialité
+        version: '1.0',
       });
 
       setShow(false);
       onAccept?.();
     } catch (error) {
       console.error('Error saving GDPR consent:', error);
-      alert('Erreur lors de l\'enregistrement du consentement. Veuillez réessayer.');
+      alert("Erreur lors de l'enregistrement du consentement. Veuillez réessayer.");
     } finally {
       setAccepting(false);
     }
   }
 
-  function handleReject() {
-    // En cas de refus, on peut rediriger vers une page d'information
-    // ou simplement fermer l'application
-    setShow(false);
+  async function handleReject() {
+    setRejecting(true);
     onReject?.();
-    // Optionnel : rediriger vers une page d'information
-    // window.location.href = '/gdpr-info';
+    try {
+      await logout();
+    } finally {
+      navigate('/login?consent=rejected', { replace: true });
+      setRejecting(false);
+    }
   }
 
   if (loading || !show) {
@@ -87,21 +87,24 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
   return (
     <Modal
       isOpen={show}
-      onClose={() => {}} // Empêcher la fermeture sans consentement
+      onClose={() => {}}
       title="Consentement RGPD"
       size="lg"
     >
       <div className="space-y-4">
         <div className="prose dark:prose-invert max-w-none">
           <p className="text-gray-700 dark:text-gray-300">
-            Nous respectons votre vie privée et vos données personnelles. Conformément au 
-            Règlement Général sur la Protection des Données (RGPD), nous devons obtenir votre 
+            Nous respectons votre vie privée et vos données personnelles. Conformément au
+            Règlement Général sur la Protection des Données (RGPD), nous devons obtenir votre
             consentement pour traiter vos données personnelles.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300 font-medium">
+            Sans ce consentement, vous ne pouvez pas utiliser l&apos;application.
           </p>
 
           <h3 className="text-lg font-semibold mt-4 mb-2">Données collectées</h3>
           <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
-            <li>Adresse email (pour l'authentification)</li>
+            <li>Adresse email (pour l&apos;authentification)</li>
             <li>Pseudonyme (optionnel)</li>
             <li>Collection de cartes Magic: The Gathering</li>
             <li>Decks créés</li>
@@ -115,8 +118,8 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
             Vos données sont utilisées uniquement pour :
           </p>
           <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
-            <li>Fournir les fonctionnalités de l'application</li>
-            <li>Améliorer l'expérience utilisateur</li>
+            <li>Fournir les fonctionnalités de l&apos;application</li>
+            <li>Améliorer l&apos;expérience utilisateur</li>
             <li>Gérer votre compte et vos préférences</li>
           </ul>
 
@@ -127,20 +130,19 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
           <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
             <li>Accéder à vos données personnelles</li>
             <li>Rectifier vos données</li>
-            <li>Supprimer votre compte et toutes vos données</li>
+            <li>Supprimer votre compte et toutes vos données (page Profil)</li>
             <li>Exporter vos données</li>
             <li>Vous opposer au traitement de vos données</li>
           </ul>
 
           <p className="mt-4 text-gray-700 dark:text-gray-300">
-            Pour plus d'informations, consultez notre{' '}
+            Pour plus d&apos;informations, consultez notre{' '}
             <a
               href="/privacy-policy"
               className="text-blue-600 dark:text-blue-400 hover:underline"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // Ouvrir dans un nouvel onglet
                 window.open('/privacy-policy', '_blank');
               }}
             >
@@ -153,24 +155,25 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button
             onClick={handleAccept}
-            disabled={accepting}
+            disabled={accepting || rejecting}
             className="flex-1"
             variant="primary"
           >
-            {accepting ? 'Enregistrement...' : 'J\'accepte'}
+            {accepting ? 'Enregistrement...' : "J'accepte"}
           </Button>
           <Button
             onClick={handleReject}
-            disabled={accepting}
+            disabled={accepting || rejecting}
             className="flex-1"
             variant="secondary"
           >
-            Refuser
+            {rejecting ? 'Déconnexion...' : 'Refuser'}
           </Button>
         </div>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-          En cliquant sur "J'accepte", vous confirmez avoir lu et accepté notre politique de confidentialité.
+          En cliquant sur &quot;J&apos;accepte&quot;, vous confirmez avoir lu et accepté notre politique de confidentialité.
+          Un refus vous déconnecte et empêche l&apos;utilisation de l&apos;application.
         </p>
       </div>
     </Modal>

@@ -1,0 +1,65 @@
+{
+  "$comment": "Source of truth for PocketBase collection API rules. Apply in PocketBase Admin → each collection → API rules. See docs/POCKETBASE_API_RULES.md.",
+  "users": {
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": null,
+    "updateRule": "@request.auth.id != \"\" && id = @request.auth.id",
+    "deleteRule": "@request.auth.id != \"\" && id = @request.auth.id",
+    "notes": "createRule empty/null = only PocketBase superusers can create users (no public signup)."
+  },
+  "user_collections": {
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id",
+    "notes": "Authenticated users can list collections (multi-collection browse). Writes restricted to owner."
+  },
+  "cards": {
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "@request.auth.id != \"\"",
+    "deleteRule": "@request.auth.id != \"\"",
+    "notes": "Shared card catalog. Any authenticated user may create/update catalog rows used as relations."
+  },
+  "collection_items": {
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "userCollectionId.userId = @request.auth.id",
+    "updateRule": "userCollectionId.userId = @request.auth.id",
+    "deleteRule": "userCollectionId.userId = @request.auth.id",
+    "notes": "List/view open to authenticated users for multi-collection browse. CUD owner-only."
+  },
+  "decks": {
+    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId"
+  },
+  "imports": {
+    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId"
+  },
+  "wishlist": {
+    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id",
+    "notes": "Private to owner. Do not use tautology list rules such as (@request.auth.id = userId || @request.auth.id != \"\")."
+  },
+  "legal": {
+    "listRule": "userId = @request.auth.id",
+    "viewRule": "userId = @request.auth.id",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id",
+    "notes": "GDPR consent records are private to the owner."
+  }
+}

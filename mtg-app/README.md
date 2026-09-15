@@ -10,7 +10,7 @@ Application web (PWA) pour gérer une collection Magic: The Gathering : import/e
 - **Wishlist** — Liste de cartes recherchées avec recherche Scryfall
 - **Statistiques** — Valeur estimée (MTGJSON / Scryfall), répartitions par couleur, rareté, édition
 - **Scan** — Détection de carte (OpenCV), OCR du nom (Tesseract), reconnaissance d’édition (logos Scryfall)
-- **Profil** — Avatar, pseudonyme, langue de recherche, changement de mot de passe, historique des imports
+- **Profil** — Avatar, pseudonyme, langue, mot de passe, imports, suppression de compte
 - **Administration** — Gestion des utilisateurs et des rôles (page `/admin`, rôle `admin`)
 - **PWA** — Installable sur mobile/desktop, service worker en production
 - **RGPD** — Consentement au premier login, politique de confidentialité
@@ -30,10 +30,10 @@ npm install
 
 ### Variables d'environnement
 
-Créez un fichier `.env.local` à la racine de `mtg-app` :
+Créez un fichier `.env.local` à la racine de `mtg-app` (modèle : `.env.example`) :
 
 ```env
-# URL de l'instance PocketBase (recommandé en dev)
+# URL de l'instance PocketBase (obligatoire)
 VITE_POCKETBASE_URL=http://127.0.0.1:8090
 
 # API backend pour les prix MTGJSON (optionnel)
@@ -43,7 +43,7 @@ VITE_PRICE_API_URL=
 VITE_SENTRY_DSN=
 ```
 
-Sans `VITE_POCKETBASE_URL`, l'app utilise une URL par défaut selon le protocole de la page (voir `src/services/pocketbase.ts`).
+Sans `VITE_POCKETBASE_URL`, le serveur de dev et le build refusent de démarrer.
 
 ### Premier administrateur
 

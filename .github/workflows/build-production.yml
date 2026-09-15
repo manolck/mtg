@@ -34,6 +34,15 @@ jobs:
       - name: Run tests
         run: npm test -- --watchAll=false --coverage=false
 
+      - name: Require production PocketBase URL
+        run: |
+          if [ -z "$VITE_POCKETBASE_URL" ]; then
+            echo "Secret VITE_POCKETBASE_URL is required for production builds"
+            exit 1
+          fi
+        env:
+          VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL }}
+
       - name: Build for production
         run: npm run build
         env:

@@ -1,5 +1,6 @@
 // src/services/deckService.ts
 import { pb } from './pocketbase';
+import { pbEqual } from '../utils/pocketbaseFilter';
 import type { Deck, DeckCard } from '../types/deck';
 
 /**
@@ -45,7 +46,7 @@ function recordToDeck(record: any): Deck {
  */
 export async function getDecks(userId: string): Promise<Deck[]> {
   const records = await pb.collection('decks').getFullList({
-    filter: `userId = "${userId}"`,
+    filter: pbEqual('userId', userId),
     sort: '-created',
   });
 

@@ -1,5 +1,6 @@
 // src/services/importService.ts
 import { pb } from './pocketbase';
+import { pbEqual } from '../utils/pocketbaseFilter';
 import type { ImportJob, ImportStatus, ImportReport } from '../types/import';
 
 /**
@@ -55,7 +56,7 @@ function recordToImportJob(record: any): ImportJob {
  */
 export async function getImports(userId: string): Promise<ImportJob[]> {
   const records = await pb.collection('imports').getFullList({
-    filter: `userId = "${userId}"`,
+    filter: pbEqual('userId', userId),
     sort: '-created',
     limit: 50,
   });

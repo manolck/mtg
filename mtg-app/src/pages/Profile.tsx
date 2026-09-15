@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../hooks/useProfile';
 import { useImports } from '../hooks/useImports';
 import { useCollection } from '../hooks/useCollection';
@@ -18,6 +19,7 @@ import { ProgressBar } from '../components/UI/ProgressBar';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { AVATARS } from '../data/avatars';
 import { pb } from '../services/pocketbase';
+import { deleteUserAccount } from '../services/adminAuth';
 import type { ImportJob } from '../types/import';
 
 export function Profile() {
@@ -43,7 +45,8 @@ export function Profile() {
     refresh: refreshUserCollections,
   } = useUserCollections();
   const { showSuccess, showError } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [_showCancelImportConfirm, _setShowCancelImportConfirm] = useState(false);
   const [showDeleteImportConfirm, setShowDeleteImportConfirm] = useState<string | null>(null);
   const [pseudonym, setPseudonym] = useState('');
@@ -74,6 +77,8 @@ export function Profile() {
   const [mergeSourceIds, setMergeSourceIds] = useState<string[]>([]);
   const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [merging, setMerging] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Charger le nombre de cartes par collection
   useEffect(() => {
@@ -486,6 +491,21 @@ export function Profile() {
     }
   };
 
+  async function handleDeleteAccount() {
+    if (!currentUser) return;
+    try {
+      setDeletingAccount(true);
+      await deleteUserAccount(currentUser.uid);
+      await logout();
+      navigate('/login', { replace: true });
+    } catch {
+      showError('Impossible de supprimer le compte. Réessayez ou contactez un administrateur.');
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteAccountConfirm(false);
+    }
+  }
+
   const activeImports = imports.filter(imp => 
     imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
   );
@@ -715,6 +735,23 @@ export function Profile() {
               </p>
             </div>
           )}
+        </div>
+
+        <div className="border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <h2 className="text-xl font-semibold text-red-700 dark:text-red-400 mb-2">
+            Zone de danger
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            La suppression du compte efface définitivement votre profil, collections, decks, wishlist, imports et consentements.
+          </p>
+          <Button
+            variant="danger"
+            onClick={() => setShowDeleteAccountConfirm(true)}
+            disabled={deletingAccount}
+            loading={deletingAccount}
+          >
+            Supprimer mon compte
+          </Button>
         </div>
 
         {/* Gestion de la collection */}
@@ -1221,6 +1258,17 @@ export function Profile() {
         variant="danger"
         onConfirm={handleConfirmDeleteImport}
         onCancel={() => setShowDeleteImportConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={showDeleteAccountConfirm}
+        title="Supprimer votre compte"
+        message="Cette action est irréversible. Toutes vos données (collection, decks, wishlist, imports) seront définitivement supprimées."
+        confirmText="Supprimer définitivement"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setShowDeleteAccountConfirm(false)}
       />
     </div>
   );
