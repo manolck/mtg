@@ -23,7 +23,11 @@
     "test-scraping": "node scripts/test-scraping.js",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
     "build-scryfall-dictionary": "node --max-old-space-size=8192 scripts/build-scryfall-dictionary.cjs",
-    "test:scan-ocr": "node scripts/scan-ocr-benchmark.mjs --runs=10"
+    "test:scan-ocr": "node scripts/scan-ocr-benchmark.mjs --runs=10",
+    "test:scan-ocr-webcam": "node scripts/scan-ocr-webcam-benchmark.mjs --runs=10",
+    "ocr:sidecar": "python scripts/rapidocr_sidecar.py",
+    "ocr:live": "node scripts/live-webcam-server.mjs",
+    "test:rapidocr-crops": "node scripts/rapidocr-crop-bench.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",
@@ -60,7 +64,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "lighthouse": "^13.0.1",
     "postcss": "^8.5.6",
-    "sharp": "^0.34.0",
+    "sharp": "^0.34.5",
     "stream-json": "^1.9.1",
     "tailwindcss": "^3.4.19",
     "ts-jest": "^29.1.1",

@@ -340,6 +340,7 @@ export function CardScanWizard() {
             fromDict = await resolveOcrToDictionaryBestOf([
               result.textAuto,
               result.textInverted,
+              ...(result.candidates ?? []),
             ]);
           } catch {
             // Dictionnaire indisponible (ex. 404), on utilise le fallback Magic Corporation
