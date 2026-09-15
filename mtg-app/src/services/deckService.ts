@@ -52,18 +52,55 @@ export async function getDecks(userId: string): Promise<Deck[]> {
   return records.map(recordToDeck);
 }
 
+/** Extrait un message lisible depuis une erreur PocketBase (ClientResponseError) ou autre */
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  if (err && typeof err === 'object' && 'response' in err) {
+    const res = (err as { response?: { message?: string; data?: Record<string, { message?: string }> } }).response;
+    if (res?.message) return res.message;
+    // Erreurs de validation PocketBase (ex. res.data.userId.message)
+    if (res?.data && typeof res.data === 'object') {
+      const first = Object.values(res.data).find((v) => v && typeof v === 'object' && 'message' in v);
+      const msg = first && typeof (first as { message?: string }).message === 'string' ? (first as { message: string }).message : null;
+      if (msg) return msg;
+    }
+  }
+  return '';
+}
+
 /**
  * Crée un nouveau deck
  */
 export async function createDeck(userId: string, name: string): Promise<Deck> {
+  const deckName = typeof name === 'string' ? name.trim() : '';
+  if (!deckName) {
+    throw new Error('Le nom du deck ne peut pas être vide');
+  }
+  // La createRule PocketBase exige @request.auth.id = userId : il faut que la requête soit faite avec une session valide
+  if (!pb.authStore.isValid || !pb.authStore.model?.id) {
+    throw new Error('Session expirée ou invalide. Reconnectez-vous pour créer un deck.');
+  }
+  const uid = pb.authStore.model.id as string;
+
   const deckData = cleanForPocketBase({
-    userId,
-    name,
-    cards: [],
+    userId: uid,
+    name: deckName,
+    cards: [] as DeckCard[],
   });
 
-  const record = await pb.collection('decks').create(deckData);
-  return recordToDeck(record);
+  try {
+    const record = await pb.collection('decks').create(deckData);
+    return recordToDeck(record);
+  } catch (err: unknown) {
+    const msg = getErrorMessage(err);
+    const message =
+      typeof msg === 'string' && msg.length > 0 && msg !== 'Something went wrong.'
+        ? msg
+        : 'Impossible de créer le deck. Vérifiez votre connexion et les droits.';
+    throw new Error(message);
+  }
 }
 
 /**

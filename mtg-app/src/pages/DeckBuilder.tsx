@@ -43,9 +43,11 @@ export function DeckBuilder() {
           } else {
             // Si la carte n'est pas dans la collection, essayer de la charger depuis PocketBase
             try {
-              const cardRecord = await pb.collection('collection').getOne(deckCard.cardId);
-              if (cardRecord) {
-                const card = collectionService.recordToUserCard(cardRecord);
+              const itemRecord = await pb.collection('collection_items').getOne(deckCard.cardId, {
+                expand: 'cardId,userCollectionId',
+              });
+              if (itemRecord) {
+                const card = collectionService.recordToUserCard(itemRecord);
                 card.quantity = deckCard.quantity; // Utiliser la quantité du deck
                 deckCardsData.push(card);
               }

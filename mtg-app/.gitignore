@@ -26,9 +26,11 @@ dist-ssr
 #big files
 mtg-app/all-cards-*.json
 
-# Environment variables
+# Environment variables (ne jamais committer de secrets)
 .env
 .env.local
+.env.*.local
+.env.production
 .env.production.local
 .env.development.local
 

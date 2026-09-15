@@ -37,7 +37,9 @@ export function useDecks() {
 
   async function createDeck(name: string): Promise<string> {
     if (!currentUser) {
-      throw new Error('User not authenticated');
+      const msg = 'Vous devez être connecté pour créer un deck';
+      setError(msg);
+      throw new Error(msg);
     }
 
     try {
@@ -47,7 +49,8 @@ export function useDecks() {
       return deck.id;
     } catch (err) {
       console.error('Error creating deck:', err);
-      setError('Erreur lors de la création du deck');
+      const message = err instanceof Error ? err.message : 'Erreur lors de la création du deck';
+      setError(message);
       throw err;
     }
   }

@@ -26,18 +26,27 @@ export function useAllCollections() {
       setLoading(true);
       setError(null);
 
-      // Récupérer toutes les cartes
-      const result = await collectionService.getAllCollections(1, 1000); // Récupérer beaucoup pour compter
-      
-      // Grouper par userId pour compter les cartes par utilisateur
+      // Paginer sur toutes les pages pour compter correctement (au-delà de 1000 cartes)
+      const perPage = 500;
+      const first = await collectionService.getAllCollections(1, perPage);
       const userMap = new Map<string, number>();
-      
-      result.items.forEach((card) => {
+
+      first.items.forEach((card) => {
         const userId = card.userId;
         if (userId) {
           userMap.set(userId, (userMap.get(userId) || 0) + 1);
         }
       });
+
+      for (let page = 2; page <= first.totalPages; page++) {
+        const result = await collectionService.getAllCollections(page, perPage);
+        result.items.forEach((card) => {
+          const userId = card.userId;
+          if (userId) {
+            userMap.set(userId, (userMap.get(userId) || 0) + 1);
+          }
+        });
+      }
 
       const ownersData: CollectionOwner[] = [];
 

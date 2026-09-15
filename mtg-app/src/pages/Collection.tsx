@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useDeferredValue, startTransition, useCallba
 import { flushSync } from 'react-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useAllCollections } from '../hooks/useAllCollections';
+import { useUserCollections } from '../hooks/useUserCollections';
 import { useDecks } from '../hooks/useDecks';
 import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
@@ -11,19 +12,25 @@ import { CardDisplay } from '../components/Card/CardDisplay';
 import { Button } from '../components/UI/Button';
 import { SearchInput } from '../components/UI/SearchInput';
 import { findKeyword, findKeywordAction, findAbilityWord, cardHasKeyword } from '../utils/keywordSearch';
+import { normalizeSearchQueryToEnglish } from '../services/searchQueryNormalizer';
+import { searchMatchesText } from '../utils/fuzzyMatch';
 import { Modal } from '../components/UI/Modal';
-import { ProgressBar } from '../components/UI/ProgressBar';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
 import { Spinner } from '../components/UI/Spinner';
-import { ConfirmDialog } from '../components/UI/ConfirmDialog';
+import { Link } from 'react-router-dom';
 
 export function Collection() {
   const { currentUser } = useAuth();
   const { owners, loading: loadingOwners } = useAllCollections();
+  const { collections: userCollections, loading: loadingUserCollections } = useUserCollections(currentUser?.uid ?? undefined);
   const { showSuccess } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  
+  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
+  const effectiveCollectionId = isViewingOwnCollection ? selectedCollectionId : undefined;
   
   const { 
     cards, 
@@ -31,23 +38,17 @@ export function Collection() {
     loading,
     loadingMore,
     error, 
-    importCSV, 
     deleteCard,
-    deleteAllCards, 
     updateCardQuantity,
-    importProgress,
+    updateCard,
     canModify,
-    pauseImport,
-    resumeImport,
-    cancelImport,
-    isImportPaused,
     loadMoreCards,
     hasMoreCards
-  } = useCollection(selectedUserId === 'all' ? 'all' : (selectedUserId || undefined));
+  } = useCollection(
+    selectedUserId === 'all' ? 'all' : (selectedUserId || undefined),
+    effectiveCollectionId ?? undefined
+  );
   const { decks, createDeck, addCardToDeck } = useDecks();
-  
-  // Déterminer si on regarde sa propre collection
-  const isViewingOwnCollection = !selectedUserId || selectedUserId === currentUser?.uid;
   
   const { addItem: addToWishlist, removeItem: removeFromWishlist, checkIfInWishlist, items: wishlistItems } = useWishlist(
     isViewingOwnCollection ? currentUser?.uid : undefined
@@ -55,11 +56,6 @@ export function Collection() {
   
   const [showExportModal, setShowExportModal] = useState(false);
   const [showDeckModal, setShowDeckModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importMode, setImportMode] = useState<'add' | 'update'>('add');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // États pour la recherche et les filtres
@@ -75,61 +71,51 @@ export function Collection() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [newDeckName, setNewDeckName] = useState('');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+  const [cardToMove, setCardToMove] = useState<import('../types/card').UserCard | null>(null);
+  const [moveTargetCollectionId, setMoveTargetCollectionId] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
 
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
+  const myOwner = owners.find(o => o.userId === currentUser?.uid);
+  const selectedCollection = userCollections.find((c) => c.id === selectedCollectionId);
+  const [userSelectOpen, setUserSelectOpen] = useState(false);
+  const userSelectRef = useRef<HTMLDivElement>(null);
 
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setImporting(true);
-      const text = await file.text();
-      // Ne pas fermer le modal immédiatement, il se fermera automatiquement à 100%
-      await importCSV(text, importMode === 'update');
-      showSuccess('Import terminé avec succès');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (err) {
-      errorHandler.handleAndShowError(err);
-      // Fermer le modal en cas d'erreur
-      setShowImportModal(false);
-    } finally {
-      setImporting(false);
-    }
-  }, [importMode, importCSV, showSuccess]);
-
-  // Fermer automatiquement le modal d'import quand l'import est terminé à 100%
   useEffect(() => {
-    if (importProgress && importProgress.current >= importProgress.total && importProgress.total > 0) {
-      // L'import est terminé, fermer le modal après un court délai pour voir le message de succès
-      const timer = setTimeout(() => {
-        setShowImportModal(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }, 1000); // 1 seconde pour voir le message "Terminé"
-      
-      return () => clearTimeout(timer);
+    function handleClickOutside(event: MouseEvent) {
+      if (userSelectRef.current && !userSelectRef.current.contains(event.target as Node)) {
+        setUserSelectOpen(false);
+      }
     }
-  }, [importProgress]);
-
-  const handleDeleteAll = useCallback(async () => {
-    try {
-      await deleteAllCards();
-      showSuccess('Collection supprimée');
-      setShowDeleteConfirm(false);
-    } catch (err) {
-      errorHandler.handleAndShowError(err);
-    }
-  }, [deleteAllCards, showSuccess]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddToDeck = useCallback((cardId: string) => {
     setSelectedCardId(cardId);
     setShowDeckModal(true);
   }, []);
+
+  const handleMoveToCollection = useCallback((card: import('../types/card').UserCard) => {
+    setCardToMove(card);
+    setMoveTargetCollectionId(null);
+  }, []);
+
+  const handleConfirmMoveToCollection = useCallback(async () => {
+    if (!cardToMove || !moveTargetCollectionId || !canModify) return;
+    try {
+      setMoving(true);
+      await updateCard(cardToMove.id, { collectionId: moveTargetCollectionId });
+      setCardToMove(null);
+      setMoveTargetCollectionId(null);
+      showSuccess('Carte déplacée dans l\'autre collection');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setMoving(false);
+    }
+  }, [cardToMove, moveTargetCollectionId, canModify, updateCard, showSuccess]);
 
   const handleToggleWishlist = useCallback(async (card: import('../types/card').UserCard) => {
     if (!isViewingOwnCollection) return;
@@ -239,45 +225,54 @@ export function Collection() {
   const filteredCards = useMemo(() => {
     let filtered = [...allCards];
 
-    // Filtre par nom (recherche) et/ou mots-clés
+    // Filtre par nom (recherche) et/ou mots-clés — même résultats en français ou anglais (ex. "bâton" = "staff")
     if (deferredSearchQuery.trim()) {
       const query = deferredSearchQuery.toLowerCase();
+      const normalizedQuery = normalizeSearchQueryToEnglish(deferredSearchQuery).toLowerCase();
+      const queryVariants = [query];
+      if (normalizedQuery !== query) queryVariants.push(normalizedQuery);
+
       const keyword = findKeyword(deferredSearchQuery);
       const keywordAction = findKeywordAction(deferredSearchQuery);
       const abilityWord = findAbilityWord(deferredSearchQuery);
-      
+
       filtered = filtered.filter(card => {
-        const nameMatch = card.name.toLowerCase().includes(query);
-        const subtypes = card.mtgData?.subtypes || [];
-        const creatureTypeMatch = subtypes.some(subtype => 
-          subtype.toLowerCase().includes(query)
-        );
-        
-        let keywordMatch = false;
-        if (keyword || keywordAction || abilityWord) {
-          const cardText = card.mtgData?.text || '';
-          const cardType = card.mtgData?.type || '';
-          const cardName = card.name || '';
-          const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`.toLowerCase();
-          
-          if (keyword) {
-            keywordMatch = cardHasKeyword(fullText, keyword);
-          } else if (keywordAction) {
-            keywordMatch = fullText.includes(keywordAction.en.toLowerCase()) || 
-                          fullText.includes(keywordAction.fr.toLowerCase());
-          } else if (abilityWord) {
-            keywordMatch = fullText.includes(abilityWord.en.toLowerCase()) || 
-                          fullText.includes(abilityWord.fr.toLowerCase());
-          }
-        }
-        
+        const cardName = card.name || '';
         const cardText = card.mtgData?.text || '';
         const cardType = card.mtgData?.type || '';
-        const cardName = card.name || '';
-        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`.toLowerCase();
-        const textMatch = fullText.includes(query);
-        
-        return nameMatch || creatureTypeMatch || keywordMatch || textMatch;
+        const subtypes = card.mtgData?.subtypes || [];
+        const fullText = `${cardName} ${cardText} ${cardType} ${subtypes.join(' ')}`;
+
+        const nameMatch =
+          queryVariants.some(q => cardName.toLowerCase().includes(q)) ||
+          queryVariants.some(q => searchMatchesText(cardName, q));
+
+        const creatureTypeMatch = subtypes.some(subtype => {
+          const st = subtype.toLowerCase();
+          return (
+            queryVariants.some(q => st.includes(q.toLowerCase())) ||
+            queryVariants.some(q => searchMatchesText(subtype, q))
+          );
+        });
+
+        let keywordMatch = false;
+        if (keyword || keywordAction || abilityWord) {
+          const fullTextLower = fullText.toLowerCase();
+          if (keyword) {
+            keywordMatch = cardHasKeyword(fullTextLower, keyword);
+          } else if (keywordAction) {
+            keywordMatch = fullTextLower.includes(keywordAction.en.toLowerCase()) ||
+                          fullTextLower.includes(keywordAction.fr.toLowerCase());
+          } else if (abilityWord) {
+            keywordMatch = fullTextLower.includes(abilityWord.en.toLowerCase()) ||
+                          fullTextLower.includes(abilityWord.fr.toLowerCase());
+          }
+        }
+
+        const exactTextMatch = queryVariants.some(q => fullText.toLowerCase().includes(q));
+        const fuzzyTextMatch = queryVariants.some(q => searchMatchesText(fullText, q));
+
+        return nameMatch || creatureTypeMatch || keywordMatch || exactTextMatch || fuzzyTextMatch;
       });
     }
 
@@ -497,40 +492,132 @@ export function Collection() {
             {isViewingAllCollections 
               ? 'Toutes les Collections' 
               : isViewingOwnCollection 
-                ? 'Ma Collection' 
+                ? (selectedCollectionId ? (selectedCollection?.name ?? 'Collection') : 'Toutes mes collections')
                 : `Collection de ${currentOwner?.profile?.pseudonym || 'Utilisateur'}`}
             {filteredCards.length > 0 && ` (${filteredCards.length}${filteredCards.length !== allCards.length ? ` / ${allCards.length}` : ''})`}
           </h1>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4" ref={userSelectRef}>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Sélectionner une collection :
+            Utilisateur :
           </label>
-          <select
-            value={selectedUserId === 'all' ? 'all' : selectedUserId || currentUser?.uid || ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSelectedUserId(value === 'all' ? 'all' : value === currentUser?.uid ? null : value);
-            }}
-            className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value={currentUser?.uid || ''}>
-              Ma Collection
-            </option>
-            <option value="all">Toutes les Collections</option>
-            {owners
-              .filter(o => o.userId !== currentUser?.uid)
-              .map((owner) => (
-                <option key={owner.userId} value={owner.userId}>
-                  {owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'} ({owner.cardCount} cartes)
-                </option>
-              ))}
-          </select>
+          <div className="relative w-full max-w-md">
+            <button
+              type="button"
+              onClick={() => setUserSelectOpen((o) => !o)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left"
+            >
+              {selectedUserId === 'all' ? (
+                <>
+                  <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-lg" aria-hidden>📚</span>
+                  <span className="flex-1">Toutes les Collections</span>
+                </>
+              ) : (
+                <>
+                  {currentOwner?.profile?.avatarId ? (
+                    <AvatarDisplay avatarId={currentOwner.profile.avatarId} size="md" />
+                  ) : (
+                    <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                  )}
+                  <span className="flex-1">
+                    {currentOwner?.profile?.pseudonym || currentOwner?.profile?.email || currentUser?.email || 'Moi'}
+                    {currentOwner?.cardCount != null && ` (${currentOwner.cardCount} cartes)`}
+                  </span>
+                </>
+              )}
+              <svg className={`w-5 h-5 text-gray-500 transition-transform ${userSelectOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {userSelectOpen && (
+              <ul
+                className="absolute z-20 mt-1 w-full py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto"
+                role="listbox"
+              >
+                <li
+                  role="option"
+                  aria-selected={(selectedUserId || currentUser?.uid) === currentUser?.uid}
+                  onClick={() => {
+                    setSelectedUserId(null);
+                    setUserSelectOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {myOwner?.profile?.avatarId ? (
+                    <AvatarDisplay avatarId={myOwner.profile.avatarId} size="sm" />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                  )}
+                  <span>{myOwner?.profile?.pseudonym || myOwner?.profile?.email || currentUser?.email || 'Moi'}</span>
+                  {myOwner?.cardCount != null && <span className="text-gray-500 dark:text-gray-400 text-sm">({myOwner.cardCount} cartes)</span>}
+                </li>
+                <li
+                  role="option"
+                  aria-selected={selectedUserId === 'all'}
+                  onClick={() => {
+                    setSelectedUserId('all');
+                    setUserSelectOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>📚</span>
+                  <span>Toutes les Collections</span>
+                </li>
+                {owners
+                  .filter((o) => o.userId !== currentUser?.uid)
+                  .map((owner) => (
+                    <li
+                      key={owner.userId}
+                      role="option"
+                      aria-selected={selectedUserId === owner.userId}
+                      onClick={() => {
+                        setSelectedUserId(owner.userId);
+                        setSelectedCollectionId(null);
+                        setUserSelectOpen(false);
+                      }}
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      {owner.profile?.avatarId ? (
+                        <AvatarDisplay avatarId={owner.profile.avatarId} size="sm" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                      )}
+                      <span>{owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'}</span>
+                      <span className="text-gray-500 dark:text-gray-400 text-sm">({owner.cardCount} cartes)</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
         </div>
+
+        {isViewingOwnCollection && !isViewingAllCollections && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Quelle collection ?
+            </label>
+            <select
+              value={selectedCollectionId ?? ''}
+              onChange={(e) => setSelectedCollectionId(e.target.value === '' ? null : e.target.value)}
+              className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Toutes mes collections</option>
+              {loadingUserCollections ? (
+                <option disabled>Chargement...</option>
+              ) : (
+                userCollections.map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* 2. Boutons pour exporter, ajouter des cartes, supprimer la collection */}
+      {/* 2. Bouton exporter (ajout/suppression de cartes sont dans le Profil) */}
       {isViewingOwnCollection && !isViewingAllCollections && (
         <div className="mb-6 flex gap-2 flex-wrap">
           <Button
@@ -540,20 +627,6 @@ export function Collection() {
           >
             Exporter la collection
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setShowImportModal(true)}
-          >
-            Ajouter des cartes
-          </Button>
-          {cards.length > 0 && (
-            <Button
-              variant="danger"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Supprimer la collection
-            </Button>
-          )}
         </div>
       )}
 
@@ -793,49 +866,6 @@ export function Collection() {
         </div>
       )}
 
-      {importProgress && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Import en cours...
-              </h3>
-              <div className="flex gap-2">
-                {isImportPaused ? (
-                  <Button
-                    variant="primary"
-                    onClick={() => resumeImport()}
-                    className="text-sm px-2 py-1"
-                  >
-                    Reprendre
-                  </Button>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => pauseImport()}
-                    className="text-sm px-2 py-1"
-                  >
-                    Pause
-                  </Button>
-                )}
-                <Button
-                  variant="danger"
-                  onClick={() => cancelImport()}
-                  className="text-sm px-2 py-1"
-                >
-                  Annuler
-                </Button>
-              </div>
-            </div>
-            <ProgressBar
-              current={importProgress.current}
-              total={importProgress.total}
-              label={importProgress.currentCard || (isImportPaused ? 'En pause...' : 'Traitement...')}
-            />
-          </div>
-        </div>
-      )}
-
       {showLoadingMore && (
         <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
           <Spinner size="md" />
@@ -846,14 +876,14 @@ export function Collection() {
       )}
 
       {/* 4. Affichage des cartes */}
-      {cards.length === 0 && !importing && !importProgress ? (
+      {cards.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
             {isViewingOwnCollection ? 'Votre collection est vide.' : 'Cette collection est vide.'}
           </p>
           {isViewingOwnCollection && (
             <p className="text-gray-500 dark:text-gray-500 text-sm mb-4">
-              Importez un fichier CSV pour commencer.
+              Allez dans votre <Link to="/profile" className="text-blue-600 dark:text-blue-400 hover:underline">Profil</Link> pour ajouter des cartes (import CSV).
             </p>
           )}
         </div>
@@ -880,9 +910,8 @@ export function Collection() {
         </div>
       ) : cardsByNameMap ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {(cardsByNameMap?.deduplicatedCards || []).map((card) => {
+          {(cardsByNameMap?.deduplicatedCards || []).map((card, index) => {
             const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
-            
             return (
               <CardDisplay
                 key={card.id}
@@ -893,7 +922,9 @@ export function Collection() {
                 isInWishlist={isCardInWishlist(card)}
                 onDelete={canModify ? deleteCard : undefined}
                 onUpdateQuantity={canModify ? updateCardQuantity : undefined}
+                onMoveToCollection={canModify && userCollections.length >= 2 ? handleMoveToCollection : undefined}
                 showActions={true}
+                imagePriority={index < 5 ? 'high' : 'low'}
               />
             );
           })}
@@ -914,67 +945,60 @@ export function Collection() {
         cards={filteredCards}
       />
 
-      {/* Modal d'import */}
+      {/* Modal déplacer la carte vers une autre collection */}
       <Modal
-        isOpen={showImportModal}
+        isOpen={!!cardToMove}
         onClose={() => {
-          setShowImportModal(false);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
+          setCardToMove(null);
+          setMoveTargetCollectionId(null);
         }}
-        title="Ajouter des cartes à la collection"
+        title="Déplacer la carte"
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-              Mode d'import
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="add"
-                  checked={importMode === 'add'}
-                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
-                  className="text-blue-600"
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  Ajouter à la collection existante
-                </span>
+        {cardToMove && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Choisissez la collection de destination pour <strong className="text-gray-900 dark:text-white">{cardToMove.name}</strong>.
+            </p>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                Collection de destination
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="update"
-                  checked={importMode === 'update'}
-                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
-                  className="text-blue-600"
-                />
-                <span className="text-gray-700 dark:text-gray-300">
-                  Mettre à jour la collection
-                </span>
-              </label>
+              <select
+                value={moveTargetCollectionId ?? ''}
+                onChange={(e) => setMoveTargetCollectionId(e.target.value === '' ? null : e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Choisir une collection</option>
+                {userCollections
+                  .filter((col) => col.id !== cardToMove.collectionId)
+                  .map((col) => (
+                    <option key={col.id} value={col.id}>
+                      {col.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleConfirmMoveToCollection}
+                disabled={!moveTargetCollectionId || moving}
+                loading={moving}
+              >
+                Déplacer
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCardToMove(null);
+                  setMoveTargetCollectionId(null);
+                }}
+                disabled={moving}
+              >
+                Annuler
+              </Button>
             </div>
           </div>
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="csv-upload-modal"
-            />
-            <label htmlFor="csv-upload-modal" className="cursor-pointer">
-              <span className="inline-block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                {importing ? 'Import en cours...' : 'Sélectionner un fichier CSV'}
-              </span>
-            </label>
-          </div>
-        </div>
+        )}
       </Modal>
 
       {/* Modal pour ajouter au deck */}
@@ -1031,17 +1055,6 @@ export function Collection() {
         </div>
       </Modal>
 
-      {/* Dialog de confirmation de suppression */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        title="Supprimer la collection"
-        message="⚠️ Êtes-vous sûr de vouloir supprimer TOUTE votre collection ? Cette action est irréversible."
-        confirmText="Supprimer tout"
-        cancelText="Annuler"
-        variant="danger"
-        onConfirm={handleDeleteAll}
-        onCancel={() => setShowDeleteConfirm(false)}
-      />
     </div>
   );
 }

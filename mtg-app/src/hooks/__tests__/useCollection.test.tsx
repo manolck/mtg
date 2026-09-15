@@ -156,7 +156,7 @@ describe('useCollection', () => {
         expect(result.current.loading).toBe(false);
       }, { timeout: 3000 });
 
-      expect(mockGetCollection).toHaveBeenCalledWith('test-user-id');
+      expect(mockGetCollection).toHaveBeenCalledWith('test-user-id', undefined);
     });
 
     it('should load all collections when userId is "all"', async () => {
@@ -179,7 +179,7 @@ describe('useCollection', () => {
     });
 
     it('should handle loading error gracefully', async () => {
-      mockGetCollection.mockRejectedValue(new Error('Database error'));
+      mockGetCollection.mockRejectedValue(new Error('Firestore error'));
 
       const { result } = renderHook(() => useCollection(), { wrapper });
 

@@ -27,7 +27,8 @@
     "test:scan-ocr-webcam": "node scripts/scan-ocr-webcam-benchmark.mjs --runs=10",
     "ocr:sidecar": "python scripts/rapidocr_sidecar.py",
     "ocr:live": "node scripts/live-webcam-server.mjs",
-    "test:rapidocr-crops": "node scripts/rapidocr-crop-bench.mjs"
+    "test:rapidocr-crops": "node scripts/rapidocr-crop-bench.mjs",
+    "migrate-user-collections": "node scripts/migrate-user-collections.js"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",

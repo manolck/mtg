@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useProfile } from '../hooks/useProfile';
 import { useImports } from '../hooks/useImports';
 import { useCollection } from '../hooks/useCollection';
+import { useUserCollections } from '../hooks/useUserCollections';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { errorHandler } from '../services/errorHandler';
+import * as collectionService from '../services/collectionService';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
@@ -12,14 +14,34 @@ import { Spinner } from '../components/UI/Spinner';
 import { ImportJobCard } from '../components/Import/ImportJobCard';
 import { ImportReportModal } from '../components/Import/ImportReportModal';
 import { Modal } from '../components/UI/Modal';
+import { ProgressBar } from '../components/UI/ProgressBar';
+import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { AVATARS } from '../data/avatars';
 import { pb } from '../services/pocketbase';
 import type { ImportJob } from '../types/import';
 
 export function Profile() {
   const { profile, loading, error, updateProfile } = useProfile();
-  const { imports, loading: loadingImports, updateImportStatus, deleteImport } = useImports();
-  const { importCSV, cancelImport } = useCollection();
+  const { imports, loading: loadingImports, updateImportStatus, deleteImport, loadImports } = useImports();
+  const {
+    cards,
+    importCSV,
+    deleteAllCards,
+    cancelImport,
+    importProgress,
+    pauseImport,
+    resumeImport,
+    isImportPaused,
+    refresh: refreshCollection,
+  } = useCollection();
+  const {
+    collections: userCollections,
+    loading: loadingUserCollections,
+    createCollection,
+    updateCollection,
+    deleteCollection,
+    refresh: refreshUserCollections,
+  } = useUserCollections();
   const { showSuccess, showError } = useToast();
   const { currentUser } = useAuth();
   const [_showCancelImportConfirm, _setShowCancelImportConfirm] = useState(false);
@@ -33,7 +55,54 @@ export function Profile() {
   const [resumeImportId, setResumeImportId] = useState<string | null>(null);
   const [resumeImporting, setResumeImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importMode, setImportMode] = useState<'add' | 'update'>('add');
+  const [importing, setImporting] = useState(false);
+  const [importTargetCollectionId, setImportTargetCollectionId] = useState<string | null>(null);
+  const [showDeleteCollectionConfirm, setShowDeleteCollectionConfirm] = useState(false);
+  const [collectionToDeleteId, setCollectionToDeleteId] = useState<string | null>(null);
+  const newImportFileInputRef = useRef<HTMLInputElement>(null);
+  const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [showRenameCollectionModal, setShowRenameCollectionModal] = useState(false);
+  const [renameCollectionId, setRenameCollectionId] = useState<string | null>(null);
+  const [renameCollectionName, setRenameCollectionName] = useState('');
+  const [renamingCollection, setRenamingCollection] = useState(false);
+  const [collectionCounts, setCollectionCounts] = useState<Record<string, number>>({});
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSourceIds, setMergeSourceIds] = useState<string[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  // Charger le nombre de cartes par collection
+  useEffect(() => {
+    if (!currentUser?.uid || userCollections.length === 0) {
+      setCollectionCounts({});
+      return;
+    }
+    let cancelled = false;
+    collectionService.getCollectionCounts(currentUser.uid).then((counts) => {
+      if (!cancelled) setCollectionCounts(counts);
+    });
+    return () => { cancelled = true; };
+  }, [currentUser?.uid, userCollections]);
+
+  // Recharger les imports à chaque affichage de la page (ex. retour depuis une autre page)
+  useEffect(() => {
+    loadImports();
+  }, [loadImports]);
+
+  // Tant qu'un import est en cours, rafraîchir la liste régulièrement pour mettre à jour la progression
+  const hasActiveImport = imports.some(
+    (imp) => imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
+  );
+  useEffect(() => {
+    if (!hasActiveImport) return;
+    const interval = setInterval(() => loadImports(true), 2500);
+    return () => clearInterval(interval);
+  }, [hasActiveImport, loadImports]);
+
   // État pour le changement de mot de passe
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -92,6 +161,132 @@ export function Profile() {
       showSuccess('Avatar mis à jour');
     } catch (err) {
       errorHandler.handleAndShowError(err);
+    }
+  };
+
+  const handleNewImportFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    let targetId: string | null = importTargetCollectionId;
+    if (userCollections.length > 0 && !targetId) {
+      showError('Veuillez sélectionner une collection de destination.');
+      return;
+    }
+    if (userCollections.length === 0) {
+      try {
+        const created = await createCollection('Ma collection');
+        targetId = created?.id ?? null;
+        await refreshUserCollections();
+      } catch (err) {
+        errorHandler.handleAndShowError(err);
+        return;
+      }
+    }
+    try {
+      setImporting(true);
+      const text = await file.text();
+      await importCSV(text, importMode === 'update', undefined, targetId ?? undefined);
+      showSuccess('Import terminé avec succès');
+      if (newImportFileInputRef.current) {
+        newImportFileInputRef.current.value = '';
+      }
+      refreshCollection();
+      refreshUserCollections();
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+      setShowImportModal(false);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (importProgress && importProgress.current >= importProgress.total && importProgress.total > 0) {
+      const timer = setTimeout(() => {
+        setShowImportModal(false);
+        if (newImportFileInputRef.current) {
+          newImportFileInputRef.current.value = '';
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [importProgress]);
+
+  const handleDeleteCollectionConfirm = async () => {
+    if (!collectionToDeleteId) return;
+    try {
+      await deleteCollection(collectionToDeleteId);
+      showSuccess('Collection supprimée');
+      setShowDeleteCollectionConfirm(false);
+      setCollectionToDeleteId(null);
+      refreshCollection();
+      refreshUserCollections();
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    }
+  };
+
+  const handleMergeCollections = async () => {
+    if (!currentUser?.uid || mergeSourceIds.length < 2 || !mergeTargetId) {
+      showError('Sélectionnez au moins deux collections à fusionner et la collection de destination.');
+      return;
+    }
+    if (mergeSourceIds.includes(mergeTargetId)) {
+      showError('La collection de destination ne doit pas faire partie des collections à fusionner.');
+      return;
+    }
+    try {
+      setMerging(true);
+      await collectionService.mergeCollections(currentUser.uid, mergeSourceIds, mergeTargetId);
+      showSuccess('Collections fusionnées avec succès');
+      setShowMergeModal(false);
+      setMergeSourceIds([]);
+      setMergeTargetId(null);
+      refreshUserCollections();
+      refreshCollection();
+      setCollectionCounts((prev) => {
+        const next = { ...prev };
+        mergeSourceIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const handleCreateCollection = async () => {
+    if (!newCollectionName.trim()) {
+      showError('Nom de la collection requis');
+      return;
+    }
+    try {
+      setCreatingCollection(true);
+      await createCollection(newCollectionName.trim());
+      showSuccess('Collection créée');
+      setShowCreateCollectionModal(false);
+      setNewCollectionName('');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setCreatingCollection(false);
+    }
+  };
+
+  const handleRenameCollection = async () => {
+    if (!renameCollectionId || !renameCollectionName.trim()) return;
+    try {
+      setRenamingCollection(true);
+      await updateCollection(renameCollectionId, renameCollectionName.trim());
+      showSuccess('Collection renommée');
+      setShowRenameCollectionModal(false);
+      setRenameCollectionId(null);
+      setRenameCollectionName('');
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setRenamingCollection(false);
     }
   };
 
@@ -177,12 +372,11 @@ export function Profile() {
     setShowReportModal(true);
   };
 
-  const handleDeleteImport = async (importId: string) => {
+  const handleDeleteImport = (importId: string) => {
     setShowDeleteImportConfirm(importId);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _confirmDeleteImport = async () => {
+  const handleConfirmDeleteImport = async () => {
     if (!showDeleteImportConfirm) return;
     try {
       await deleteImport(showDeleteImportConfirm);
@@ -295,6 +489,9 @@ export function Profile() {
   const activeImports = imports.filter(imp => 
     imp.status === 'running' || imp.status === 'paused' || imp.status === 'pending'
   );
+  // Au retour sur la page, importProgress (useCollection) est null ; on affiche la progression depuis l'import actif rechargé
+  const displayProgress = importProgress ?? activeImports[0]?.progress ?? null;
+  const isLocalImportInProgress = Boolean(importProgress);
   const completedImports = imports.filter(imp => 
     imp.status === 'completed' || imp.status === 'failed' || imp.status === 'cancelled'
   );
@@ -520,6 +717,133 @@ export function Profile() {
           )}
         </div>
 
+        {/* Gestion de la collection */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Gestion de la collection
+          </h2>
+
+          {/* Mes collections */}
+          <div className="mb-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Mes collections
+            </h3>
+            {loadingUserCollections ? (
+              <Spinner size="md" />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Button variant="secondary" onClick={() => setShowCreateCollectionModal(true)}>
+                    Créer une collection
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      if (userCollections.length === 1) {
+                        setImportTargetCollectionId(userCollections[0].id);
+                      } else if (userCollections.length > 1 && !importTargetCollectionId) {
+                        setImportTargetCollectionId(null);
+                      }
+                      setShowImportModal(true);
+                    }}
+                  >
+                    Ajouter des cartes
+                  </Button>
+                  {userCollections.length >= 2 && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setMergeSourceIds([]);
+                        setMergeTargetId(null);
+                        setShowMergeModal(true);
+                      }}
+                    >
+                      Fusionner des collections
+                    </Button>
+                  )}
+                </div>
+                {userCollections.length === 0 ? (
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Aucune collection. Créez une collection pour pouvoir y importer des cartes.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {userCollections.map((col) => (
+                      <li
+                        key={col.id}
+                        className="flex items-center justify-between gap-2 py-2 px-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                      >
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {col.name}
+                          <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
+                            ({collectionCounts[col.id] ?? 0} carte{(collectionCounts[col.id] ?? 0) !== 1 ? 's' : ''})
+                          </span>
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="secondary"
+                            className="text-sm px-2 py-1"
+                            onClick={() => {
+                              setRenameCollectionId(col.id);
+                              setRenameCollectionName(col.name);
+                              setShowRenameCollectionModal(true);
+                            }}
+                          >
+                            Renommer
+                          </Button>
+                          <Button
+                            variant="danger"
+                            className="text-sm px-2 py-1"
+                            onClick={() => {
+                              setCollectionToDeleteId(col.id);
+                              setShowDeleteCollectionConfirm(true);
+                            }}
+                          >
+                            Supprimer
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          {displayProgress && (
+            <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Import en cours...
+                  </h3>
+                  {isLocalImportInProgress && (
+                    <div className="flex gap-2">
+                      {isImportPaused ? (
+                        <Button variant="primary" onClick={() => resumeImport()} className="text-sm px-2 py-1">
+                          Reprendre
+                        </Button>
+                      ) : (
+                        <Button variant="secondary" onClick={() => pauseImport()} className="text-sm px-2 py-1">
+                          Pause
+                        </Button>
+                      )}
+                      <Button variant="danger" onClick={() => cancelImport()} className="text-sm px-2 py-1">
+                        Annuler
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <ProgressBar
+                  current={displayProgress.current}
+                  total={displayProgress.total}
+                  label={displayProgress.currentCard || (isLocalImportInProgress && isImportPaused ? 'En pause...' : 'Traitement...')}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Imports Section */}
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -638,6 +962,266 @@ export function Profile() {
           )}
         </div>
       </Modal>
+
+      {/* Modal ajouter des cartes */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          if (newImportFileInputRef.current) {
+            newImportFileInputRef.current.value = '';
+          }
+        }}
+        title="Ajouter des cartes à la collection"
+      >
+        <div className="space-y-4">
+          {userCollections.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                Collection de destination
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Les cartes du fichier CSV seront ajoutées dans la collection choisie ci-dessous.
+              </p>
+              <select
+                value={importTargetCollectionId ?? ''}
+                onChange={(e) => setImportTargetCollectionId(e.target.value === '' ? null : e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                required
+              >
+                {userCollections.length > 1 && (
+                  <option value="">Choisir une collection</option>
+                )}
+                {userCollections.map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Mode d'import
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="add"
+                  checked={importMode === 'add'}
+                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
+                  className="text-blue-600"
+                />
+                <span className="text-gray-700 dark:text-gray-300">
+                  Ajouter à la collection existante
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="update"
+                  checked={importMode === 'update'}
+                  onChange={(e) => setImportMode(e.target.value as 'add' | 'update')}
+                  className="text-blue-600"
+                />
+                <span className="text-gray-700 dark:text-gray-300">
+                  Mettre à jour la collection
+                </span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <input
+              ref={newImportFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleNewImportFileUpload}
+              className="hidden"
+              id="profile-csv-upload"
+              disabled={userCollections.length > 0 && !importTargetCollectionId}
+            />
+            <label
+              htmlFor="profile-csv-upload"
+              className={`inline-block w-full text-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                userCollections.length > 0 && !importTargetCollectionId
+                  ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+              } ${importing ? 'opacity-70 pointer-events-none' : ''}`}
+            >
+              {importing
+                ? 'Import en cours...'
+                : userCollections.length > 0 && !importTargetCollectionId
+                  ? 'Choisissez d\'abord une collection ci-dessus'
+                  : 'Sélectionner un fichier CSV'}
+            </label>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showCreateCollectionModal}
+        onClose={() => {
+          setShowCreateCollectionModal(false);
+          setNewCollectionName('');
+        }}
+        title="Créer une collection"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Nom de la collection"
+            value={newCollectionName}
+            onChange={(e) => setNewCollectionName(e.target.value)}
+            placeholder="ex. Ma collection, Trade..."
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleCreateCollection} disabled={!newCollectionName.trim()} loading={creatingCollection}>
+              Créer
+            </Button>
+            <Button variant="secondary" onClick={() => setShowCreateCollectionModal(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showMergeModal}
+        onClose={() => {
+          setShowMergeModal(false);
+          setMergeSourceIds([]);
+          setMergeTargetId(null);
+        }}
+        title="Fusionner des collections"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Sélectionnez les collections à fusionner, puis la collection de destination. Les cartes des collections
+            sélectionnées seront déplacées vers la collection de destination (quantités fusionnées si même carte), puis
+            les collections sources seront supprimées.
+          </p>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Collections à fusionner (au moins 2)
+            </label>
+            <ul className="space-y-2">
+              {userCollections.map((col) => (
+                <li key={col.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`merge-src-${col.id}`}
+                    checked={mergeSourceIds.includes(col.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMergeSourceIds((prev) => [...prev, col.id]);
+                      } else {
+                        setMergeSourceIds((prev) => prev.filter((id) => id !== col.id));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor={`merge-src-${col.id}`} className="cursor-pointer text-gray-900 dark:text-white">
+                    {col.name} ({collectionCounts[col.id] ?? 0} cartes)
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Fusionner dans (collection de destination)
+            </label>
+            <select
+              value={mergeTargetId ?? ''}
+              onChange={(e) => setMergeTargetId(e.target.value === '' ? null : e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Choisir une collection</option>
+              {userCollections
+                .filter((col) => !mergeSourceIds.includes(col.id))
+                .map((col) => (
+                  <option key={col.id} value={col.id}>
+                    {col.name} ({collectionCounts[col.id] ?? 0} cartes)
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleMergeCollections}
+              disabled={mergeSourceIds.length < 2 || !mergeTargetId || merging}
+              loading={merging}
+            >
+              Fusionner
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowMergeModal(false);
+                setMergeSourceIds([]);
+                setMergeTargetId(null);
+              }}
+              disabled={merging}
+            >
+              Annuler
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showRenameCollectionModal}
+        onClose={() => {
+          setShowRenameCollectionModal(false);
+          setRenameCollectionId(null);
+          setRenameCollectionName('');
+        }}
+        title="Renommer la collection"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Nom"
+            value={renameCollectionName}
+            onChange={(e) => setRenameCollectionName(e.target.value)}
+            placeholder="Nom de la collection"
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleRenameCollection} disabled={!renameCollectionName.trim()} loading={renamingCollection}>
+              Enregistrer
+            </Button>
+            <Button variant="secondary" onClick={() => setShowRenameCollectionModal(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={showDeleteCollectionConfirm}
+        title="Supprimer cette collection"
+        message="Supprimer cette collection et toutes ses cartes ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={handleDeleteCollectionConfirm}
+        onCancel={() => {
+          setShowDeleteCollectionConfirm(false);
+          setCollectionToDeleteId(null);
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!showDeleteImportConfirm}
+        title="Supprimer cet import"
+        message="Supprimer cet import de l'historique ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+        onConfirm={handleConfirmDeleteImport}
+        onCancel={() => setShowDeleteImportConfirm(null)}
+      />
     </div>
   );
 }

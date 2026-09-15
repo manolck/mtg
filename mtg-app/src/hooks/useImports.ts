@@ -1,5 +1,5 @@
 // src/hooks/useImports.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as importService from '../services/importService';
 import { useAuth } from './useAuth';
 import type { ImportJob, ImportStatus, ImportReport } from '../types/import';
@@ -10,22 +10,13 @@ export function useImports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (currentUser) {
-      loadImports();
-    } else {
-      setImports([]);
-      setLoading(false);
-    }
-  }, [currentUser]);
-
-  async function loadImports() {
+  const loadImports = useCallback(async (silent = false) => {
     if (!currentUser) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const importsData = await importService.getImports(currentUser.uid);
-      
+
       // Trier par date de création (plus récent en premier)
       importsData.sort((a, b) => {
         const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
@@ -39,9 +30,18 @@ export function useImports() {
       console.error('Error loading imports:', err);
       setError(`Erreur lors du chargement des imports: ${err.message || 'Erreur inconnue'}`);
     } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadImports();
+    } else {
+      setImports([]);
       setLoading(false);
     }
-  }
+  }, [currentUser, loadImports]);
 
   async function createImport(mode: 'add' | 'update', csvContentHash: string, totalCards: number, csvContent?: string): Promise<string> {
     if (!currentUser) {

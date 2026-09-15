@@ -13,9 +13,12 @@ interface CardDisplayProps {
   isInWishlist?: boolean; // Indique si la carte est déjà dans la wishlist
   onDelete?: (cardId: string) => void;
   onUpdateQuantity?: (cardId: string, quantity: number) => void;
+  onMoveToCollection?: (card: UserCard) => void;
   onEdit?: (card: UserCard) => void; // Pour ouvrir un menu d'édition personnalisé
   showQuantity?: boolean;
   showActions?: boolean;
+  /** Priorité de chargement de l'image (high = premières cartes de la grille) */
+  imagePriority?: 'high' | 'low';
 }
 
 export const CardDisplay = memo(function CardDisplay({ 
@@ -26,8 +29,10 @@ export const CardDisplay = memo(function CardDisplay({
   isInWishlist = false,
   onDelete,
   onUpdateQuantity,
+  onMoveToCollection,
   onEdit,
-  showActions = false 
+  showActions = false,
+  imagePriority = 'low',
 }: CardDisplayProps) {
   const { profile } = useProfile();
   const preferredLanguage = profile?.preferredLanguage || 'en';
@@ -65,8 +70,9 @@ export const CardDisplay = memo(function CardDisplay({
       }
     }
     
+    const displayName = (name || card.name || '').trim() || 'Carte sans nom';
     return {
-      cardName: name,
+      cardName: displayName,
       imageUrl: image,
       backImageUrl: backImage,
     };
@@ -180,7 +186,7 @@ export const CardDisplay = memo(function CardDisplay({
                   alt={`${cardName} - Face avant`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  priority="low"
+                  priority={imagePriority}
                   showPlaceholder={false}
                 />
               </div>
@@ -198,7 +204,7 @@ export const CardDisplay = memo(function CardDisplay({
                   alt={`${cardName} - Face arrière`}
                   className="w-full h-full object-contain"
                   style={{ borderRadius: '15px' }}
-                  priority="low"
+                  priority={imagePriority}
                   showPlaceholder={false}
                 />
               </div>
@@ -214,7 +220,7 @@ export const CardDisplay = memo(function CardDisplay({
             alt={cardName}
             className="w-full h-full object-contain"
             style={{ borderRadius: '15px' }}
-            priority="low"
+            priority={imagePriority}
             showPlaceholder={false}
           />
         ) : (
@@ -300,7 +306,22 @@ export const CardDisplay = memo(function CardDisplay({
         )}
 
         {/* Boutons d'action en haut à droite - visibles au survol */}
-        <div className={`absolute top-2 ${onAddToWishlist ? 'right-12' : 'right-2'} flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`absolute top-2 ${(onAddToWishlist || onMoveToCollection) ? 'right-12' : 'right-2'} flex gap-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-0'}`}>
+          {/* Bouton Déplacer vers une autre collection */}
+          {onMoveToCollection && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToCollection(card);
+              }}
+              className="w-8 h-8 rounded-full bg-white/30 dark:bg-gray-800/30 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors"
+              title="Déplacer vers une autre collection"
+            >
+              <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </button>
+          )}
           {/* Bouton Ajouter au deck */}
           {onAddToDeck && (
             <button
@@ -501,6 +522,7 @@ export const CardDisplay = memo(function CardDisplay({
     prevProps.card.ownerProfile?.pseudonym === nextProps.card.ownerProfile?.pseudonym &&
     prevProps.showActions === nextProps.showActions &&
     prevProps.showQuantity === nextProps.showQuantity &&
+    prevProps.imagePriority === nextProps.imagePriority &&
     prevProps.isInWishlist === nextProps.isInWishlist &&
     // Comparer les références des fonctions (elles ne devraient pas changer)
     prevProps.onAddToDeck === nextProps.onAddToDeck &&
