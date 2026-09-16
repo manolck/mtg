@@ -415,6 +415,51 @@ export async function updateCardQuantityInDeck(
   return updateEntryQuantityInDeck(deckId, cardId, quantity, zone);
 }
 
+/**
+ * Replace one printing with another in a zone, preserving quantity.
+ * If the new scryfallId already exists in the zone, merge quantities and remove the old.
+ */
+export async function replaceEntryInDeck(
+  deckId: string,
+  zone: DeckZone,
+  oldScryfallId: string,
+  newEntry: DeckEntry
+): Promise<Deck> {
+  const deck = recordToDeck(await pb.collection('decks').getOne(deckId));
+  const qty = newEntry.quantity || 1;
+
+  if (zone === 'commanders') {
+    const withoutOld = deck.commanders.filter((c) => c.scryfallId !== oldScryfallId);
+    const existing = withoutOld.find((c) => c.scryfallId === newEntry.scryfallId);
+    const commanders = existing
+      ? withoutOld.map((c) =>
+          c.scryfallId === newEntry.scryfallId ? { ...newEntry, quantity: 1 } : c
+        )
+      : [...withoutOld, { ...newEntry, quantity: 1 }].slice(0, 2);
+    return updateDeck(deckId, { commanders });
+  }
+
+  const list = deck.cards[zone] || [];
+  const old = list.find((c) => c.scryfallId === oldScryfallId);
+  const keepQty = old?.quantity ?? qty;
+  const withoutOld = list.filter((c) => c.scryfallId !== oldScryfallId);
+  const existingIdx = withoutOld.findIndex((c) => c.scryfallId === newEntry.scryfallId);
+  let next: DeckEntry[];
+  if (existingIdx >= 0) {
+    next = withoutOld.map((c, i) =>
+      i === existingIdx
+        ? { ...newEntry, quantity: c.quantity + keepQty }
+        : c
+    );
+  } else {
+    next = [...withoutOld, { ...newEntry, quantity: keepQty }];
+  }
+
+  return updateDeck(deckId, {
+    cards: { ...deck.cards, [zone]: next },
+  });
+}
+
 export async function setDeckVisibility(
   deckId: string,
   visibility: DeckVisibility,

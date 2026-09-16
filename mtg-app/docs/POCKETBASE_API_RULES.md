@@ -31,6 +31,8 @@ Cela autorisait **tout utilisateur connecté** à lister toutes les wishlists. L
 
 `user_collections` et `collection_items` restent listables par tout utilisateur authentifié : c’est le comportement de la vue multi-collections. Si la politique de confidentialité change, restreindre `listRule` / `viewRule` à `userId = @request.auth.id` (et `userCollectionId.userId = @request.auth.id`).
 
+Les exports PocketBase **0.22 et antérieurs** utilisent `schema` (options imbriquées). PocketBase **0.23+** n’importe que `fields`. Un import de l’ancien JSON ignore donc `userCollectionId`, et les règles `userCollectionId.userId = @request.auth.id` échouent. Utiliser `pocketbase_schema_export.json` (format `fields`) ou reconvertir avec `node scripts/convert-pb-schema-v23.mjs <ancien.json> <nouveau.json> pocketbase/api-rules.json`.
+
 ## Decks — partage communautaire
 
 Règles versionnées :
@@ -51,4 +53,4 @@ Appliquer aussi le script de migration `scripts/migrate-decks-catalog.js` après
 
 - [SECURITY.md](./SECURITY.md)
 - [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md)
-- Export schéma (champs, pas forcément les règles à jour) : `pocketbase_schema_export.json`
+- Export schéma (format PocketBase 0.23+ `fields`) : `pocketbase_schema_export.json`

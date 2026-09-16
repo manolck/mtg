@@ -21,6 +21,9 @@ import {
 } from '../../services/scryfallDictionaryService';
 import type { ScryfallDictionaryEntry } from '../../services/scryfallDictionaryService';
 import { addCard as addCardToCollection } from '../../services/collectionService';
+import { useDecks } from '../../hooks/useDecks';
+import { mtgCardToDeckEntry } from '../../utils/deckEntry';
+import { DECK_FORMAT_LABELS, type DeckZone } from '../../types/deck';
 import { Button } from '../UI/Button';
 import { Spinner } from '../UI/Spinner';
 import type { MTGCard } from '../../types/card';
@@ -84,6 +87,9 @@ interface WizardState {
   selectedCard: MTGCard | null;
   adding: boolean;
   addSuccess: boolean;
+  /** Message after add-to-deck (optional parallel path) */
+  deckAddSuccess: boolean;
+  deckAddError: string | null;
 }
 
 const initialState: WizardState = {
@@ -102,6 +108,8 @@ const initialState: WizardState = {
   selectedCard: null,
   adding: false,
   addSuccess: false,
+  deckAddSuccess: false,
+  deckAddError: null,
 };
 
 /** Crop canvas to the axis-aligned bounding box of the quad */
@@ -124,7 +132,12 @@ function cropCanvasToQuad(canvas: HTMLCanvasElement, quad: Quadrilateral): HTMLC
 
 export function CardScanWizard() {
   const { currentUser } = useAuth();
+  const { decks, addCardToDeck, createDeck } = useDecks();
   const [state, setState] = useState<WizardState>(initialState);
+  const [targetDeckId, setTargetDeckId] = useState<string>('');
+  const [deckZone, setDeckZone] = useState<DeckZone>('mainboard');
+  const [addingToDeck, setAddingToDeck] = useState(false);
+  const [newDeckName, setNewDeckName] = useState('');
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number>(0);
   const lastQuadRef = useRef<Quadrilateral | null>(null);
@@ -213,6 +226,8 @@ export function CardScanWizard() {
       setMatches: [],
       selectedCard: null,
       addSuccess: false,
+      deckAddSuccess: false,
+      deckAddError: null,
     }));
   }, [captureFrame, stopCamera]);
 
@@ -456,8 +471,51 @@ export function CardScanWizard() {
     }
   }, [state.selectedCard, currentUser?.uid]);
 
+  const handleAddToDeck = useCallback(async () => {
+    const card = state.selectedCard;
+    if (!card || !currentUser) return;
+    setAddingToDeck(true);
+    setState((s) => ({ ...s, deckAddError: null }));
+    try {
+      let deckId = targetDeckId;
+      if (!deckId) {
+        if (!newDeckName.trim()) {
+          setState((s) => ({
+            ...s,
+            deckAddError: 'Choisissez un deck ou saisissez un nom pour en créer un.',
+          }));
+          setAddingToDeck(false);
+          return;
+        }
+        deckId = await createDeck({ name: newDeckName.trim(), format: 'modern' });
+        setTargetDeckId(deckId);
+      }
+      const entry = mtgCardToDeckEntry(card, 1);
+      await addCardToDeck(deckId, entry, 1, deckZone);
+      setState((s) => ({ ...s, deckAddSuccess: true, deckAddError: null }));
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        deckAddError: err instanceof Error ? err.message : "Impossible d'ajouter au deck",
+      }));
+    } finally {
+      setAddingToDeck(false);
+    }
+  }, [
+    state.selectedCard,
+    currentUser,
+    targetDeckId,
+    newDeckName,
+    deckZone,
+    createDeck,
+    addCardToDeck,
+  ]);
+
   const handleScanAnother = useCallback(() => {
     setState(initialState);
+    setTargetDeckId('');
+    setNewDeckName('');
+    setDeckZone('mainboard');
     startCamera();
   }, [startCamera]);
 
@@ -623,13 +681,22 @@ export function CardScanWizard() {
       {/* Step 3: Sauvegarde (ajout à la collection) */}
       {state.step === 3 && state.selectedCard && (
         <div className="space-y-4">
-          {state.addSuccess ? (
+          {state.addSuccess || state.deckAddSuccess ? (
             <>
               <p className="text-green-600 dark:text-green-400 font-medium">
-                Carte ajoutée à la collection.
+                {state.addSuccess && state.deckAddSuccess
+                  ? 'Carte ajoutée à la collection et au deck.'
+                  : state.addSuccess
+                    ? 'Carte ajoutée à la collection.'
+                    : 'Carte ajoutée au deck.'}
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button onClick={handleScanAnother}>Scanner une autre carte</Button>
+                {state.deckAddSuccess && targetDeckId && (
+                  <Link to={`/decks/${targetDeckId}`}>
+                    <Button variant="secondary">Ouvrir le deck</Button>
+                  </Link>
+                )}
                 <Link to="/collection">
                   <Button variant="secondary">Retour à la collection</Button>
                 </Link>
@@ -688,20 +755,67 @@ export function CardScanWizard() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   onClick={handleAddToCollection}
                   loading={state.adding}
-                  disabled={state.adding}
+                  disabled={state.adding || addingToDeck}
                 >
                   Ajouter à la collection
                 </Button>
                 <Button
                   variant="secondary"
                   onClick={() => setState((s) => ({ ...s, step: 2 }))}
-                  disabled={state.adding}
+                  disabled={state.adding || addingToDeck}
                 >
                   Retour
+                </Button>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Ajouter au deck</h3>
+                {decks.length > 0 ? (
+                  <select
+                    value={targetDeckId}
+                    onChange={(e) => setTargetDeckId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">— Choisir un deck —</option>
+                    {decks.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({DECK_FORMAT_LABELS[d.format]})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-gray-500">Aucun deck — créez-en un ci-dessous.</p>
+                )}
+                <input
+                  type="text"
+                  value={newDeckName}
+                  onChange={(e) => setNewDeckName(e.target.value)}
+                  placeholder="Ou créer un nouveau deck (nom)"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+                <select
+                  value={deckZone}
+                  onChange={(e) => setDeckZone(e.target.value as DeckZone)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="mainboard">Mainboard</option>
+                  <option value="sideboard">Sideboard</option>
+                  <option value="maybeboard">Maybeboard</option>
+                  <option value="commanders">Commanders</option>
+                </select>
+                {state.deckAddError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{state.deckAddError}</p>
+                )}
+                <Button
+                  onClick={() => void handleAddToDeck()}
+                  loading={addingToDeck}
+                  disabled={state.adding || addingToDeck || (!targetDeckId && !newDeckName.trim())}
+                >
+                  Ajouter au deck
                 </Button>
               </div>
             </>

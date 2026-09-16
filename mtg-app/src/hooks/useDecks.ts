@@ -143,6 +143,24 @@ export function useDecks() {
     }
   }
 
+  async function replaceEntry(
+    deckId: string,
+    zone: DeckZone,
+    oldScryfallId: string,
+    newEntry: DeckEntry
+  ) {
+    if (!currentUser) return;
+    try {
+      setError(null);
+      await deckService.replaceEntryInDeck(deckId, zone, oldScryfallId, newEntry);
+      await loadDecks();
+    } catch (err) {
+      console.error('Error replacing deck entry:', err);
+      setError("Erreur lors du changement d'impression");
+      throw err;
+    }
+  }
+
   async function setVisibility(deckId: string, visibility: DeckVisibility, isValid?: boolean) {
     if (!currentUser) return;
     await deckService.setDeckVisibility(deckId, visibility, isValid);
@@ -168,6 +186,7 @@ export function useDecks() {
     removeCardFromDeck,
     updateCardQuantity,
     deleteDeck,
+    replaceEntry,
     setVisibility,
     forkDeck,
     refresh: loadDecks,

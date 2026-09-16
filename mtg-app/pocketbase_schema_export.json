@@ -4,252 +4,209 @@
     "name": "users",
     "type": "auth",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "tivj1xrg",
         "name": "pseudonym",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "ibrdohhq",
         "name": "avatarId",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "roles_field",
         "name": "roles",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       },
       {
-        "system": false,
         "id": "1x9khxyc",
         "name": "preferredLanguage",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       }
     ],
     "indexes": [],
     "listRule": "@request.auth.id != \"\"",
     "viewRule": "@request.auth.id != \"\"",
-    "createRule": "",
+    "createRule": null,
     "updateRule": "@request.auth.id != \"\" && id = @request.auth.id",
-    "deleteRule": "@request.auth.id != \"\" && id = @request.auth.id",
-    "options": {
-      "allowEmailAuth": true,
-      "allowOAuth2Auth": true,
-      "allowUsernameAuth": true,
-      "exceptEmailDomains": null,
-      "manageRule": null,
-      "minPasswordLength": 8,
-      "onlyEmailDomains": null,
-      "onlyVerified": false,
-      "requireEmail": false
-    }
-  },
-  {
-    "id": "user_collections_id",
-    "name": "user_collections",
-    "type": "base",
-    "system": false,
-    "schema": [
-      {
-        "system": false,
-        "id": "uc_userid",
-        "name": "userId",
-        "type": "relation",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
-      },
-      {
-        "system": false,
-        "id": "uc_name",
-        "name": "name",
-        "type": "text",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      }
-    ],
-    "indexes": [],
-    "listRule": "@request.auth.id != \"\"",
-    "viewRule": "@request.auth.id != \"\"",
-    "createRule": "userId = @request.auth.id",
-    "updateRule": "userId = @request.auth.id",
-    "deleteRule": "userId = @request.auth.id",
-    "options": {}
+    "deleteRule": "@request.auth.id != \"\" && id = @request.auth.id"
   },
   {
     "id": "cards_id",
     "name": "cards",
     "type": "base",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "card_name",
         "name": "name",
         "type": "text",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_set",
         "name": "set",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_setcode",
         "name": "setCode",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_collectornum",
         "name": "collectorNumber",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_rarity",
         "name": "rarity",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_mtgdata",
         "name": "mtgData",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       },
       {
-        "system": false,
         "id": "card_backimg",
         "name": "backImageUrl",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "card_backmulti",
         "name": "backMultiverseid",
         "type": "number",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
+        "system": false,
+        "hidden": false,
+        "onlyInt": true
       },
       {
-        "system": false,
         "id": "card_backmtg",
         "name": "backMtgData",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       }
     ],
     "indexes": [],
@@ -257,235 +214,331 @@
     "viewRule": "@request.auth.id != \"\"",
     "createRule": "@request.auth.id != \"\"",
     "updateRule": "@request.auth.id != \"\"",
-    "deleteRule": "@request.auth.id != \"\"",
-    "options": {}
+    "deleteRule": "@request.auth.id != \"\""
+  },
+  {
+    "id": "user_collections_id",
+    "name": "user_collections",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "uc_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
+      },
+      {
+        "id": "uc_name",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id"
   },
   {
     "id": "collection_items_id",
     "name": "collection_items",
     "type": "base",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "ci_usercoll",
         "name": "userCollectionId",
         "type": "relation",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "user_collections_id",
-          "cascadeDelete": true,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "user_collections_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "ci_card",
         "name": "cardId",
         "type": "relation",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "cards_id",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "cards_id",
+        "cascadeDelete": false,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "ci_quantity",
         "name": "quantity",
         "type": "number",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
+        "system": false,
+        "hidden": false,
+        "onlyInt": true
       },
       {
-        "system": false,
         "id": "ci_condition",
         "name": "condition",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "ci_language",
         "name": "language",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       }
     ],
     "indexes": [],
     "listRule": "@request.auth.id != \"\"",
     "viewRule": "@request.auth.id != \"\"",
-    "createRule": "userCollectionId.userId = @request.auth.id",
-    "updateRule": "userCollectionId.userId = @request.auth.id",
-    "deleteRule": "userCollectionId.userId = @request.auth.id",
-    "options": {}
+    "createRule": "@request.body.userCollectionId.userId = @request.auth.id",
+    "updateRule": "userCollectionId.userId = @request.auth.id && (@request.body.userCollectionId:isset = false || @request.body.userCollectionId.userId = @request.auth.id)",
+    "deleteRule": "userCollectionId.userId = @request.auth.id"
   },
   {
     "id": "decks_id",
     "name": "decks",
     "type": "base",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "yxzwr7st",
         "name": "userId",
         "type": "relation",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "hwok5h4z",
         "name": "name",
         "type": "text",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "desxtmiw",
         "name": "cards",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       },
       {
-        "system": false,
         "id": "deck_format",
         "name": "format",
         "type": "select",
         "required": true,
         "presentable": true,
-        "unique": false,
-        "options": {
-          "maxSelect": 1,
-          "values": ["commander", "standard", "pioneer", "modern", "historic", "pauper"]
-        }
+        "system": false,
+        "hidden": false,
+        "maxSelect": 1,
+        "values": [
+          "commander",
+          "standard",
+          "pioneer",
+          "modern",
+          "historic",
+          "pauper"
+        ]
       },
       {
-        "system": false,
         "id": "deck_visibility",
         "name": "visibility",
         "type": "select",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSelect": 1,
-          "values": ["private", "unlisted", "public"]
-        }
+        "system": false,
+        "hidden": false,
+        "maxSelect": 1,
+        "values": [
+          "private",
+          "unlisted",
+          "public"
+        ]
       },
       {
-        "system": false,
         "id": "deck_description",
         "name": "description",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": 2000,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false,
+        "max": 2000
       },
       {
-        "system": false,
         "id": "deck_commanders",
         "name": "commanders",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 500000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 500000
       },
       {
-        "system": false,
         "id": "deck_source",
         "name": "sourceDeckId",
         "type": "relation",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "decks_id",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "decks_id",
+        "cascadeDelete": false,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "deck_valid",
         "name": "isValidForFormat",
         "type": "bool",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {}
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "deck_tags",
         "name": "tags",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 100000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 100000
       }
     ],
     "indexes": [],
@@ -493,178 +546,162 @@
     "viewRule": "@request.auth.id != \"\" && (@request.auth.id = userId || visibility = \"public\" || visibility = \"unlisted\")",
     "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "options": {}
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId"
   },
   {
     "id": "imports_id",
     "name": "imports",
     "type": "base",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "ei2ycnbe",
         "name": "userId",
         "type": "relation",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "onf6euwb",
         "name": "status",
         "type": "text",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "ckjpf1nn",
         "name": "mode",
         "type": "text",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "csvhash_field",
         "name": "csvContentHash",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "e1nrbmnx",
         "name": "csvContent",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "totalcards_field",
         "name": "totalCards",
         "type": "number",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
+        "system": false,
+        "hidden": false,
+        "onlyInt": true
       },
       {
-        "system": false,
         "id": "currentindex_field",
         "name": "currentIndex",
         "type": "number",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
+        "system": false,
+        "hidden": false,
+        "onlyInt": true
       },
       {
-        "system": false,
         "id": "4800dva1",
         "name": "progress",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       },
       {
-        "system": false,
         "id": "8utt45lc",
         "name": "report",
         "type": "json",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
       },
       {
-        "system": false,
         "id": "error_field",
         "name": "error",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "completedat_field",
         "name": "completedAt",
         "type": "date",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "pausedat_field",
         "name": "pausedAt",
         "type": "date",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null
-        }
+        "system": false,
+        "hidden": false
       }
     ],
     "indexes": [],
@@ -672,279 +709,95 @@
     "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "options": {}
-  },
-  {
-    "id": "wishlist_id",
-    "name": "wishlist",
-    "type": "base",
-    "system": false,
-    "schema": [
-      {
-        "system": false,
-        "id": "nf3dzjc8",
-        "name": "userId",
-        "type": "relation",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": false,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
-      },
-      {
-        "system": false,
-        "id": "rid7t4a7",
-        "name": "name",
-        "type": "text",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "hmxyu6tb",
-        "name": "quantity",
-        "type": "number",
-        "required": true,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": true
-        }
-      },
-      {
-        "system": false,
-        "id": "akyvql35",
-        "name": "set",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "nertgbba",
-        "name": "setCode",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "5ks5qqiw",
-        "name": "collectorNumber",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "bpapaloo",
-        "name": "rarity",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "ap1qmd3j",
-        "name": "condition",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "uuk1kuiw",
-        "name": "language",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "ayhueuyu",
-        "name": "mtgData",
-        "type": "json",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "maxSize": 2000000
-        }
-      },
-      {
-        "system": false,
-        "id": "notes_field",
-        "name": "notes",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      },
-      {
-        "system": false,
-        "id": "targetprice_field",
-        "name": "targetPrice",
-        "type": "number",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "noDecimal": false
-        }
-      },
-      {
-        "system": false,
-        "id": "scryfallid_field",
-        "name": "scryfallId",
-        "type": "text",
-        "required": false,
-        "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
-      }
-    ],
-    "indexes": [],
-    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "createRule": "userId = @request.auth.id",
-    "updateRule": "userId = @request.auth.id",
-    "deleteRule": "userId = @request.auth.id",
-    "options": {}
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId"
   },
   {
     "id": "legal_id",
     "name": "legal",
     "type": "base",
     "system": false,
-    "schema": [
+    "fields": [
       {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
         "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
         "id": "legal_userid",
         "name": "userId",
         "type": "relation",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "collectionId": "_pb_users_auth_",
-          "cascadeDelete": true,
-          "minSelect": null,
-          "maxSelect": 1,
-          "displayFields": null
-        }
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "maxSelect": 1
       },
       {
-        "system": false,
         "id": "legal_type",
         "name": "type",
         "type": "text",
         "required": true,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "legal_accepted",
         "name": "accepted",
         "type": "bool",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {}
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "legal_timestamp",
         "name": "timestamp",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       },
       {
-        "system": false,
         "id": "legal_version",
         "name": "version",
         "type": "text",
         "required": false,
         "presentable": false,
-        "unique": false,
-        "options": {
-          "min": null,
-          "max": null,
-          "pattern": ""
-        }
+        "system": false,
+        "hidden": false
       }
     ],
     "indexes": [],
@@ -952,7 +805,177 @@
     "viewRule": "userId = @request.auth.id",
     "createRule": "userId = @request.auth.id",
     "updateRule": "userId = @request.auth.id",
-    "deleteRule": "userId = @request.auth.id",
-    "options": {}
+    "deleteRule": "userId = @request.auth.id"
+  },
+  {
+    "id": "wishlist_id",
+    "name": "wishlist",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "nf3dzjc8",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
+      },
+      {
+        "id": "rid7t4a7",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "hmxyu6tb",
+        "name": "quantity",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "onlyInt": true
+      },
+      {
+        "id": "akyvql35",
+        "name": "set",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "nertgbba",
+        "name": "setCode",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "5ks5qqiw",
+        "name": "collectorNumber",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "bpapaloo",
+        "name": "rarity",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "ap1qmd3j",
+        "name": "condition",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "uuk1kuiw",
+        "name": "language",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "ayhueuyu",
+        "name": "mtgData",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
+      },
+      {
+        "id": "notes_field",
+        "name": "notes",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "targetprice_field",
+        "name": "targetPrice",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "onlyInt": false
+      },
+      {
+        "id": "scryfallid_field",
+        "name": "scryfallId",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": "userId = @request.auth.id",
+    "deleteRule": "userId = @request.auth.id"
   }
 ]

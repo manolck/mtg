@@ -14,22 +14,29 @@ interface DeckCardGridProps {
   onIncrement?: (entry: DeckEntry) => void;
   onDecrement?: (entry: DeckEntry) => void;
   onRemove?: (entry: DeckEntry) => void;
+  /** Show "swap print" when entry has owned alternatives */
+  swappableIds?: Set<string>;
+  onSwapPrint?: (entry: DeckEntry) => void;
 }
 
 function QtyControls({
   entry,
   readOnly,
   isCommander,
+  canSwap,
   onIncrement,
   onDecrement,
   onRemove,
+  onSwapPrint,
 }: {
   entry: DeckEntry;
   readOnly: boolean;
   isCommander: boolean;
+  canSwap?: boolean;
   onIncrement?: (entry: DeckEntry) => void;
   onDecrement?: (entry: DeckEntry) => void;
   onRemove?: (entry: DeckEntry) => void;
+  onSwapPrint?: (entry: DeckEntry) => void;
 }) {
   if (readOnly) {
     return (
@@ -38,13 +45,20 @@ function QtyControls({
   }
   if (isCommander) {
     return (
-      <Button variant="danger" className="!px-2 !py-1" onClick={() => onRemove?.(entry)}>
-        Retirer
-      </Button>
+      <div className="flex items-center gap-1">
+        {canSwap && (
+          <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => onSwapPrint?.(entry)}>
+            Print
+          </Button>
+        )}
+        <Button variant="danger" className="!px-2 !py-1" onClick={() => onRemove?.(entry)}>
+          Retirer
+        </Button>
+      </div>
     );
   }
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 flex-wrap justify-center">
       <Button
         variant="secondary"
         className="!px-2 !py-1"
@@ -57,6 +71,16 @@ function QtyControls({
       <Button variant="secondary" className="!px-2 !py-1" onClick={() => onIncrement?.(entry)}>
         +
       </Button>
+      {canSwap && (
+        <Button
+          variant="secondary"
+          className="!px-2 !py-1 text-xs"
+          title="Changer d'impression (collection)"
+          onClick={() => onSwapPrint?.(entry)}
+        >
+          Print
+        </Button>
+      )}
       <Button variant="danger" className="!px-2 !py-1" onClick={() => onRemove?.(entry)}>
         ×
       </Button>
@@ -72,6 +96,8 @@ export function DeckCardGrid({
   onIncrement,
   onDecrement,
   onRemove,
+  swappableIds,
+  onSwapPrint,
 }: DeckCardGridProps) {
   const isCommander = zone === 'commanders';
   const groups = groupDeckEntries(entries, { isCommanderZone: isCommander });
@@ -131,9 +157,11 @@ export function DeckCardGrid({
                         entry={entry}
                         readOnly={readOnly}
                         isCommander={isCommander}
+                        canSwap={swappableIds?.has(entry.scryfallId)}
                         onIncrement={onIncrement}
                         onDecrement={onDecrement}
                         onRemove={onRemove}
+                        onSwapPrint={onSwapPrint}
                       />
                     </div>
                   </div>
@@ -171,9 +199,11 @@ export function DeckCardGrid({
                     entry={entry}
                     readOnly={readOnly}
                     isCommander={isCommander}
+                    canSwap={swappableIds?.has(entry.scryfallId)}
                     onIncrement={onIncrement}
                     onDecrement={onDecrement}
                     onRemove={onRemove}
+                    onSwapPrint={onSwapPrint}
                   />
                 </div>
               ))}

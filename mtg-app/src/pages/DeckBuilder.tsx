@@ -19,7 +19,11 @@ import { ManaCostDisplay } from '../components/UI/ManaCostDisplay';
 import { LazyImage } from '../components/UI/LazyImage';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
+import { ShoppingListModal, deckEntryAsMtgCard } from '../components/Deck/ShoppingListModal';
+import { SwapPrintModal } from '../components/Deck/SwapPrintModal';
 import { groupDeckEntries } from '../utils/deckGrouping';
+import { findSwappableEntries } from '../utils/deckPrintSwap';
+import type { OwnershipRow } from '../hooks/useDeckOwnership';
 import {
   DECK_FORMAT_LABELS,
   countEntries,
@@ -56,6 +60,7 @@ export function DeckBuilder() {
     updateDeck,
     setVisibility,
     forkDeck,
+    replaceEntry,
     refresh,
   } = useDecks();
   const { cards: collectionCards } = useCollection();
@@ -80,6 +85,9 @@ export function DeckBuilder() {
   const [addingMissing, setAddingMissing] = useState(false);
   const [viewMode, setViewMode] = useState<DeckViewMode>(loadViewMode);
   const [showSampleHand, setShowSampleHand] = useState(false);
+  const [showShoppingList, setShowShoppingList] = useState(false);
+  const [swapTarget, setSwapTarget] = useState<DeckEntry | null>(null);
+  const [swapBusy, setSwapBusy] = useState(false);
 
   const ownedDeck = decks.find((d) => d.id === deckId);
   const deck = ownedDeck || remoteDeck;
@@ -147,6 +155,13 @@ export function DeckBuilder() {
     if (!deck) return [];
     return groupDeckEntries(deck.cards.mainboard);
   }, [deck]);
+
+  const swappableIds = useMemo(() => {
+    if (!deck || readOnly) return new Set<string>();
+    const entries =
+      activeTab === 'commanders' ? deck.commanders : deck.cards[activeTab] || [];
+    return new Set(findSwappableEntries(entries, collectionCards).map((e) => e.scryfallId));
+  }, [deck, activeTab, collectionCards, readOnly]);
 
   useEffect(() => {
     if (!deck) {
@@ -357,12 +372,13 @@ export function DeckBuilder() {
     }
   };
 
-  const handleAddMissingToWishlist = async () => {
-    if (!currentUser || ownership.missing.length === 0) return;
+  const handleAddMissingToWishlist = async (rows?: OwnershipRow[]) => {
+    const missingRows = rows ?? ownership.missing;
+    if (!currentUser || missingRows.length === 0) return;
     setAddingMissing(true);
     try {
       let added = 0;
-      for (const row of ownership.missing) {
+      for (const row of missingRows) {
         const e = row.entry;
         const already = wishlistItems.some(
           (w) =>
@@ -371,10 +387,11 @@ export function DeckBuilder() {
               (w.setCode || '').toLowerCase() === (e.setCode || '').toLowerCase())
         );
         if (already) continue;
+        const mtg = deckEntryAsMtgCard(e);
         await addItem(
           e.name,
           row.missingQty,
-          undefined,
+          mtg,
           e.setCode,
           e.collectorNumber,
           e.rarity,
@@ -388,10 +405,29 @@ export function DeckBuilder() {
           ? `${added} carte(s) ajoutée(s) à la wishlist`
           : 'Tous les manquants sont déjà dans la wishlist'
       );
+      setShowShoppingList(false);
     } catch (err) {
       errorHandler.handleAndShowError(err);
     } finally {
       setAddingMissing(false);
+    }
+  };
+
+  const handleSwapPrint = async (
+    oldScryfallId: string,
+    newEntry: DeckEntry,
+    zone: DeckZone
+  ) => {
+    if (!deckId) return;
+    setSwapBusy(true);
+    try {
+      await replaceEntry(deckId, zone, oldScryfallId, newEntry);
+      showSuccess(`Impression remplacée : ${newEntry.setCode?.toUpperCase() || newEntry.name}`);
+      setSwapTarget(null);
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setSwapBusy(false);
     }
   };
 
@@ -612,6 +648,8 @@ export function DeckBuilder() {
               zone={activeTab}
               readOnly={readOnly}
               viewMode={viewMode}
+              swappableIds={swappableIds}
+              onSwapPrint={(entry) => setSwapTarget(entry)}
               onIncrement={(entry) =>
                 updateCardQuantity(deck.id, entry.scryfallId, entry.quantity + 1, activeTab)
               }
@@ -639,14 +677,26 @@ export function DeckBuilder() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               Manquantes : {ownership.totalMissing}
             </p>
-            {isOwner && ownership.missing.length > 0 && (
-              <Button
-                className="w-full"
-                loading={addingMissing}
-                onClick={handleAddMissingToWishlist}
-              >
-                Ajouter manquants à la wishlist
-              </Button>
+            {isOwner && (
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setShowShoppingList(true)}
+                  disabled={ownership.missing.length === 0}
+                >
+                  Liste d&apos;achats
+                </Button>
+                {ownership.missing.length > 0 && (
+                  <Button
+                    className="w-full"
+                    loading={addingMissing}
+                    onClick={() => void handleAddMissingToWishlist()}
+                  >
+                    Ajouter manquants à la wishlist
+                  </Button>
+                )}
+              </div>
             )}
             {ownership.missing.length > 0 && (
               <ul className="mt-3 max-h-48 overflow-y-auto text-sm space-y-1">
@@ -752,6 +802,25 @@ export function DeckBuilder() {
         onClose={() => setShowSampleHand(false)}
         mainboard={deck.cards.mainboard}
         deckName={deck.name}
+      />
+
+      <ShoppingListModal
+        isOpen={showShoppingList}
+        onClose={() => setShowShoppingList(false)}
+        deckName={deck.name}
+        missing={ownership.missing}
+        onAddToWishlist={handleAddMissingToWishlist}
+        wishlistBusy={addingMissing}
+      />
+
+      <SwapPrintModal
+        isOpen={!!swapTarget}
+        onClose={() => setSwapTarget(null)}
+        entry={swapTarget}
+        zone={activeTab}
+        collectionCards={collectionCards}
+        onSwap={handleSwapPrint}
+        busy={swapBusy}
       />
     </div>
   );

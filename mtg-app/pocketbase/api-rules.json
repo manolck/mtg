@@ -27,8 +27,8 @@
   "collection_items": {
     "listRule": "@request.auth.id != \"\"",
     "viewRule": "@request.auth.id != \"\"",
-    "createRule": "userCollectionId.userId = @request.auth.id",
-    "updateRule": "userCollectionId.userId = @request.auth.id",
+    "createRule": "@request.body.userCollectionId.userId = @request.auth.id",
+    "updateRule": "userCollectionId.userId = @request.auth.id && (@request.body.userCollectionId:isset = false || @request.body.userCollectionId.userId = @request.auth.id)",
     "deleteRule": "userCollectionId.userId = @request.auth.id",
     "notes": "List/view open to authenticated users for multi-collection browse. CUD owner-only."
   },
