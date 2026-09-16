@@ -17,6 +17,9 @@ import { Spinner } from '../components/UI/Spinner';
 import { Modal } from '../components/UI/Modal';
 import { ManaCostDisplay } from '../components/UI/ManaCostDisplay';
 import { LazyImage } from '../components/UI/LazyImage';
+import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
+import { SampleHandModal } from '../components/Deck/SampleHandModal';
+import { groupDeckEntries } from '../utils/deckGrouping';
 import {
   DECK_FORMAT_LABELS,
   countEntries,
@@ -27,6 +30,18 @@ import type { MTGCard } from '../types/card';
 import * as deckService from '../services/deckService';
 
 type BuilderTab = DeckZone;
+
+const VIEW_MODE_KEY = 'deck-builder-view-mode';
+
+function loadViewMode(): DeckViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_MODE_KEY);
+    if (v === 'list' || v === 'grid') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'grid';
+}
 
 export function DeckBuilder() {
   const { deckId } = useParams<{ deckId: string }>();
@@ -63,6 +78,8 @@ export function DeckBuilder() {
   const [tagsDraft, setTagsDraft] = useState('');
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
   const [addingMissing, setAddingMissing] = useState(false);
+  const [viewMode, setViewMode] = useState<DeckViewMode>(loadViewMode);
+  const [showSampleHand, setShowSampleHand] = useState(false);
 
   const ownedDeck = decks.find((d) => d.id === deckId);
   const deck = ownedDeck || remoteDeck;
@@ -124,6 +141,11 @@ export function DeckBuilder() {
       buckets[idx] += e.quantity;
     }
     return buckets;
+  }, [deck]);
+
+  const typeBreakdown = useMemo(() => {
+    if (!deck) return [];
+    return groupDeckEntries(deck.cards.mainboard);
   }, [deck]);
 
   useEffect(() => {
@@ -421,6 +443,9 @@ export function DeckBuilder() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setShowSampleHand(true)}>
+              Sample hand
+            </Button>
             <Button variant="secondary" onClick={handleExport}>
               Exporter
             </Button>
@@ -511,23 +536,63 @@ export function DeckBuilder() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
-            {tabs
-              .filter((t) => t.show)
-              .map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setActiveTab(t.id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                    activeTab === t.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
+            <div className="flex flex-wrap gap-2">
+              {tabs
+                .filter((t) => t.show)
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                      activeTab === t.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+            </div>
+            <div className="flex gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('grid');
+                  try {
+                    localStorage.setItem(VIEW_MODE_KEY, 'grid');
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className={`px-3 py-1 text-sm rounded-md ${
+                  viewMode === 'grid'
+                    ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white'
+                    : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Grille
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('list');
+                  try {
+                    localStorage.setItem(VIEW_MODE_KEY, 'list');
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className={`px-3 py-1 text-sm rounded-md ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white'
+                    : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Liste
+              </button>
+            </div>
           </div>
 
           {entriesForTab.length === 0 ? (
@@ -542,72 +607,19 @@ export function DeckBuilder() {
               )}
             </div>
           ) : (
-            <div className="space-y-2">
-              {entriesForTab.map((entry) => (
-                <div
-                  key={`${activeTab}-${entry.scryfallId}`}
-                  className="flex items-center gap-3 bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm"
-                >
-                  {entry.imageUrl ? (
-                    <LazyImage src={entry.imageUrl} alt={entry.name} className="w-12 h-16 object-cover rounded" />
-                  ) : (
-                    <div className="w-12 h-16 bg-gray-200 dark:bg-gray-700 rounded" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white truncate">{entry.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {entry.setCode?.toUpperCase()} {entry.collectorNumber || ''}
-                      {entry.manaCost ? (
-                        <span className="ml-2 inline-flex align-middle">
-                          <ManaCostDisplay manaCost={entry.manaCost} />
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  {!readOnly && activeTab !== 'commanders' ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="secondary"
-                        className="!px-2 !py-1"
-                        onClick={() =>
-                          updateCardQuantity(deck.id, entry.scryfallId, entry.quantity - 1, activeTab)
-                        }
-                        disabled={entry.quantity <= 1}
-                      >
-                        −
-                      </Button>
-                      <span className="w-8 text-center">{entry.quantity}</span>
-                      <Button
-                        variant="secondary"
-                        className="!px-2 !py-1"
-                        onClick={() =>
-                          updateCardQuantity(deck.id, entry.scryfallId, entry.quantity + 1, activeTab)
-                        }
-                      >
-                        +
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="!px-2 !py-1"
-                        onClick={() => removeCardFromDeck(deck.id, entry.scryfallId, activeTab)}
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  ) : !readOnly ? (
-                    <Button
-                      variant="danger"
-                      className="!px-2 !py-1"
-                      onClick={() => removeCardFromDeck(deck.id, entry.scryfallId, 'commanders')}
-                    >
-                      Retirer
-                    </Button>
-                  ) : (
-                    <span className="font-medium text-gray-700 dark:text-gray-200">×{entry.quantity}</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <DeckCardGrid
+              entries={entriesForTab}
+              zone={activeTab}
+              readOnly={readOnly}
+              viewMode={viewMode}
+              onIncrement={(entry) =>
+                updateCardQuantity(deck.id, entry.scryfallId, entry.quantity + 1, activeTab)
+              }
+              onDecrement={(entry) =>
+                updateCardQuantity(deck.id, entry.scryfallId, entry.quantity - 1, activeTab)
+              }
+              onRemove={(entry) => removeCardFromDeck(deck.id, entry.scryfallId, activeTab)}
+            />
           )}
         </div>
 
@@ -663,6 +675,23 @@ export function DeckBuilder() {
             </div>
           </div>
 
+          {typeBreakdown.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Répartition (main)</h3>
+              <ul className="space-y-1 text-sm">
+                {typeBreakdown.map((g) => (
+                  <li
+                    key={g.id}
+                    className="flex justify-between text-gray-700 dark:text-gray-300"
+                  >
+                    <span>{g.label}</span>
+                    <span className="font-medium tabular-nums">{g.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {isOwner && (
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow space-y-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">Description & tags</h3>
@@ -717,6 +746,13 @@ export function DeckBuilder() {
           </div>
         </div>
       </Modal>
+
+      <SampleHandModal
+        isOpen={showSampleHand}
+        onClose={() => setShowSampleHand(false)}
+        mainboard={deck.cards.mainboard}
+        deckName={deck.name}
+      />
     </div>
   );
 }
