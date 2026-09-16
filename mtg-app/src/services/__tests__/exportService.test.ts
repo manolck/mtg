@@ -6,6 +6,7 @@ import {
   exportCollection,
   downloadFile,
 } from '../exportService';
+import { parseCollectionImport } from '../csvParser';
 import type { UserCard } from '../../types/card';
 
 describe('exportService', () => {
@@ -54,6 +55,25 @@ describe('exportService', () => {
       expect(result).toContain('Name,Quantity,Set code');
       expect(result).toContain('Lightning Bolt,4,M21');
       expect(result).toContain('Black Lotus,1,LEA');
+    });
+
+    it('should round-trip through parseCollectionImport', () => {
+      const csv = exportToCSV(mockCards);
+      const parsed = parseCollectionImport(csv);
+      expect(parsed[0].name).toBe('Lightning Bolt');
+      expect(parsed[0].quantity).toBe(4);
+      expect(parsed[0].setCode).toBe('M21');
+      expect(parsed[0].collectorNumber).toBe('161');
+
+      const json = exportToJSON(mockCards);
+      const parsedJson = parseCollectionImport(json);
+      expect(parsedJson[0].name).toBe('Lightning Bolt');
+      expect(parsedJson[0].quantity).toBe(4);
+
+      const deckbox = exportToDeckbox(mockCards);
+      const parsedDeckbox = parseCollectionImport(deckbox);
+      expect(parsedDeckbox[0].quantity).toBe(4);
+      expect(parsedDeckbox[0].setCode).toBe('M21');
     });
 
     it('should include metadata when option is set', () => {

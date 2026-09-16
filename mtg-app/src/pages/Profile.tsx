@@ -189,6 +189,7 @@ export function Profile() {
     }
     try {
       setImporting(true);
+      setShowImportModal(false);
       const text = await file.text();
       await importCSV(text, importMode === 'update', undefined, targetId ?? undefined);
       showSuccess('Import terminé avec succès');
@@ -979,7 +980,7 @@ export function Profile() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.json,text/csv,application/json"
               onChange={handleResumeFileUpload}
               disabled={resumeImporting}
               className="block w-full text-sm text-gray-500 dark:text-gray-400
@@ -1075,7 +1076,7 @@ export function Profile() {
             <input
               ref={newImportFileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.json,text/csv,application/json"
               onChange={handleNewImportFileUpload}
               className="hidden"
               id="profile-csv-upload"
@@ -1093,7 +1094,7 @@ export function Profile() {
                 ? 'Import en cours...'
                 : userCollections.length > 0 && !importTargetCollectionId
                   ? 'Choisissez d\'abord une collection ci-dessus'
-                  : 'Sélectionner un fichier CSV'}
+                  : 'Sélectionner un fichier CSV ou JSON'}
             </label>
           </div>
         </div>

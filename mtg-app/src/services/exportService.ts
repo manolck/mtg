@@ -35,7 +35,7 @@ export function exportToCSV(cards: UserCard[], options: ExportOptions = { format
 
   const rows = cards.map((card) => {
     const row = [
-      escapeCSV(card.name),
+      card.name,
       card.quantity.toString(),
       card.setCode || card.set || '',
       card.mtgData?.setName || '',
@@ -131,7 +131,7 @@ export function exportToDeckbox(cards: UserCard[]): string {
 
   const rows = cards.map((card) => {
     return [
-      escapeCSV(card.name),
+      card.name,
       card.quantity.toString(),
       card.setCode || card.set || '',
       card.collectorNumber || '',

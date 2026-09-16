@@ -1,4 +1,4 @@
-import { parseCSV } from '../csvParser';
+import { parseCSV, parseCollectionImport } from '../csvParser';
 
 // Mock console.warn to avoid noise in tests
 const originalWarn = console.warn;
@@ -200,6 +200,51 @@ Black Lotus,1,LEA,def456`;
       expect(result).toHaveLength(2);
       expect(result[0].scryfallId).toBe('abc123');
       expect(result[1].scryfallId).toBe('def456');
+    });
+
+    it('should parse Deckbox Count/Edition/Card Number headers', () => {
+      const csv = `Name,Count,Edition,Card Number,Condition,Language
+Lightning Bolt,4,M21,161,Near Mint,English
+Black Lotus,1,LEA,1,Near Mint,English`;
+
+      const result = parseCSV(csv);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].quantity).toBe(4);
+      expect(result[0].setCode).toBe('M21');
+      expect(result[0].collectorNumber).toBe('161');
+    });
+
+    it('should parse BOM-prefixed CSV', () => {
+      const csv = `\uFEFFName,Quantity,Set code
+Lightning Bolt,4,M21`;
+
+      const result = parseCSV(csv);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Lightning Bolt');
+    });
+  });
+
+  describe('parseCollectionImport', () => {
+    it('should parse app JSON export', () => {
+      const json = JSON.stringify([
+        { name: 'Lightning Bolt', quantity: 4, setCode: 'M21', collectorNumber: '161', language: 'en' },
+      ]);
+      const result = parseCollectionImport(json);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Lightning Bolt');
+      expect(result[0].quantity).toBe(4);
+      expect(result[0].setCode).toBe('M21');
+    });
+
+    it('should parse app CSV export', () => {
+      const csv = `Name,Quantity,Set code,Set name,Collector number,Foil,Rarity,Condition,Language
+Lightning Bolt,4,M21,Core Set 2021,161,,Common,,en`;
+      const result = parseCollectionImport(csv);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Lightning Bolt');
+      expect(result[0].quantity).toBe(4);
+      expect(result[0].collectorNumber).toBe('161');
     });
   });
 });

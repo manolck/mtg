@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { pb } from '../services/pocketbase';
 import * as collectionService from '../services/collectionService';
 import * as importService from '../services/importService';
-import { parseCSV } from '../services/csvParser';
+import { parseCollectionImport } from '../services/csvParser';
 import { searchCardByName, searchCardsByName, searchCardByMultiverseId, searchCardByNameAndNumber } from '../services/mtgApi';
 import { searchCardByScryfallId, searchCardBySetAndNumber, searchCardByNameAndNumberScryfall } from '../services/scryfallApi';
 import { rateLimiter, RATE_LIMITS } from '../services/rateLimiter';
@@ -531,26 +531,36 @@ export function useCollection(userId?: string, collectionId?: string | null) {
 
     importTargetCollectionIdRef.current = targetCollectionId ?? null;
     try {
-      // Créer l'import job
+      const parsedCards = parseCollectionImport(csvContent);
+
       let actualImportId = importId;
+      let persistJob = true;
       if (!actualImportId) {
-        // Calculer le hash du CSV pour identifier les doublons
         const csvHash = await hashString(csvContent);
-        actualImportId = await importService.createImport(
-          currentUser.uid,
-          updateMode ? 'update' : 'add',
-          csvHash,
-          parseCSV(csvContent).length,
-          csvContent
-        );
-        setCurrentImportId(actualImportId);
+        try {
+          actualImportId = await importService.createImport(
+            currentUser.uid,
+            updateMode ? 'update' : 'add',
+            csvHash,
+            parsedCards.length,
+            csvContent
+          );
+          setCurrentImportId(actualImportId);
+        } catch (jobError) {
+          console.warn('Import job could not be saved, continuing locally:', jobError);
+          persistJob = false;
+          actualImportId = `local-${Date.now()}`;
+        }
       }
 
-      // Mettre à jour le statut
-      await importService.updateImportStatus(actualImportId, 'running');
-  
-      // Parser le CSV
-      const parsedCards = parseCSV(csvContent);
+      if (persistJob) {
+        await importService.updateImportStatus(actualImportId, 'running');
+      }
+
+      const persistStatus = async (status: Parameters<typeof importService.updateImportStatus>[1], currentIndex?: number, error?: string) => {
+        if (!persistJob) return;
+        await importService.updateImportStatus(actualImportId, status, currentIndex, error);
+      };
       
       // Initialiser la progression
       const progress: ImportProgress = {
@@ -570,18 +580,18 @@ export function useCollection(userId?: string, collectionId?: string | null) {
   
       for (let i = 0; i < cardsToProcess.length; i += PARALLEL_BATCH_SIZE) {
         if (importCancelledRef.current) {
-          await importService.updateImportStatus(actualImportId, 'cancelled');
+          await persistStatus('cancelled');
           break;
         }
 
         if (importPausedRef.current) {
-          await importService.updateImportStatus(actualImportId, 'paused');
+          await persistStatus('paused');
           // Attendre la reprise
           while (importPausedRef.current && !importCancelledRef.current) {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
           if (importCancelledRef.current) break;
-          await importService.updateImportStatus(actualImportId, 'running');
+          await persistStatus('running');
         }
   
         const batch = cardsToProcess.slice(i, i + PARALLEL_BATCH_SIZE);
@@ -671,27 +681,29 @@ export function useCollection(userId?: string, collectionId?: string | null) {
         setImportProgress({ ...progress });
         
         // Mettre à jour la progression dans PocketBase
-        await importService.updateImportProgress(
-          actualImportId,
-          {
-            current: progress.current,
-            total: progress.total,
-            currentCard: progress.currentCard,
-            success: progress.success,
-            errors: progress.errors,
-            skipped: progress.skipped,
-            details: progress.details,
-          },
-          {
-            success: progress.success,
-            errors: progress.errors,
-            skipped: progress.skipped,
-            updated: 0,
-            added: progress.success,
-            removed: 0,
-            details: progress.details,
-          }
-        );
+        if (persistJob) {
+          await importService.updateImportProgress(
+            actualImportId,
+            {
+              current: progress.current,
+              total: progress.total,
+              currentCard: progress.currentCard,
+              success: progress.success,
+              errors: progress.errors,
+              skipped: progress.skipped,
+              details: progress.details,
+            },
+            {
+              success: progress.success,
+              errors: progress.errors,
+              skipped: progress.skipped,
+              updated: 0,
+              added: progress.success,
+              removed: 0,
+              details: progress.details,
+            }
+          );
+        }
   
         // Délai entre les lots
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -699,18 +711,20 @@ export function useCollection(userId?: string, collectionId?: string | null) {
   
       // Finaliser l'import
       const finalStatus = importCancelledRef.current ? 'cancelled' : 'completed';
-      if (finalStatus === 'completed') {
-        await importService.saveImportReport(actualImportId, {
-          success: progress.success,
-          errors: progress.errors,
-          skipped: progress.skipped,
-          updated: 0,
-          added: progress.success,
-          removed: 0,
-          details: progress.details,
-        });
-      } else {
-        await importService.updateImportStatus(actualImportId, finalStatus);
+      if (persistJob) {
+        if (finalStatus === 'completed') {
+          await importService.saveImportReport(actualImportId, {
+            success: progress.success,
+            errors: progress.errors,
+            skipped: progress.skipped,
+            updated: 0,
+            added: progress.success,
+            removed: 0,
+            details: progress.details,
+          });
+        } else {
+          await persistStatus(finalStatus);
+        }
       }
 
       const targetUserId = userId || currentUser?.uid;

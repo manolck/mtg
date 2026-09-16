@@ -91,13 +91,14 @@ class ErrorHandler {
         'status' in error && typeof (error as { status?: unknown }).status === 'number'
           ? (error as { status: number }).status
           : undefined;
+      const pocketBaseMessage = this.getPocketBaseUserMessage(error);
 
       // Erreur réseau
       if (
         error.message.includes('fetch') ||
         error.message.includes('network') ||
         error.message.includes('Failed to fetch') ||
-        error.name === 'TypeError'
+        (error.name === 'TypeError' && !pocketBaseMessage)
       ) {
         return {
           type: ErrorTypeValues.NETWORK,
@@ -116,7 +117,7 @@ class ErrorHandler {
       ) {
         return {
           type: ErrorTypeValues.DATABASE,
-          message: "Erreur d'accès aux données. Vérifiez vos permissions.",
+          message: pocketBaseMessage || "Erreur d'accès aux données. Vérifiez vos permissions.",
           originalError: error,
         };
       }
@@ -147,6 +148,23 @@ class ErrorHandler {
         };
       }
 
+      if (pocketBaseMessage) {
+        return {
+          type: ErrorTypeValues.DATABASE,
+          message: pocketBaseMessage,
+          originalError: error,
+          retryable: status === 400 || status === 0,
+        };
+      }
+
+      if (this.isUserFacingMessage(error.message)) {
+        return {
+          type: ErrorTypeValues.VALIDATION,
+          message: error.message,
+          originalError: error,
+        };
+      }
+
       // Ne jamais exposer le message technique brut à l'utilisateur
       return {
         type: ErrorTypeValues.UNKNOWN,
@@ -160,6 +178,34 @@ class ErrorHandler {
       type: ErrorTypeValues.UNKNOWN,
       message: 'Une erreur inattendue est survenue',
     };
+  }
+
+  private isUserFacingMessage(message: string): boolean {
+    return /^(Aucune |Trop |Vous devez |L'import |Le fichier |Impossible )/i.test(message);
+  }
+
+  private getPocketBaseUserMessage(error: Error): string | null {
+    const response = (error as Error & { response?: { data?: Record<string, { message?: string }>; message?: string } }).response;
+    if (!response || typeof response !== 'object') {
+      return null;
+    }
+    const fieldErrors = Object.entries(response.data || {})
+      .map(([field, info]) => {
+        const msg = info && typeof info === 'object' ? info.message : undefined;
+        if (!msg) return null;
+        if (field === 'csvContent' && /5000|max/i.test(msg)) {
+          return 'Le fichier est trop volumineux pour être mémorisé. Réessayez : l’import des cartes va continuer sans historique.';
+        }
+        return msg;
+      })
+      .filter((msg): msg is string => Boolean(msg));
+    if (fieldErrors.length > 0) {
+      return fieldErrors.join(' ');
+    }
+    if (response.message === 'Failed to create record.') {
+      return "Impossible d'enregistrer l'import. Vérifiez le fichier et réessayez.";
+    }
+    return null;
   }
 
   /**

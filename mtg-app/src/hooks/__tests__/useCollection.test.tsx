@@ -39,6 +39,20 @@ jest.mock('../../services/csvParser', () => ({
       };
     });
   }),
+  parseCollectionImport: jest.fn((content: string) => {
+    if (!content || content.trim() === '') return [];
+    const lines = content.split('\n').filter(l => l.trim());
+    return lines.map((line, idx) => {
+      const parts = line.split(',');
+      return {
+        name: parts[0] || `Card ${idx}`,
+        quantity: parseInt(parts[1]) || 1,
+        setCode: parts[2] || undefined,
+        collectorNumber: parts[3] || undefined,
+      };
+    });
+  }),
+}));
 }));
 
 jest.mock('../../services/mtgApi', () => ({

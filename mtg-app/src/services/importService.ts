@@ -67,6 +67,9 @@ export async function getImports(userId: string): Promise<ImportJob[]> {
   return records.map(recordToImportJob);
 }
 
+/** PocketBase 0.23+ text fields default to 5000 chars. Keep a margin. */
+const MAX_STORED_CSV_CHARS = 4000;
+
 /**
  * Crée un nouvel import
  */
@@ -77,6 +80,7 @@ export async function createImport(
   totalCards: number,
   csvContent?: string
 ): Promise<string> {
+  const canStoreCsv = Boolean(csvContent && csvContent.length < MAX_STORED_CSV_CHARS);
   const importData = cleanForPocketBase({
     userId,
     status: 'pending' as ImportStatus,
@@ -84,12 +88,20 @@ export async function createImport(
     csvContentHash,
     totalCards,
     currentIndex: 0,
-    // Stocker le CSV seulement s'il est fourni et pas trop volumineux (< 900KB)
-    csvContent: csvContent && csvContent.length < 900000 ? csvContent : undefined,
+    csvContent: canStoreCsv ? csvContent : undefined,
   });
 
-  const record = await pb.collection('imports').create(importData);
-  return record.id;
+  try {
+    const record = await pb.collection('imports').create(importData);
+    return record.id;
+  } catch (error) {
+    if (importData.csvContent) {
+      const retryData = { ...importData, csvContent: undefined };
+      const record = await pb.collection('imports').create(retryData);
+      return record.id;
+    }
+    throw error;
+  }
 }
 
 /**

@@ -19,8 +19,9 @@ import { Modal } from '../components/UI/Modal';
 import { AvatarDisplay } from '../components/UI/AvatarDisplay';
 import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
+import { ImportModal } from '../components/Import/ImportModal';
+import { ProgressBar } from '../components/UI/ProgressBar';
 import { Spinner } from '../components/UI/Spinner';
-import { Link } from 'react-router-dom';
 import { userCardToDeckEntry } from '../utils/deckEntry';
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from '../types/deck';
 import { getFormatSummary } from '../services/deckFormatRules';
@@ -28,7 +29,7 @@ import { getFormatSummary } from '../services/deckFormatRules';
 export function Collection() {
   const { currentUser } = useAuth();
   const { owners, loading: loadingOwners } = useAllCollections();
-  const { collections: userCollections, loading: loadingUserCollections } = useUserCollections(currentUser?.uid ?? undefined);
+  const { collections: userCollections, loading: loadingUserCollections, createCollection, refresh: refreshUserCollections } = useUserCollections(currentUser?.uid ?? undefined);
   const { showSuccess } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -47,7 +48,13 @@ export function Collection() {
     updateCard,
     canModify,
     loadMoreCards,
-    hasMoreCards
+    hasMoreCards,
+    importCSV,
+    importProgress,
+    pauseImport,
+    resumeImport,
+    cancelImport,
+    isImportPaused,
   } = useCollection(
     selectedUserId === 'all' ? 'all' : (selectedUserId || undefined),
     effectiveCollectionId ?? undefined
@@ -59,6 +66,8 @@ export function Collection() {
   );
   
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [showDeckModal, setShowDeckModal] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -635,9 +644,15 @@ export function Collection() {
         )}
       </div>
 
-      {/* 2. Bouton exporter (ajout/suppression de cartes sont dans le Profil) */}
+      {/* 2. Boutons exporter / importer */}
       {isViewingOwnCollection && !isViewingAllCollections && (
         <div className="mb-6 flex gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            onClick={() => setShowImportModal(true)}
+          >
+            Importer une collection
+          </Button>
           <Button
             variant="primary"
             onClick={() => setShowExportModal(true)}
@@ -884,6 +899,35 @@ export function Collection() {
         </div>
       )}
 
+      {importProgress && (
+        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Import en cours...
+            </h3>
+            <div className="flex gap-2">
+              {isImportPaused ? (
+                <Button variant="primary" onClick={() => resumeImport()} className="text-sm px-2 py-1">
+                  Reprendre
+                </Button>
+              ) : (
+                <Button variant="secondary" onClick={() => pauseImport()} className="text-sm px-2 py-1">
+                  Pause
+                </Button>
+              )}
+              <Button variant="danger" onClick={() => cancelImport()} className="text-sm px-2 py-1">
+                Annuler
+              </Button>
+            </div>
+          </div>
+          <ProgressBar
+            current={importProgress.current}
+            total={importProgress.total}
+            label={importProgress.currentCard || (isImportPaused ? 'En pause...' : 'Traitement...')}
+          />
+        </div>
+      )}
+
       {showLoadingMore && (
         <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
           <Spinner size="md" />
@@ -901,7 +945,7 @@ export function Collection() {
           </p>
           {isViewingOwnCollection && (
             <p className="text-gray-500 dark:text-gray-500 text-sm mb-4">
-              Allez dans votre <Link to="/profile" className="text-blue-600 dark:text-blue-400 hover:underline">Profil</Link> pour ajouter des cartes (import CSV).
+              Utilisez <button type="button" onClick={() => setShowImportModal(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Importer une collection</button> pour charger un CSV ou un JSON.
             </p>
           )}
         </div>
@@ -978,6 +1022,32 @@ export function Collection() {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         cards={filteredCards}
+      />
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        collections={userCollections}
+        defaultCollectionId={selectedCollectionId}
+        importing={importing}
+        onCreateDefaultCollection={async () => {
+          const created = await createCollection('Ma collection');
+          await refreshUserCollections();
+          return created;
+        }}
+        onImport={async (content, updateMode, collectionId) => {
+          setShowImportModal(false);
+          try {
+            setImporting(true);
+            await importCSV(content, updateMode, undefined, collectionId ?? undefined);
+            showSuccess('Import terminé avec succès');
+            await refreshUserCollections();
+          } catch (err) {
+            errorHandler.handleAndShowError(err);
+          } finally {
+            setImporting(false);
+          }
+        }}
       />
 
       {/* Modal déplacer la carte vers une autre collection */}
