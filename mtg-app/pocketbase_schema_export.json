@@ -390,17 +390,107 @@
         "id": "desxtmiw",
         "name": "cards",
         "type": "json",
-        "required": true,
+        "required": false,
         "presentable": false,
         "unique": false,
         "options": {
           "maxSize": 2000000
         }
+      },
+      {
+        "system": false,
+        "id": "deck_format",
+        "name": "format",
+        "type": "select",
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": ["commander", "standard", "pioneer", "modern", "historic", "pauper"]
+        }
+      },
+      {
+        "system": false,
+        "id": "deck_visibility",
+        "name": "visibility",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": ["private", "unlisted", "public"]
+        }
+      },
+      {
+        "system": false,
+        "id": "deck_description",
+        "name": "description",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": 2000,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "deck_commanders",
+        "name": "commanders",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 500000
+        }
+      },
+      {
+        "system": false,
+        "id": "deck_source",
+        "name": "sourceDeckId",
+        "type": "relation",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "decks_id",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "deck_valid",
+        "name": "isValidForFormat",
+        "type": "bool",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "system": false,
+        "id": "deck_tags",
+        "name": "tags",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 100000
+        }
       }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = userId || visibility = \"public\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = userId || visibility = \"public\" || visibility = \"unlisted\")",
     "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId",

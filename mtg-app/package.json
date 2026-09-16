@@ -28,7 +28,8 @@
     "ocr:sidecar": "python scripts/rapidocr_sidecar.py",
     "ocr:live": "node scripts/live-webcam-server.mjs",
     "test:rapidocr-crops": "node scripts/rapidocr-crop-bench.mjs",
-    "migrate-user-collections": "node scripts/migrate-user-collections.js"
+    "migrate-user-collections": "node scripts/migrate-user-collections.js",
+    "migrate-decks-catalog": "node scripts/migrate-decks-catalog.js"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",

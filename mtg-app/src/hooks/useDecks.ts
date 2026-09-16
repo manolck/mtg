@@ -1,7 +1,7 @@
 // src/hooks/useDecks.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as deckService from '../services/deckService';
-import type { Deck } from '../types/deck';
+import type { Deck, DeckEntry, DeckFormat, DeckVisibility, DeckZone } from '../types/deck';
 import { useAuth } from './useAuth';
 
 export function useDecks() {
@@ -10,16 +10,7 @@ export function useDecks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (currentUser) {
-      loadDecks();
-    } else {
-      setDecks([]);
-      setLoading(false);
-    }
-  }, [currentUser]);
-
-  async function loadDecks() {
+  const loadDecks = useCallback(async () => {
     if (!currentUser) return;
 
     try {
@@ -33,9 +24,21 @@ export function useDecks() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentUser]);
 
-  async function createDeck(name: string): Promise<string> {
+  useEffect(() => {
+    if (currentUser) {
+      loadDecks();
+    } else {
+      setDecks([]);
+      setLoading(false);
+    }
+  }, [currentUser, loadDecks]);
+
+  async function createDeck(
+    nameOrInput: string | deckService.CreateDeckInput,
+    format: DeckFormat = 'modern'
+  ): Promise<string> {
     if (!currentUser) {
       const msg = 'Vous devez être connecté pour créer un deck';
       setError(msg);
@@ -44,7 +47,7 @@ export function useDecks() {
 
     try {
       setError(null);
-      const deck = await deckService.createDeck(currentUser.uid, name);
+      const deck = await deckService.createDeck(currentUser.uid, nameOrInput, format);
       await loadDecks();
       return deck.id;
     } catch (err) {
@@ -55,26 +58,51 @@ export function useDecks() {
     }
   }
 
-  async function addCardToDeck(deckId: string, cardId: string, quantity: number = 1) {
+  async function updateDeck(
+    deckId: string,
+    updates: Parameters<typeof deckService.updateDeck>[1]
+  ) {
     if (!currentUser) return;
-
     try {
       setError(null);
-      await deckService.addCardToDeck(deckId, cardId, quantity);
+      await deckService.updateDeck(deckId, updates);
       await loadDecks();
     } catch (err) {
-      console.error('Error adding card to deck:', err);
-      setError('Erreur lors de l\'ajout de la carte au deck');
+      console.error('Error updating deck:', err);
+      setError('Erreur lors de la mise à jour du deck');
       throw err;
     }
   }
 
-  async function removeCardFromDeck(deckId: string, cardId: string) {
+  async function addCardToDeck(
+    deckId: string,
+    entry: DeckEntry | string,
+    quantity: number = 1,
+    zone: DeckZone = 'mainboard'
+  ) {
     if (!currentUser) return;
 
     try {
       setError(null);
-      await deckService.removeCardFromDeck(deckId, cardId);
+      if (typeof entry === 'string') {
+        await deckService.addCardToDeck(deckId, entry, quantity, zone);
+      } else {
+        await deckService.addEntryToDeck(deckId, { ...entry, quantity: entry.quantity || quantity }, zone);
+      }
+      await loadDecks();
+    } catch (err) {
+      console.error('Error adding card to deck:', err);
+      setError("Erreur lors de l'ajout de la carte au deck");
+      throw err;
+    }
+  }
+
+  async function removeCardFromDeck(deckId: string, cardId: string, zone: DeckZone = 'mainboard') {
+    if (!currentUser) return;
+
+    try {
+      setError(null);
+      await deckService.removeCardFromDeck(deckId, cardId, zone);
       await loadDecks();
     } catch (err) {
       console.error('Error removing card from deck:', err);
@@ -83,12 +111,17 @@ export function useDecks() {
     }
   }
 
-  async function updateCardQuantity(deckId: string, cardId: string, quantity: number) {
+  async function updateCardQuantity(
+    deckId: string,
+    cardId: string,
+    quantity: number,
+    zone: DeckZone = 'mainboard'
+  ) {
     if (!currentUser) return;
 
     try {
       setError(null);
-      await deckService.updateCardQuantityInDeck(deckId, cardId, quantity);
+      await deckService.updateCardQuantityInDeck(deckId, cardId, quantity, zone);
       await loadDecks();
     } catch (err) {
       console.error('Error updating card quantity:', err);
@@ -110,15 +143,33 @@ export function useDecks() {
     }
   }
 
+  async function setVisibility(deckId: string, visibility: DeckVisibility, isValid?: boolean) {
+    if (!currentUser) return;
+    await deckService.setDeckVisibility(deckId, visibility, isValid);
+    await loadDecks();
+  }
+
+  async function forkDeck(sourceDeckId: string): Promise<string> {
+    if (!currentUser) {
+      throw new Error('Vous devez être connecté');
+    }
+    const deck = await deckService.forkDeck(sourceDeckId);
+    await loadDecks();
+    return deck.id;
+  }
+
   return {
     decks,
     loading,
     error,
     createDeck,
+    updateDeck,
     addCardToDeck,
     removeCardFromDeck,
     updateCardQuantity,
     deleteDeck,
+    setVisibility,
+    forkDeck,
     refresh: loadDecks,
   };
 }

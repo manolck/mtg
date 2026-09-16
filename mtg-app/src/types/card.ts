@@ -5,6 +5,7 @@ export interface MTGCard {
   manaCost?: string;
   cmc?: number;
   colors?: string[];
+  colorIdentity?: string[];
   type?: string;
   types?: string[];
   subtypes?: string[];
@@ -19,6 +20,7 @@ export interface MTGCard {
   loyalty?: string;
   multiverseid?: number;
   imageUrl?: string;
+  legalities?: Record<string, string>;
   foreignNames?: Array<{
     name: string;
     language: string;

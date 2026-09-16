@@ -3,6 +3,7 @@ import { useDecks } from '../useDecks';
 import { AuthProvider } from '../../context/AuthContext';
 import * as deckService from '../../services/deckService';
 import type { Deck } from '../../types/deck';
+import { emptyDeckCards } from '../../types/deck';
 
 jest.mock('../../services/pocketbase', () => ({
   pb: {
@@ -21,6 +22,12 @@ jest.mock('../../services/deckService', () => ({
   createDeck: jest.fn(),
   updateDeck: jest.fn(),
   deleteDeck: jest.fn(),
+  addEntryToDeck: jest.fn(),
+  addCardToDeck: jest.fn(),
+  removeCardFromDeck: jest.fn(),
+  updateCardQuantityInDeck: jest.fn(),
+  setDeckVisibility: jest.fn(),
+  forkDeck: jest.fn(),
 }));
 
 const mockGetDecks = deckService.getDecks as jest.Mock;
@@ -31,7 +38,10 @@ describe('useDecks', () => {
   const mockDeck: Deck = {
     id: 'deck-1',
     name: 'Test Deck',
-    cards: [],
+    cards: emptyDeckCards(),
+    commanders: [],
+    format: 'modern',
+    visibility: 'private',
     userId: 'test-user-id',
     createdAt: new Date(),
   };
@@ -59,7 +69,7 @@ describe('useDecks', () => {
     expect(result.current.decks).toEqual([mockDeck]);
   });
 
-  it('should create a new deck', async () => {
+  it('should create a new deck with format', async () => {
     mockGetDecks.mockResolvedValue([]);
     mockCreateDeck.mockResolvedValue({ ...mockDeck, id: 'new-deck-id' });
 
@@ -75,9 +85,13 @@ describe('useDecks', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    await result.current.createDeck('New Deck');
+    await result.current.createDeck({ name: 'New Deck', format: 'commander' });
 
-    expect(mockCreateDeck).toHaveBeenCalledWith('test-user-id', 'New Deck');
+    expect(mockCreateDeck).toHaveBeenCalledWith(
+      'test-user-id',
+      { name: 'New Deck', format: 'commander' },
+      'modern'
+    );
   });
 
   it('should delete a deck', async () => {

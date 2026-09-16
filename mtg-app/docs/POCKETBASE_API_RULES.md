@@ -31,6 +31,18 @@ Cela autorisait **tout utilisateur connecté** à lister toutes les wishlists. L
 
 `user_collections` et `collection_items` restent listables par tout utilisateur authentifié : c’est le comportement de la vue multi-collections. Si la politique de confidentialité change, restreindre `listRule` / `viewRule` à `userId = @request.auth.id` (et `userCollectionId.userId = @request.auth.id`).
 
+## Decks — partage communautaire
+
+Règles versionnées :
+
+- `listRule` : propriétaire **ou** `visibility = "public"`
+- `viewRule` : propriétaire **ou** public **ou** unlisted (accès par id / lien)
+- create / update / delete : propriétaire uniquement
+
+Champs à ajouter dans Admin → `decks` : `format`, `visibility`, `description`, `commanders` (json), `sourceDeckId` (relation decks, sans cascade), `isValidForFormat` (bool), `tags` (json). Le JSON `cards` stocke `{ mainboard, sideboard, maybeboard }`.
+
+Appliquer aussi le script de migration `scripts/migrate-decks-catalog.js` après ajout des champs.
+
 ## Création de comptes
 
 `users.createRule` est vide : pas d’inscription publique. Les comptes se créent depuis l’admin applicatif (rôle `admin`) ou l’admin PocketBase.

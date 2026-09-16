@@ -21,6 +21,9 @@ import { ManaSymbol } from '../components/UI/ManaSymbol';
 import { ExportModal } from '../components/Export/ExportModal';
 import { Spinner } from '../components/UI/Spinner';
 import { Link } from 'react-router-dom';
+import { userCardToDeckEntry } from '../utils/deckEntry';
+import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from '../types/deck';
+import { getFormatSummary } from '../services/deckFormatRules';
 
 export function Collection() {
   const { currentUser } = useAuth();
@@ -71,6 +74,7 @@ export function Collection() {
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [newDeckName, setNewDeckName] = useState('');
+  const [newDeckFormat, setNewDeckFormat] = useState<DeckFormat>('modern');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
   const [cardToMove, setCardToMove] = useState<import('../types/card').UserCard | null>(null);
   const [moveTargetCollectionId, setMoveTargetCollectionId] = useState<string | null>(null);
@@ -161,34 +165,47 @@ export function Collection() {
 
   const handleSelectDeck = useCallback(async (deckId: string) => {
     if (!selectedCardId) return;
+    const card = cards.find((c) => c.id === selectedCardId) || allCards.find((c) => c.id === selectedCardId);
+    if (!card) {
+      errorHandler.handleAndShowError(new Error('Carte introuvable'));
+      return;
+    }
 
     try {
-      await addCardToDeck(deckId, selectedCardId, 1);
+      const entry = userCardToDeckEntry(card, 1);
+      await addCardToDeck(deckId, entry, 1, 'mainboard');
       setShowDeckModal(false);
       setSelectedCardId(null);
       showSuccess('Carte ajoutée au deck');
     } catch (err) {
       errorHandler.handleAndShowError(err);
     }
-  }, [selectedCardId, addCardToDeck, showSuccess]);
+  }, [selectedCardId, cards, allCards, addCardToDeck, showSuccess]);
 
   const handleCreateDeck = useCallback(async () => {
     if (!newDeckName.trim() || !selectedCardId) return;
+    const card = cards.find((c) => c.id === selectedCardId) || allCards.find((c) => c.id === selectedCardId);
+    if (!card) return;
 
     try {
       setIsCreatingDeck(true);
-      const deckId = await createDeck(newDeckName.trim());
-      await addCardToDeck(deckId, selectedCardId, 1);
+      const deckId = await createDeck({
+        name: newDeckName.trim(),
+        format: newDeckFormat,
+      });
+      const entry = userCardToDeckEntry(card, 1);
+      await addCardToDeck(deckId, entry, 1, 'mainboard');
       setShowDeckModal(false);
       setSelectedCardId(null);
       setNewDeckName('');
+      setNewDeckFormat('modern');
       showSuccess('Deck créé et carte ajoutée');
     } catch (err) {
       errorHandler.handleAndShowError(err);
     } finally {
       setIsCreatingDeck(false);
     }
-  }, [newDeckName, selectedCardId, createDeck, addCardToDeck, showSuccess]);
+  }, [newDeckName, newDeckFormat, selectedCardId, cards, allCards, createDeck, addCardToDeck, showSuccess]);
 
   // Créer un Set des cartes dans la wishlist pour vérification rapide
   const wishlistCardSet = useMemo(() => {
@@ -1034,14 +1051,26 @@ export function Collection() {
             <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
               Créer un nouveau deck
             </h3>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <input
                 type="text"
                 placeholder="Nom du deck"
                 value={newDeckName}
                 onChange={(e) => setNewDeckName(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
+              <select
+                value={newDeckFormat}
+                onChange={(e) => setNewDeckFormat(e.target.value as DeckFormat)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                {DECK_FORMATS.map((f) => (
+                  <option key={f} value={f}>
+                    {DECK_FORMAT_LABELS[f]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500">{getFormatSummary(newDeckFormat)}</p>
               <Button
                 onClick={handleCreateDeck}
                 disabled={!newDeckName.trim() || isCreatingDeck}

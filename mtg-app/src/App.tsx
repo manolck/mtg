@@ -12,6 +12,7 @@ import { GDPRConsent } from './components/Legal/GDPRConsent';
 // Lazy load des routes principales pour réduire le bundle initial
 // Cela permet de charger uniquement le code nécessaire pour chaque route
 const Collection = lazy(() => import('./pages/Collection').then(module => ({ default: module.Collection })));
+const CommunityDecks = lazy(() => import('./pages/CommunityDecks').then(module => ({ default: module.CommunityDecks })));
 const Decks = lazy(() => import('./pages/Decks').then(module => ({ default: module.Decks })));
 const DeckBuilder = lazy(() => import('./pages/DeckBuilder').then(module => ({ default: module.DeckBuilder })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
@@ -115,6 +116,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Decks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/community/decks"
+                element={
+                  <ProtectedRoute>
+                    <CommunityDecks />
                   </ProtectedRoute>
                 }
               />

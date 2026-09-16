@@ -33,11 +33,12 @@
     "notes": "List/view open to authenticated users for multi-collection browse. CUD owner-only."
   },
   "decks": {
-    "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "viewRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = userId || visibility = \"public\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = userId || visibility = \"public\" || visibility = \"unlisted\")",
     "createRule": "@request.auth.id != \"\" && @request.auth.id = userId",
     "updateRule": "@request.auth.id != \"\" && @request.auth.id = userId",
-    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId"
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = userId",
+    "notes": "Owners manage their decks. Authenticated users can list public decks and view public/unlisted by id. Forks are independent records (sourceDeckId has cascadeDelete: false)."
   },
   "imports": {
     "listRule": "@request.auth.id != \"\" && @request.auth.id = userId",

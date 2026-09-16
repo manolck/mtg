@@ -22,9 +22,10 @@ export const ParsedCardSchema = z.object({
 // Schéma pour un deck
 export const DeckSchema = z.object({
   name: z.string().min(1, 'Le nom du deck est requis').max(100, 'Le nom du deck ne peut pas dépasser 100 caractères'),
-  description: z.string().max(500, 'La description ne peut pas dépasser 500 caractères').optional(),
-  format: z.string().optional(),
-  isPublic: z.boolean().default(false),
+  description: z.string().max(2000, 'La description ne peut pas dépasser 2000 caractères').optional(),
+  format: z.enum(['commander', 'standard', 'pioneer', 'modern', 'historic', 'pauper']),
+  visibility: z.enum(['private', 'unlisted', 'public']).default('private'),
+  tags: z.array(z.string().max(40)).max(20).optional(),
 });
 
 // Schéma pour un profil utilisateur

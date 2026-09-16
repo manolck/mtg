@@ -52,6 +52,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
     manaCost: frontFace.mana_cost || scryfallCard.mana_cost,
     cmc: scryfallCard.cmc,
     colors: scryfallCard.colors || [],
+    colorIdentity: scryfallCard.color_identity || scryfallCard.colors || [],
     type: scryfallCard.type_line,
     types: scryfallCard.type_line ? scryfallCard.type_line.split(' — ')[0].trim().split(/\s+/) : [],
     subtypes: scryfallCard.type_line && scryfallCard.type_line.includes('—') 
@@ -70,6 +71,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
       ? scryfallCard.multiverse_ids[0] 
       : undefined,
     imageUrl: imageUris?.normal || imageUris?.large || imageUris?.png || imageUris?.border_crop,
+    legalities: scryfallCard.legalities || undefined,
   };
 
   // Ajouter les versions étrangères si disponibles
