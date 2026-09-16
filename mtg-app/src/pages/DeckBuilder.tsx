@@ -2,21 +2,35 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useDecks } from '../hooks/useDecks';
 import { useCollection } from '../hooks/useCollection';
+import { useUserCollections } from '../hooks/useUserCollections';
 import { useAuth } from '../hooks/useAuth';
 import { useWishlist } from '../hooks/useWishlist';
 import { useDeckOwnership } from '../hooks/useDeckOwnership';
 import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
-import { validateDeck, canPublish } from '../services/deckFormatRules';
+import { validateDeck, canPublish, formatIssuesByCardId } from '../services/deckFormatRules';
 import { parseDecklistText, exportDecklistText } from '../services/decklistParser';
+import { useProfile } from '../hooks/useProfile';
 import { searchCardByName, searchCards } from '../services/scryfallSearchService';
+import { fetchSetsWithIcons } from '../services/scryfallSetIconsService';
 import { getCardPriceFromMTGJSON } from '../services/mtgjsonPriceServiceAPI';
-import { mtgCardToDeckEntry } from '../utils/deckEntry';
+import { mtgCardToDeckEntry, userCardToMtgCard } from '../utils/deckEntry';
+import { suggestBasicLands } from '../utils/autoLands';
+import {
+  EMPTY_CARD_SEARCH_FILTERS,
+  hasActiveCardSearchFilters,
+  userCardMatchesSearch,
+  type CardSearchFilters,
+} from '../utils/cardSearchFilters';
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
 import { Modal } from '../components/UI/Modal';
 import { ManaCostDisplay } from '../components/UI/ManaCostDisplay';
 import { LazyImage } from '../components/UI/LazyImage';
+import { SearchInput } from '../components/UI/SearchInput';
+import { CardSearchFilterBar } from '../components/Card/CardSearchFilterBar';
+import { CardHoverPreview } from '../components/Card/CardHoverPreview';
+import { CardLightbox } from '../components/Card/CardLightbox';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
 import { ShoppingListModal, deckEntryAsMtgCard } from '../components/Deck/ShoppingListModal';
@@ -63,18 +77,38 @@ export function DeckBuilder() {
     replaceEntry,
     refresh,
   } = useDecks();
-  const { cards: collectionCards } = useCollection();
+  const { cards: collectionCards, allCards } = useCollection();
+  const { collections: userCollections } = useUserCollections(currentUser?.uid);
+  const { profile } = useProfile();
   const { addItem, items: wishlistItems } = useWishlist(currentUser?.uid);
   const { showSuccess, showError } = useToast();
+  const preferredLanguage = profile?.preferredLanguage === 'fr' ? 'fr' : 'en';
 
   const [remoteDeck, setRemoteDeck] = useState<Awaited<
     ReturnType<typeof deckService.getDeckById>
   > | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<BuilderTab>('mainboard');
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState<CardSearchFilters>(EMPTY_CARD_SEARCH_FILTERS);
+  const [searchSets, setSearchSets] = useState<Array<{ code: string; name: string }>>([]);
   const [searchResults, setSearchResults] = useState<MTGCard[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchInCollectionOnly, setSearchInCollectionOnly] = useState(false);
+  const [searchCollectionId, setSearchCollectionId] = useState<string | null>(null);
+  const [searchQtyById, setSearchQtyById] = useState<Record<string, number>>({});
+  const [searchSelectedIds, setSearchSelectedIds] = useState<string[]>([]);
+  const [addingSearch, setAddingSearch] = useState(false);
+  const [searchHover, setSearchHover] = useState<{
+    name: string;
+    imageUrl?: string;
+    rect: DOMRect;
+  } | null>(null);
+  const [searchLightbox, setSearchLightbox] = useState<{
+    name: string;
+    imageUrl?: string;
+  } | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
@@ -88,6 +122,7 @@ export function DeckBuilder() {
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [swapTarget, setSwapTarget] = useState<DeckEntry | null>(null);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [addingLands, setAddingLands] = useState(false);
 
   const ownedDeck = decks.find((d) => d.id === deckId);
   const deck = ownedDeck || remoteDeck;
@@ -95,8 +130,9 @@ export function DeckBuilder() {
   const readOnly = Boolean(deck && !isOwner);
 
   useEffect(() => {
-    if (ownedDeck || !deckId) {
+    if (!deckId || ownedDeck) {
       setRemoteDeck(null);
+      setRemoteLoading(false);
       return;
     }
     let cancelled = false;
@@ -115,7 +151,7 @@ export function DeckBuilder() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, ownedDeck]);
+  }, [deckId, ownedDeck?.id]);
 
   useEffect(() => {
     if (deck) {
@@ -129,6 +165,10 @@ export function DeckBuilder() {
   const validation = useMemo(
     () => (deck ? validateDeck(deck, 'draft') : null),
     [deck]
+  );
+  const formatIssues = useMemo(
+    () => (validation ? formatIssuesByCardId(validation) : new Map()),
+    [validation]
   );
 
   const entriesForTab = useMemo((): DeckEntry[] => {
@@ -151,6 +191,11 @@ export function DeckBuilder() {
     return buckets;
   }, [deck]);
 
+  const landSuggestion = useMemo(
+    () => (deck ? suggestBasicLands(deck) : null),
+    [deck]
+  );
+
   const typeBreakdown = useMemo(() => {
     if (!deck) return [];
     return groupDeckEntries(deck.cards.mainboard);
@@ -162,6 +207,19 @@ export function DeckBuilder() {
       activeTab === 'commanders' ? deck.commanders : deck.cards[activeTab] || [];
     return new Set(findSwappableEntries(entries, collectionCards).map((e) => e.scryfallId));
   }, [deck, activeTab, collectionCards, readOnly]);
+
+  const collectionSearchSets = useMemo(() => {
+    const map = new Map<string, string>();
+    const pool = allCards.length > 0 ? allCards : collectionCards;
+    for (const card of pool) {
+      const code = card.setCode || card.set || card.mtgData?.set;
+      if (!code) continue;
+      map.set(code, card.mtgData?.setName || code);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([code, name]) => ({ code, name }));
+  }, [allCards, collectionCards]);
 
   useEffect(() => {
     if (!deck) {
@@ -197,15 +255,72 @@ export function DeckBuilder() {
   }, [deck]);
 
   useEffect(() => {
-    if (searchQuery.trim().length < 2) {
+    let cancelled = false;
+    fetchSetsWithIcons()
+      .then((sets) => {
+        if (cancelled) return;
+        const preferred = new Set([
+          'core',
+          'expansion',
+          'commander',
+          'masters',
+          'draft_innovation',
+          'funny',
+          'starter',
+        ]);
+        setSearchSets(
+          sets
+            .filter((s) => preferred.has(s.set_type))
+            .map((s) => ({ code: s.code, name: s.name }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const hasFilters = hasActiveCardSearchFilters(searchFilters);
+    const hasQuery = searchQuery.trim().length >= 2;
+    if (!hasQuery && !hasFilters) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
+
+    if (searchInCollectionOnly) {
+      const pool = (allCards.length > 0 ? allCards : collectionCards).filter((card) =>
+        searchCollectionId ? card.collectionId === searchCollectionId : true
+      );
+      const seen = new Set<string>();
+      const results: MTGCard[] = [];
+      for (const card of pool) {
+        if (!userCardMatchesSearch(card, searchQuery, searchFilters)) continue;
+        const mtg = userCardToMtgCard(card);
+        if (!mtg?.id || seen.has(mtg.id)) continue;
+        seen.add(mtg.id);
+        results.push(mtg);
+        if (results.length >= 40) break;
+      }
+      setSearchResults(results);
+      setSearching(false);
+      return;
+    }
+
     let cancelled = false;
+    setSearching(true);
     const t = setTimeout(async () => {
-      setSearching(true);
       try {
-        const results = await searchCards(searchQuery.trim(), 12);
+        const results = await searchCards(
+          searchQuery.trim(),
+          20,
+          preferredLanguage,
+          searchFilters
+        );
         if (!cancelled) setSearchResults(results);
       } catch {
         if (!cancelled) setSearchResults([]);
@@ -217,23 +332,100 @@ export function DeckBuilder() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [searchQuery]);
+  }, [
+    searchQuery,
+    searchFilters,
+    preferredLanguage,
+    searchInCollectionOnly,
+    searchCollectionId,
+    allCards,
+    collectionCards,
+  ]);
 
-  const handleAddCard = useCallback(
-    async (card: MTGCard, zone: DeckZone = activeTab) => {
-      if (!deckId || !isOwner) return;
+  const handleAddCards = useCallback(
+    async (items: Array<{ card: MTGCard; quantity: number }>) => {
+      if (!deckId || !isOwner || items.length === 0) return;
+      const isCommanderZone = activeTab === 'commanders';
+      setAddingSearch(true);
       try {
-        const entry = mtgCardToDeckEntry(card, zone === 'commanders' ? 1 : 1);
-        await addCardToDeck(deckId, entry, entry.quantity, zone);
-        showSuccess(`${card.name} ajoutée`);
-        setSearchQuery('');
-        setSearchResults([]);
+        let ok = 0;
+        for (const { card, quantity } of items) {
+          const qty = isCommanderZone ? 1 : Math.max(1, quantity);
+          const entry = mtgCardToDeckEntry(card, qty);
+          await deckService.addEntryToDeck(deckId, entry, activeTab);
+          ok++;
+        }
+        await refresh();
+        if (ok === 1) {
+          const only = items[0];
+          const qty = isCommanderZone ? 1 : Math.max(1, only.quantity);
+          showSuccess(qty > 1 ? `${only.card.name} ×${qty} ajoutée` : `${only.card.name} ajoutée`);
+        } else {
+          const totalQty = items.reduce(
+            (sum, item) => sum + (isCommanderZone ? 1 : Math.max(1, item.quantity)),
+            0
+          );
+          showSuccess(`${totalQty} cartes ajoutées`);
+        }
+        setSearchSelectedIds([]);
       } catch (err) {
         errorHandler.handleAndShowError(err);
+      } finally {
+        setAddingSearch(false);
       }
     },
-    [deckId, isOwner, activeTab, addCardToDeck, showSuccess]
+    [deckId, isOwner, activeTab, refresh, showSuccess]
   );
+
+  const handleAddCard = useCallback(
+    async (card: MTGCard, quantity = 1) => {
+      await handleAddCards([{ card, quantity }]);
+    },
+    [handleAddCards]
+  );
+
+  const handleAddAutoLands = useCallback(async () => {
+    if (!deckId || !isOwner || !deck) return;
+    const suggestion = suggestBasicLands(deck);
+    if (suggestion.reason === 'no_spells') {
+      showError('Ajoutez d’abord des sorts pour estimer les terrains.');
+      return;
+    }
+    if (suggestion.reason === 'already_enough') {
+      showError(
+        `Le deck a déjà ${suggestion.currentLands} terrains (cible ${suggestion.targetLands}).`
+      );
+      return;
+    }
+    if (suggestion.reason === 'deck_full' || suggestion.toAdd <= 0) {
+      showError('Plus de place pour des terrains dans ce format.');
+      return;
+    }
+    setAddingLands(true);
+    try {
+      let added = 0;
+      const parts: string[] = [];
+      for (const basic of suggestion.basics) {
+        const card = await searchCardByName(basic.name);
+        if (!card?.id) continue;
+        const entry = mtgCardToDeckEntry(card, basic.quantity);
+        await deckService.addEntryToDeck(deckId, entry, 'mainboard');
+        added += basic.quantity;
+        parts.push(`${basic.quantity} ${card.name}`);
+      }
+      await refresh();
+      setActiveTab('mainboard');
+      if (added === 0) {
+        showError('Impossible de récupérer les terrains de base.');
+        return;
+      }
+      showSuccess(`${added} terrains ajoutés : ${parts.join(', ')}`);
+    } catch (err) {
+      errorHandler.handleAndShowError(err);
+    } finally {
+      setAddingLands(false);
+    }
+  }, [deckId, isOwner, deck, refresh, showSuccess, showError]);
 
   const handleImport = async () => {
     if (!deckId || !isOwner) return;
@@ -431,7 +623,7 @@ export function DeckBuilder() {
     }
   };
 
-  if (decksLoading || remoteLoading) {
+  if ((decksLoading || remoteLoading) && !deck) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Spinner size="lg" />
@@ -529,45 +721,282 @@ export function DeckBuilder() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           {!readOnly && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                Ajouter une carte ({activeTab})
-              </label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher sur Scryfall…"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Ajouter une carte ({activeTab})
+                </label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={searchInCollectionOnly}
+                  onClick={() => setSearchInCollectionOnly((v) => !v)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    searchInCollectionOnly
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'
+                  }`}
+                  title="Limiter la recherche aux cartes que vous possédez"
+                >
+                  <span
+                    className={`inline-block w-8 h-4 rounded-full relative ${
+                      searchInCollectionOnly ? 'bg-white/30' : 'bg-gray-400 dark:bg-gray-500'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+                        searchInCollectionOnly ? 'left-4' : 'left-0.5'
+                      }`}
+                    />
+                  </span>
+                  Collection uniquement
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="relative flex-1">
+                  <SearchInput
+                    type="text"
+                    placeholder={
+                      searchInCollectionOnly
+                        ? 'Rechercher dans votre collection (nom, mot-clé, type…)'
+                        : 'Rechercher une carte ou un mot-clé (ex: Flying, Vol, Trample…) — Entrée pour lancer'
+                    }
+                    value={searchInput}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      setSearchQuery(e.target.value);
+                    }}
+                    onSuggestionSelect={(suggestion) => {
+                      setSearchInput(suggestion);
+                      setSearchQuery(suggestion);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setSearchQuery(searchInput);
+                      }
+                    }}
+                    showKeywordSuggestions={true}
+                    className="pl-10"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                {(searchQuery || searchInput || hasActiveCardSearchFilters(searchFilters)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setSearchQuery('');
+                      setSearchFilters(EMPTY_CARD_SEARCH_FILTERS);
+                      setSearchResults([]);
+                    }}
+                    className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                    title="Effacer la recherche"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {searchInCollectionOnly && userCollections.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Quelle collection ?
+                  </label>
+                  <select
+                    value={searchCollectionId || ''}
+                    onChange={(e) => setSearchCollectionId(e.target.value || null)}
+                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Toutes mes collections</option>
+                    {userCollections.map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {col.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <CardSearchFilterBar
+                filters={searchFilters}
+                onChange={setSearchFilters}
+                sets={searchInCollectionOnly ? collectionSearchSets : searchSets}
               />
               {searching && (
                 <div className="py-2">
                   <Spinner size="sm" />
                 </div>
               )}
+              {!searching &&
+                searchResults.length === 0 &&
+                (searchQuery.trim().length >= 2 || hasActiveCardSearchFilters(searchFilters)) && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {searchInCollectionOnly
+                      ? 'Aucune carte de la collection ne correspond.'
+                      : 'Aucun résultat Scryfall.'}
+                  </p>
+                )}
               {searchResults.length > 0 && (
-                <ul className="mt-2 max-h-64 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-                  {searchResults.map((card) => (
-                    <li key={card.id}>
-                      <button
-                        type="button"
-                        onClick={() => handleAddCard(card)}
-                        className="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
-                      >
-                        {card.imageUrl && (
-                          <LazyImage src={card.imageUrl} alt={card.name} className="w-10 h-14 object-cover rounded" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-gray-900 dark:text-white truncate">{card.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {card.set?.toUpperCase()} · {card.rarity}
+                <div className="space-y-2">
+                  <ul
+                    className="max-h-72 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-100 dark:border-gray-700"
+                    onScroll={() => setSearchHover(null)}
+                  >
+                    {searchResults.map((card) => {
+                      const cardId = card.id || card.name;
+                      const selected = searchSelectedIds.includes(cardId);
+                      const qty = searchQtyById[cardId] || 1;
+                      const commanderZone = activeTab === 'commanders';
+                      return (
+                        <li key={cardId} className={selected ? 'bg-blue-50 dark:bg-blue-950/30' : ''}>
+                          <div className="flex items-center gap-2 px-2 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              aria-label={`Sélectionner ${card.name}`}
+                              onChange={(e) => {
+                                setSearchSelectedIds((prev) =>
+                                  e.target.checked
+                                    ? [...prev, cardId]
+                                    : prev.filter((id) => id !== cardId)
+                                );
+                              }}
+                              className="w-4 h-4 flex-shrink-0 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+                            />
+                            {card.imageUrl && (
+                              <button
+                                type="button"
+                                className="flex-shrink-0 rounded cursor-zoom-in border-0 bg-transparent p-0"
+                                title="Survolez pour agrandir"
+                                aria-label={`Voir ${card.name} en grand`}
+                                onMouseEnter={(e) => {
+                                  setSearchHover({
+                                    name: card.name,
+                                    imageUrl: card.imageUrl,
+                                    rect: e.currentTarget.getBoundingClientRect(),
+                                  });
+                                }}
+                                onMouseLeave={() => setSearchHover(null)}
+                                onClick={() =>
+                                  setSearchLightbox({
+                                    name: card.name,
+                                    imageUrl: card.imageUrl,
+                                  })
+                                }
+                              >
+                                <LazyImage
+                                  src={card.imageUrl}
+                                  alt=""
+                                  className="w-10 h-14 object-cover rounded pointer-events-none"
+                                />
+                              </button>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-gray-900 dark:text-white truncate">
+                                {card.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {card.set?.toUpperCase()} · {card.rarity}
+                                {card.type ? ` · ${card.type}` : ''}
+                                {searchInCollectionOnly ? ' · collection' : ''}
+                              </div>
+                            </div>
+                            {card.manaCost && <ManaCostDisplay manaCost={card.manaCost} />}
+                            {!commanderZone && (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  className="w-7 h-7 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 disabled:opacity-40"
+                                  disabled={qty <= 1}
+                                  onClick={() =>
+                                    setSearchQtyById((prev) => ({
+                                      ...prev,
+                                      [cardId]: Math.max(1, qty - 1),
+                                    }))
+                                  }
+                                >
+                                  −
+                                </button>
+                                <span className="w-6 text-center text-sm text-gray-900 dark:text-white">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="w-7 h-7 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 disabled:opacity-40"
+                                  disabled={qty >= 99}
+                                  onClick={() =>
+                                    setSearchQtyById((prev) => ({
+                                      ...prev,
+                                      [cardId]: Math.min(99, qty + 1),
+                                    }))
+                                  }
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              className="!px-2 !py-1 text-xs flex-shrink-0"
+                              disabled={addingSearch}
+                              onClick={() => handleAddCard(card, commanderZone ? 1 : qty)}
+                            >
+                              Ajouter
+                            </Button>
                           </div>
-                        </div>
-                        {card.manaCost && <ManaCostDisplay manaCost={card.manaCost} />}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      onClick={() => {
+                        const ids = searchResults
+                          .map((c) => c.id || c.name)
+                          .filter(Boolean);
+                        setSearchSelectedIds((prev) =>
+                          prev.length === ids.length ? [] : ids
+                        );
+                      }}
+                    >
+                      {searchSelectedIds.length === searchResults.length
+                        ? 'Tout désélectionner'
+                        : 'Tout sélectionner'}
+                    </button>
+                    <Button
+                      type="button"
+                      disabled={addingSearch || searchSelectedIds.length === 0}
+                      onClick={() => {
+                        const items = searchResults
+                          .filter((card) => searchSelectedIds.includes(card.id || card.name))
+                          .map((card) => ({
+                            card,
+                            quantity: searchQtyById[card.id || card.name] || 1,
+                          }));
+                        void handleAddCards(items);
+                      }}
+                    >
+                      {addingSearch
+                        ? 'Ajout…'
+                        : searchSelectedIds.length === 0
+                          ? 'Ajouter la sélection'
+                          : `Ajouter la sélection (${searchSelectedIds.length})`}
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -649,6 +1078,7 @@ export function DeckBuilder() {
               readOnly={readOnly}
               viewMode={viewMode}
               swappableIds={swappableIds}
+              formatIssues={formatIssues}
               onSwapPrint={(entry) => setSwapTarget(entry)}
               onIncrement={(entry) =>
                 updateCardQuantity(deck.id, entry.scryfallId, entry.quantity + 1, activeTab)
@@ -723,6 +1153,27 @@ export function DeckBuilder() {
                 </div>
               ))}
             </div>
+            {isOwner && landSuggestion && (
+              <div className="mt-3 space-y-2">
+                <Button
+                  className="w-full"
+                  loading={addingLands}
+                  disabled={addingLands}
+                  onClick={() => void handleAddAutoLands()}
+                >
+                  Ajouter les terrains
+                </Button>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {landSuggestion.reason === 'ok'
+                    ? `Cible ${landSuggestion.targetLands} (courbe ${landSuggestion.avgCmc.toFixed(1)}) · +${landSuggestion.toAdd} : ${landSuggestion.basics.map((b) => `${b.quantity} ${b.name}`).join(', ')}`
+                    : landSuggestion.reason === 'already_enough'
+                      ? `Déjà ${landSuggestion.currentLands} terrains (cible ${landSuggestion.targetLands}).`
+                      : landSuggestion.reason === 'no_spells'
+                        ? 'Ajoutez des sorts pour estimer la base.'
+                        : 'Plus de place pour des terrains.'}
+                </p>
+              </div>
+            )}
           </div>
 
           {typeBreakdown.length > 0 && (
@@ -812,6 +1263,22 @@ export function DeckBuilder() {
         onAddToWishlist={handleAddMissingToWishlist}
         wishlistBusy={addingMissing}
       />
+
+      {searchHover && !searchLightbox && (
+        <CardHoverPreview
+          name={searchHover.name}
+          imageUrl={searchHover.imageUrl}
+          anchorRect={searchHover.rect}
+        />
+      )}
+
+      {searchLightbox && (
+        <CardLightbox
+          name={searchLightbox.name}
+          imageUrl={searchLightbox.imageUrl}
+          onClose={() => setSearchLightbox(null)}
+        />
+      )}
 
       <SwapPrintModal
         isOpen={!!swapTarget}

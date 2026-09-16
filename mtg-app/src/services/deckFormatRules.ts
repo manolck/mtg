@@ -7,6 +7,8 @@ export interface ValidationIssue {
   code: string;
   message: string;
   severity: 'error' | 'warning';
+  /** Present when the issue is tied to a specific catalog card */
+  scryfallId?: string;
 }
 
 export interface ValidationResult {
@@ -57,19 +59,35 @@ function aggregateByName(entries: DeckEntry[]): Map<string, number> {
   return map;
 }
 
+const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
+
+/** Color identity uses only WUBRG. {C} / colorless is not a color and is legal in any deck. */
+function normalizeColorIdentity(values?: string[]): string[] {
+  if (!values?.length) return [];
+  const present = new Set<string>();
+  for (const raw of values) {
+    const color = raw.trim().toUpperCase();
+    if (color === 'C' || color === 'COLORLESS') continue;
+    if ((WUBRG as readonly string[]).includes(color)) present.add(color);
+  }
+  return WUBRG.filter((color) => present.has(color));
+}
+
 function commanderColorIdentity(commanders: DeckEntry[]): Set<string> | null {
   if (!commanders.length) return null;
   const set = new Set<string>();
   for (const c of commanders) {
-    const id = c.colorIdentity || c.colors || [];
-    for (const color of id) set.add(color);
+    for (const color of normalizeColorIdentity(c.colorIdentity ?? c.colors)) {
+      set.add(color);
+    }
   }
   return set;
 }
 
 function entryViolatesColorIdentity(entry: DeckEntry, allowed: Set<string>): boolean {
-  const identity = entry.colorIdentity || entry.colors || [];
-  return identity.some((c) => !allowed.has(c));
+  const identity = normalizeColorIdentity(entry.colorIdentity ?? entry.colors);
+  if (identity.length === 0) return false;
+  return identity.some((color) => !allowed.has(color));
 }
 
 export function getFormatSummary(format: DeckFormat): string {
@@ -94,11 +112,11 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
     if (issue.severity === 'error') errors.push(issue);
     else warnings.push(issue);
   };
-  const hard = (code: string, message: string) => {
-    push({ code, message, severity: mode === 'share' ? 'error' : 'warning' });
+  const hard = (code: string, message: string, scryfallId?: string) => {
+    push({ code, message, severity: mode === 'share' ? 'error' : 'warning', scryfallId });
   };
-  const soft = (code: string, message: string) => {
-    push({ code, message, severity: 'warning' });
+  const soft = (code: string, message: string, scryfallId?: string) => {
+    push({ code, message, severity: 'warning', scryfallId });
   };
 
   const main = deck.cards?.mainboard || [];
@@ -129,11 +147,14 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
 
     const allowed = commanderColorIdentity(commanders);
     if (allowed) {
+      const commanderIdentity = WUBRG.filter((color) => allowed.has(color)).join('') || 'incolore';
       for (const entry of [...main, ...commanders]) {
         if (entryViolatesColorIdentity(entry, allowed)) {
+          const identity = normalizeColorIdentity(entry.colorIdentity ?? entry.colors).join('');
           hard(
             'color_identity',
-            `${entry.name} dépasse l’identité de couleur du commander.`
+            `${entry.name} (identité ${identity}) dépasse l’identité de couleur du commander (${commanderIdentity}).`,
+            entry.scryfallId
           );
         }
       }
@@ -142,9 +163,15 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
     const byName = aggregateByName([...main, ...commanders]);
     for (const [name, qty] of byName) {
       if (qty > 1 && !BASIC_LAND_NAMES.has(name)) {
-        const sample = [...main, ...commanders].find((e) => e.name.toLowerCase() === name);
-        if (sample && !isBasicLand(sample)) {
-          hard('singleton', `Singleton Commander : plus d’un exemplaire de « ${sample.name} » (${qty}).`);
+        const samples = [...main, ...commanders].filter((e) => e.name.toLowerCase() === name);
+        if (samples[0] && !isBasicLand(samples[0])) {
+          for (const sample of samples) {
+            hard(
+              'singleton',
+              `Singleton Commander : plus d’un exemplaire de « ${samples[0].name} » (${qty}).`,
+              sample.scryfallId
+            );
+          }
         }
       }
     }
@@ -162,9 +189,15 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
     const byName = aggregateByName([...main, ...side]);
     for (const [name, qty] of byName) {
       if (qty > 4 && !BASIC_LAND_NAMES.has(name)) {
-        const sample = [...main, ...side].find((e) => e.name.toLowerCase() === name);
-        if (sample && !isBasicLand(sample)) {
-          hard('copy_limit', `Maximum 4 copies de « ${sample.name} » (deck + sideboard) : ${qty}.`);
+        const samples = [...main, ...side].filter((e) => e.name.toLowerCase() === name);
+        if (samples[0] && !isBasicLand(samples[0])) {
+          for (const sample of samples) {
+            hard(
+              'copy_limit',
+              `Maximum 4 copies de « ${samples[0].name} » (deck + sideboard) : ${qty}.`,
+              sample.scryfallId
+            );
+          }
         }
       }
     }
@@ -174,19 +207,25 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
   const checkPool = deck.format === 'commander' ? [...main, ...commanders] : [...main, ...side];
   for (const entry of checkPool) {
     if (entry.scryfallId.startsWith('legacy:')) {
-      hard('unresolved_card', `Carte non migrée : ${entry.name}. Remplacez-la via la recherche.`);
+      hard(
+        'unresolved_card',
+        `Carte non migrée : ${entry.name}. Remplacez-la via la recherche.`,
+        entry.scryfallId
+      );
       continue;
     }
     const legal = isLegal(entry, deck.format);
     if (legal === false) {
       hard(
         'illegal',
-        `${entry.name} n’est pas légale en ${formatLabel}.`
+        `${entry.name} n’est pas légale en ${formatLabel}.`,
+        entry.scryfallId
       );
     } else if (legal === null && mode === 'share') {
       soft(
         'legality_unknown',
-        `Légalité Scryfall inconnue pour ${entry.name} — vérifiez avant tournoi.`
+        `Légalité Scryfall inconnue pour ${entry.name} — vérifiez avant tournoi.`,
+        entry.scryfallId
       );
     }
 
@@ -194,9 +233,9 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
       const rarity = (entry.rarity || '').toLowerCase();
       const pauperLegal = entry.legalities?.pauper;
       if (pauperLegal === 'not_legal' || pauperLegal === 'banned') {
-        hard('pauper_illegal', `${entry.name} n’est pas légale en Pauper.`);
+        hard('pauper_illegal', `${entry.name} n’est pas légale en Pauper.`, entry.scryfallId);
       } else if (rarity && rarity !== 'common' && pauperLegal !== 'legal') {
-        soft('pauper_rarity', `${entry.name} n’est pas marquée common (${rarity}).`);
+        soft('pauper_rarity', `${entry.name} n’est pas marquée common (${rarity}).`, entry.scryfallId);
       }
     }
   }
@@ -210,4 +249,15 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
 
 export function canPublish(deck: Deck): ValidationResult {
   return validateDeck(deck, 'share');
+}
+
+export function formatIssuesByCardId(result: ValidationResult): Map<string, ValidationIssue[]> {
+  const map = new Map<string, ValidationIssue[]>();
+  for (const issue of [...result.errors, ...result.warnings]) {
+    if (!issue.scryfallId) continue;
+    const list = map.get(issue.scryfallId) || [];
+    list.push(issue);
+    map.set(issue.scryfallId, list);
+  }
+  return map;
 }

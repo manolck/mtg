@@ -40,3 +40,18 @@ export function userCardToDeckEntry(card: UserCard, quantity: number = 1): DeckE
     legalities: card.mtgData?.legalities,
   };
 }
+
+export function userCardToMtgCard(card: UserCard): MTGCard | null {
+  const mtg = card.mtgData;
+  const id = mtg?.id;
+  if (!id) return null;
+  return {
+    ...mtg,
+    id,
+    name: mtg.name || card.name,
+    set: mtg.set || card.setCode || card.set,
+    number: mtg.number || card.collectorNumber,
+    rarity: mtg.rarity || card.rarity,
+    imageUrl: mtg.imageUrl,
+  };
+}

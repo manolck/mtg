@@ -115,6 +115,9 @@ export function LazyImage({
     onError?.(e);
   };
 
+  const objectFitClass =
+    className.match(/\bobject-(contain|cover|fill|none|scale-down)\b/)?.[0] ?? 'object-contain';
+
   if (hasError) {
     return (
       <div
@@ -127,7 +130,7 @@ export function LazyImage({
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={props.style}>
       {showPlaceholder && !isLoaded && canLoad && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 animate-pulse">
           {placeholder ? (
@@ -146,8 +149,7 @@ export function LazyImage({
           alt={alt}
           onLoad={handleLoad}
           onError={handleError}
-          className={`${className} ${!isLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
-          style={props.style}
+          className={`absolute inset-0 h-full w-full ${objectFitClass} ${!isLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
           loading={priority === 'high' ? 'eager' : 'lazy'}
           decoding="async"
           fetchPriority={priority}

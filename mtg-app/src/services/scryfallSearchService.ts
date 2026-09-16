@@ -15,6 +15,11 @@ import {
 import { normalizeSearchQueryToEnglish } from './searchQueryNormalizer';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { scryfallQueue } from '../utils/apiQueue';
+import {
+  buildScryfallFilterClauses,
+  isRawScryfallQuery,
+  type CardSearchFilters,
+} from '../utils/cardSearchFilters';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
@@ -145,34 +150,49 @@ function isFrenchQuery(query: string): boolean {
 export async function searchCards(
   query: string,
   limit: number = 20,
-  preferredLanguage?: 'en' | 'fr'
+  preferredLanguage?: 'en' | 'fr',
+  filters?: Partial<CardSearchFilters> | null
 ): Promise<MTGCard[]> {
-  if (!query || query.length < 2) {
+  const filterClauses = buildScryfallFilterClauses(filters);
+  const trimmedQuery = (query || '').trim();
+  if (trimmedQuery.length < 2 && !filterClauses) {
     return [];
   }
 
   try {
-    // ÉTAPE 1 : Normaliser la requête (FR↔EN) pour que "bâton" et "staff" donnent les mêmes résultats
-    let englishQuery = normalizeSearchQueryToEnglish(query);
-    const normalizerChanged = englishQuery.toLowerCase() !== query.trim().toLowerCase();
+    let scryfallQuery = '';
 
-    const isFrench = preferredLanguage === 'fr' || isFrenchQuery(query);
-    if (isFrench && !normalizerChanged) {
-      // Pas de correspondance dans le dictionnaire : traduction par nom de carte (MagicCorporation)
-      const translated = await translateFrenchToEnglish(query);
-      if (translated) {
-        englishQuery = translated;
-      } else {
-        const mcResults = await searchInMagicCorporation(query, 5);
-        if (mcResults.length > 0) {
-          englishQuery = mcResults[0].nameVo;
+    if (!trimmedQuery) {
+      scryfallQuery = filterClauses;
+    } else if (isRawScryfallQuery(trimmedQuery)) {
+      scryfallQuery = [trimmedQuery, filterClauses].filter(Boolean).join(' ');
+    } else {
+      // ÉTAPE 1 : Normaliser la requête (FR↔EN) pour que "bâton" et "staff" donnent les mêmes résultats
+      let englishQuery = normalizeSearchQueryToEnglish(trimmedQuery);
+      const normalizerChanged = englishQuery.toLowerCase() !== trimmedQuery.toLowerCase();
+
+      const isFrench = preferredLanguage === 'fr' || isFrenchQuery(trimmedQuery);
+      if (isFrench && !normalizerChanged) {
+        const translated = await translateFrenchToEnglish(trimmedQuery);
+        if (translated) {
+          englishQuery = translated;
+        } else {
+          const mcResults = await searchInMagicCorporation(trimmedQuery, 5);
+          if (mcResults.length > 0) {
+            englishQuery = mcResults[0].nameVo;
+          }
         }
       }
+
+      scryfallQuery = [buildEnglishQuery(englishQuery), filterClauses].filter(Boolean).join(' ');
     }
 
-    // ÉTAPE 2 : Rechercher sur Scryfall en anglais
-    const scryfallQuery = buildEnglishQuery(englishQuery);
-    const searchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(scryfallQuery)}&order=released&dir=desc&unique=prints&limit=${limit}`;
+    if (!scryfallQuery) {
+      return [];
+    }
+
+    const unique = filters?.set ? 'prints' : 'cards';
+    const searchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(scryfallQuery)}&order=released&dir=desc&unique=${unique}`;
     
     let response: Response;
     try {

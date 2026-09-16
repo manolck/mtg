@@ -71,12 +71,12 @@ export function SampleHandModal({
                   key={`${card.scryfallId}-${idx}`}
                   className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
                 >
-                  <div className="aspect-[5/7] bg-gray-200 dark:bg-gray-700 relative">
+                  <div className="aspect-[63/88] bg-gray-200 dark:bg-gray-700 relative">
                     {card.imageUrl ? (
                       <LazyImage
                         src={card.imageUrl}
                         alt={card.name}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-contain"
                         priority="high"
                       />
                     ) : (
