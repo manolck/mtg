@@ -2,79 +2,99 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
 
-const features = [
+const collectionTools = [
   {
-    title: 'Recherche communautaire',
-    text: 'Tapez le nom d’une carte et voyez qui la possède dans la communauté, avec le nombre d’exemplaires.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
-      </svg>
-    ),
+    title: 'Inventaire filtré',
+    text: 'Retrouvez n’importe quelle carte par nom, couleur, rareté, type ou édition — sans faire défiler toute la collection.',
   },
   {
-    title: 'Collections partagées',
-    text: 'Parcourez la collection de chaque joueur, filtrez comme la vôtre, et trouvez ce qu’il vous manque chez les autres.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-      </svg>
-    ),
+    title: 'Scanner photo',
+    text: 'Photographiez une carte : l’app lit le nom et l’édition, puis l’ajoute à votre inventaire sans saisie.',
   },
   {
-    title: 'Wishlist & échanges',
-    text: 'Listez les cartes recherchées : l’app indique si un membre les a déjà, pour échanger ou acheter plus facilement.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 21s-7-4.4-7-10a5 5 0 019-3 5 5 0 019 3c0 5.6-7 10-7 10z" />
-      </svg>
-    ),
+    title: 'Import et export',
+    text: 'Chargez un CSV ou un JSON, ou exportez votre collection pour la sauvegarder et la déplacer.',
   },
   {
-    title: 'Decks de la communauté',
-    text: 'Publiez vos decks, parcourez ceux des autres, copiez une liste et voyez ce qu’il vous reste à trouver.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h11a3 3 0 013 3v11H7a3 3 0 01-3-3V6z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 6V4a2 2 0 012-2h9a3 3 0 013 3v11h-2" />
-      </svg>
-    ),
+    title: 'Plusieurs collections',
+    text: 'Séparez vos binders, vos decks en papier ou vos stocks à échanger, et basculez d’un inventaire à l’autre.',
   },
   {
-    title: 'Votre collection',
-    text: 'Importez, scannez et filtrez vos cartes. Elles deviennent visibles pour les autres joueurs dès que vous les ajoutez.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h10M4 17h7" />
-      </svg>
-    ),
+    title: 'Statistiques',
+    text: 'Valeur, couleurs, raretés, éditions : voyez d’un coup d’œil comment votre collection est répartie.',
   },
   {
-    title: 'Jouer ensemble',
-    text: 'Ouvrez un salon, invitez des amis et jouez avec votre collection — ou un deck publié par la communauté.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M18 8a3 3 0 11-6 0 3 3 0 016 0zM8 15a3 3 0 11-6 0 3 3 0 016 0zM21 20a4 4 0 00-8 0M11 20a4 4 0 00-8 0" />
-      </svg>
-    ),
+    title: 'Wishlist perso',
+    text: 'Marquez les cartes que vous cherchez encore. Elles restent liées à votre collection pour les échanges.',
   },
 ];
 
-const steps = [
+const communityTools = [
   {
-    n: '01',
-    title: 'Rejoignez la communauté',
-    text: 'Créez votre compte et partagez votre collection avec les autres joueurs.',
+    title: 'Collections ouvertes',
+    text: 'Parcourez la collection de chaque joueur, filtrez comme la vôtre, et voyez ce que les autres ont en stock.',
   },
   {
-    n: '02',
-    title: 'Cherchez une carte',
-    text: 'Parcourez toutes les collections : qui l’a, en combien d’exemplaires, et chez qui.',
+    title: 'Recherche communautaire',
+    text: 'Tapez un nom de carte : l’app parcourt toutes les collections et affiche qui la possède, et en combien d’exemplaires.',
   },
   {
-    n: '03',
-    title: 'Échangez et jouez',
-    text: 'Ajoutez-la à votre wishlist, contactez le propriétaire, ou lancez une partie.',
+    title: 'Wishlist et échanges',
+    text: 'Ajoutez une carte à votre wishlist depuis un résultat communautaire, puis contactez le propriétaire.',
+  },
+];
+
+const deckTools = [
+  {
+    title: 'Depuis votre collection',
+    text: 'Cherchez uniquement les cartes que vous possédez, ou ouvrez le catalogue complet. Main, side, maybeboard et commanders.',
+  },
+  {
+    title: 'Formats et légalité',
+    text: 'Modern, Commander, Pioneer… La validation signale les cartes illégales avant de publier.',
+  },
+  {
+    title: 'Possession en direct',
+    text: 'Voyez le pourcentage de la liste déjà en collection, et la liste des exemplaires manquants.',
+  },
+  {
+    title: 'Wishlist et achats',
+    text: 'Ajoutez les manquants à votre wishlist, générez une liste d’achats, et cherchez-les dans la communauté.',
+  },
+  {
+    title: 'Tester le deck',
+    text: 'Sample hand, courbe de mana, répartition des types, terrains de base automatiques et changement d’édition.',
+  },
+  {
+    title: 'Partager et copier',
+    text: 'Importez ou exportez une decklist, publiez-la, partagez un lien unlisted, ou forkez un deck communautaire.',
+  },
+];
+
+const playTools = [
+  {
+    title: 'Créer ou rejoindre un salon',
+    text: 'Nommez un lobby, choisissez le format et 2 à 4 joueurs. Envoyez le lien, ou rejoignez un salon déjà ouvert.',
+  },
+  {
+    title: 'Deck et prêt',
+    text: 'Chacun prend son deck — le sien ou un deck communautaire. Quand tout le monde est prêt, l’hôte lance la table.',
+  },
+  {
+    title: 'Table digitale',
+    text: 'Piochez, posez, engagez, retournez, et déplacez les cartes entre main, champ, cimetière, exil et commandement.',
+  },
+  {
+    title: 'PV, poison et tour',
+    text: 'Suivez les points de vie et le poison, mulligan, passez le tour. Les règles Magic restent à votre charge.',
+  },
+  {
+    title: 'Recherche en bibliothèque',
+    text: 'Cherchez une carte dans votre bibliothèque, mettez-la en jeu ou sur le dessus, puis mélangez si besoin.',
+  },
+  {
+    title: 'Vidéo optionnelle',
+    text: 'Caméra et micro si vous voulez. Vous pouvez refuser : la partie continue sans audio ni vidéo.',
   },
 ];
 
@@ -89,6 +109,27 @@ const communityOwners = [
   { name: 'Marc', cards: 860, color: 'bg-orange-500' },
   { name: 'Anaïs', cards: 531, color: 'bg-violet-500' },
   { name: 'Hugo', cards: 318, color: 'bg-emerald-500' },
+];
+
+const manaCurvePreview = [2, 7, 11, 9, 5, 3, 2];
+const missingPreview = [
+  { qty: 2, name: 'Lightning Helix' },
+  { qty: 1, name: 'Wear // Tear' },
+  { qty: 3, name: 'Sacred Foundry' },
+];
+
+const lobbyPreview = [
+  { name: 'Soirée Commander', format: 'Commander', seats: '2 / 4', status: 'Ouvert', live: false },
+  { name: 'Modern du jeudi', format: 'Modern', seats: '2 / 2', status: 'En cours', live: true },
+];
+
+const manaColors = [
+  { label: 'W', className: 'bg-amber-100 text-amber-900 dark:bg-amber-200/90 dark:text-amber-950' },
+  { label: 'U', className: 'bg-sky-500 text-white' },
+  { label: 'B', className: 'bg-gray-800 text-white' },
+  { label: 'R', className: 'bg-red-600 text-white' },
+  { label: 'G', className: 'bg-emerald-600 text-white' },
+  { label: 'C', className: 'bg-gray-300 text-gray-800 dark:bg-gray-500 dark:text-white' },
 ];
 
 function DarkModeButton() {
@@ -117,6 +158,64 @@ const primaryCtaClass =
   'inline-flex items-center justify-center min-h-[44px] px-5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors';
 const secondaryCtaClass =
   'inline-flex items-center justify-center min-h-[44px] px-5 rounded-lg bg-white/10 dark:bg-white/10 text-gray-900 dark:text-white text-sm font-medium ring-1 ring-gray-200 dark:ring-white/15 hover:bg-gray-50 dark:hover:bg-white/15 transition-colors';
+
+function CollectionPreview() {
+  return (
+    <div className="surface-card p-4 sm:p-5 shadow-2xl" aria-hidden>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">Votre collection</p>
+          <p className="font-semibold mt-1">953 cartes · 2 binders</p>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 shrink-0">
+          Scan prêt
+        </span>
+      </div>
+      <div className="flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800/80 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+        </svg>
+        Lightning Bolt
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {manaColors.map((pip) => (
+          <span
+            key={pip.label}
+            className={`w-7 h-7 rounded-full text-[11px] font-bold flex items-center justify-center ${pip.className}`}
+          >
+            {pip.label}
+          </span>
+        ))}
+        {['Commune', 'Unco', 'Rare'].map((label) => (
+          <span
+            key={label}
+            className="text-[11px] px-2 py-1 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-[1fr_auto] gap-3 items-end">
+        <div className="relative h-36">
+          <div className="absolute left-2 top-4 w-[4.6rem] aspect-[63/88] rounded-lg bg-gradient-to-br from-sky-400 to-blue-800 -rotate-12 shadow-xl ring-1 ring-white/20" />
+          <div className="absolute left-10 top-1 w-[4.6rem] aspect-[63/88] rounded-lg bg-gradient-to-br from-amber-400 to-red-800 rotate-6 shadow-xl ring-1 ring-white/20" />
+          <div className="absolute left-20 top-6 w-[4.8rem] aspect-[63/88] rounded-lg bg-gradient-to-br from-gray-700 to-gray-950 shadow-xl ring-1 ring-white/10 flex items-end p-2">
+            <p className="text-[10px] text-white/90 leading-tight">Lightning Bolt</p>
+          </div>
+        </div>
+        <div className="w-[6.5rem] rounded-xl bg-gray-900 text-white p-3 ring-1 ring-white/10">
+          <div className="aspect-[3/4] rounded-md bg-gradient-to-br from-gray-700 to-gray-950 ring-1 ring-white/15 flex items-center justify-center">
+            <svg className="w-7 h-7 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2" />
+              <circle cx="12" cy="12" r="3.2" strokeWidth={1.8} />
+            </svg>
+          </div>
+          <p className="text-[10px] text-center mt-2 text-white/80">Photo → ajout</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CommunitySearchPreview() {
   return (
@@ -182,28 +281,155 @@ function CommunityOwnersPreview() {
   );
 }
 
+function DeckBuilderPreview() {
+  const maxCurve = Math.max(...manaCurvePreview);
+  return (
+    <div className="surface-card p-4 sm:p-5 shadow-2xl" aria-hidden>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="font-semibold">Boros Aggro</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Modern · Main 58 · Side 15</p>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 shrink-0">
+          78 % possédé
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+        <div className="h-full w-[78%] rounded-full bg-emerald-500" />
+      </div>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">47 / 60 cartes déjà en collection</p>
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
+        Courbe de mana
+      </p>
+      <div className="mt-2 flex items-end gap-1.5 h-20">
+        {manaCurvePreview.map((value, index) => (
+          <div key={index} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
+            <div
+              className="w-full rounded-t bg-blue-500/80 dark:bg-blue-400/80 min-h-[4px]"
+              style={{ height: `${Math.max(8, (value / maxCurve) * 100)}%` }}
+            />
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">{index === 6 ? '6+' : index}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
+        Manquantes
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {missingPreview.map((row) => (
+          <li
+            key={row.name}
+            className="flex items-center justify-between text-sm rounded-lg bg-white/70 dark:bg-white/5 px-3 py-2 ring-1 ring-gray-200/80 dark:ring-white/10"
+          >
+            <span className="truncate">{row.name}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">×{row.qty}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {['Sample hand', 'Liste d’achats', 'Publier'].map((label) => (
+          <span
+            key={label}
+            className="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlayLobbyPreview() {
+  return (
+    <div className="surface-card p-4 sm:p-5 shadow-2xl" aria-hidden>
+      <p className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300 mb-3">
+        Lobbies
+      </p>
+      <ul className="space-y-2">
+        {lobbyPreview.map((lobby) => (
+          <li
+            key={lobby.name}
+            className="flex items-center justify-between gap-3 rounded-xl bg-white/70 dark:bg-white/5 px-3 py-2.5 ring-1 ring-gray-200/80 dark:ring-white/10"
+          >
+            <div className="min-w-0">
+              <p className="font-medium text-sm truncate">{lobby.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {lobby.format} · {lobby.seats} joueurs
+              </p>
+            </div>
+            <span
+              className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                lobby.live
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
+              }`}
+            >
+              {lobby.status}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 rounded-xl bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-950 p-4 text-white">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <p>
+            <span className="font-semibold">Léa</span>
+            <span className="text-white/70"> · 40 PV</span>
+          </p>
+          <p className="text-[11px] uppercase tracking-wide text-emerald-300">Tour de Léa</p>
+          <p>
+            <span className="font-semibold">Marc</span>
+            <span className="text-white/70"> · 36 PV</span>
+          </p>
+        </div>
+        <div className="mt-4 flex justify-center gap-2">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="w-12 h-[4.25rem] rounded-md bg-gradient-to-br from-sky-400/80 to-blue-800 shadow-lg ring-1 ring-white/20"
+            />
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Piocher', 'Engager', 'Bibliothèque'].map((label) => (
+            <span key={label} className="text-[11px] px-2.5 py-1 rounded-full bg-white/10 text-white/90">
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Landing() {
   const { currentUser } = useAuth();
   const appHref = currentUser ? '/collection' : '/login';
+  const scanHref = currentUser ? '/scan' : '/login';
+  const deckHref = currentUser ? '/decks' : '/login';
+  const playHref = currentUser ? '/play' : '/login';
   const appLabel = currentUser ? 'Ouvrir l’application' : 'Se connecter';
-  const joinLabel = currentUser ? 'Ouvrir l’application' : 'Rejoindre la communauté';
+  const joinLabel = currentUser ? 'Ouvrir l’application' : 'Se connecter';
 
   return (
     <div className="min-h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       <header className="sticky top-0 z-40 border-b border-gray-200/80 dark:border-white/10 bg-gray-50/90 dark:bg-gray-950/90 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3">
-          <a href="#top" className="font-semibold text-lg tracking-tight">
+          <a href="#collection" className="font-semibold text-lg tracking-tight">
             MTG Collection
           </a>
           <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+            <a href="#collection" className="hover:text-gray-900 dark:hover:text-white">
+              Collection
+            </a>
             <a href="#communaute" className="hover:text-gray-900 dark:hover:text-white">
               Communauté
             </a>
-            <a href="#recherche" className="hover:text-gray-900 dark:hover:text-white">
-              Recherche
+            <a href="#decks" className="hover:text-gray-900 dark:hover:text-white">
+              Decks
             </a>
-            <a href="#fonctionnalites" className="hover:text-gray-900 dark:hover:text-white">
-              Fonctionnalités
+            <a href="#jouer" className="hover:text-gray-900 dark:hover:text-white">
+              Jouer
             </a>
           </nav>
           <div className="flex items-center gap-2">
@@ -215,144 +441,133 @@ export function Landing() {
         </div>
       </header>
 
-      <main id="top">
-        <section className="relative overflow-hidden">
+      <main>
+        <section id="collection" className="relative overflow-hidden">
           <div
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.18),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.28),_transparent_55%)]"
             aria-hidden
           />
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div>
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
-                La communauté Magic autour de vos collections
-              </p>
-              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-tight">
-                Trouvez la carte que vous cherchez — chez les autres joueurs.
-              </h1>
-              <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-300 max-w-xl">
-                Partagez votre collection, parcourez celles de la communauté, et voyez d’un coup d’œil qui possède la carte qu’il vous manque.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link to={appHref} className={primaryCtaClass}>
-                  {joinLabel}
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              <div>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
+                  Collection et scan
+                </p>
+                <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-tight">
+                  Rangez vos cartes, scannez-les, retrouvez-les.
+                </h1>
+                <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-300 max-w-xl">
+                  Importez un CSV, photographiez un booster, filtrez par couleur ou édition. Votre inventaire devient la base de tout le reste : communauté, decks et parties.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link to={appHref} className={primaryCtaClass}>
+                    {currentUser ? 'Ouvrir ma collection' : joinLabel}
+                  </Link>
+                  <Link to={scanHref} className={secondaryCtaClass}>
+                    {currentUser ? 'Scanner une carte' : 'Découvrir le scan'}
+                  </Link>
+                </div>
+              </div>
+              <CollectionPreview />
+            </div>
+            <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {collectionTools.map((tool) => (
+                <article key={tool.title} className="surface-card p-5 sm:p-6">
+                  <h3 className="font-semibold text-lg">{tool.title}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{tool.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="communaute" className="border-y border-gray-200 dark:border-white/10 bg-white/60 dark:bg-white/5">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+            <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
+              <div>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
+                  Communauté et recherche
+                </p>
+                <h2 className="text-3xl font-bold tracking-tight">Trouvez la carte chez les autres joueurs.</h2>
+                <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
+                  Une fois votre collection en ligne, elle est visible par la communauté. Cherchez un nom : l’app parcourt tous les inventaires, affiche le propriétaire, et vous laisse l’ajouter à votre wishlist pour préparer un échange.
+                </p>
+                <Link to={appHref} className={`${primaryCtaClass} mt-8`}>
+                  {currentUser ? 'Parcourir les collections' : joinLabel}
                 </Link>
-                <a href="#communaute" className={secondaryCtaClass}>
-                  Découvrir la communauté
-                </a>
+              </div>
+              <div className="space-y-4">
+                <CommunitySearchPreview />
+                <CommunityOwnersPreview />
               </div>
             </div>
-
-            <CommunitySearchPreview />
-          </div>
-        </section>
-
-        <section id="communaute" className="max-w-6xl mx-auto px-4 sm:px-6 pb-8 sm:pb-12">
-          <div className="grid lg:grid-cols-2 gap-6 items-start">
-            <div className="space-y-4 sm:space-y-6">
-              <article className="surface-card p-6 sm:p-8">
-                <h2 className="text-2xl font-bold tracking-tight">Des collections ouvertes aux autres</h2>
-                <p className="mt-3 text-gray-600 dark:text-gray-300 leading-relaxed">
-                  Chaque joueur peut consulter les collections de la communauté. Changez d’utilisateur, filtrez par couleur, rareté ou édition, et voyez exactement ce que les autres ont en stock.
-                </p>
-              </article>
-              <article className="surface-card p-6 sm:p-8">
-                <h2 className="text-2xl font-bold tracking-tight">Des decks à copier et à compléter</h2>
-                <p className="mt-3 text-gray-600 dark:text-gray-300 leading-relaxed">
-                  Publiez vos listes, parcourez les decks publics, copiez-les et identifiez les cartes manquantes — puis cherchez-les directement chez les membres.
-                </p>
-              </article>
+            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {communityTools.map((tool) => (
+                <article key={tool.title} className="surface-card p-5 sm:p-6">
+                  <h3 className="font-semibold text-lg">{tool.title}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{tool.text}</p>
+                </article>
+              ))}
             </div>
-            <CommunityOwnersPreview />
           </div>
         </section>
 
-        <section id="recherche" className="border-y border-gray-200 dark:border-white/10 bg-white/60 dark:bg-white/5">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20 grid lg:grid-cols-2 gap-10 items-center">
+        <section id="decks" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight">Une recherche qui traverse toute la communauté</h2>
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Construction de decks</p>
+              <h2 className="text-3xl font-bold tracking-tight">Buildez avec ce que vous avez — et trouvez le reste.</h2>
               <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
-                Plus besoin de demander une par une. Cherchez une carte : l’app parcourt toutes les collections, affiche le propriétaire, et vous permet de l’ajouter à votre wishlist pour préparer un échange.
+                Le builder relie votre collection, la communauté et le format. Ajoutez des cartes depuis ce que vous possédez, importez une liste, validez la légalité, puis voyez d’un coup d’œil ce qu’il reste à échanger, acheter ou chercher chez les autres.
               </p>
-              <ul className="mt-6 space-y-3 text-sm text-gray-600 dark:text-gray-300">
-                <li className="flex gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">1.</span>
-                  Recherchez dans toutes les collections à la fois.
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">2.</span>
-                  Voyez qui a la carte, et en combien d’exemplaires.
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">3.</span>
-                  Ajoutez-la à votre wishlist et contactez le joueur.
-                </li>
-              </ul>
+              <Link to={deckHref} className={`${primaryCtaClass} mt-8`}>
+                {currentUser ? 'Ouvrir mes decks' : joinLabel}
+              </Link>
             </div>
-            <CommunitySearchPreview />
+            <DeckBuilderPreview />
           </div>
-        </section>
-
-        <section id="fonctionnalites" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <div className="max-w-2xl mb-10">
-            <h2 className="text-3xl font-bold tracking-tight">Tout pour partager, trouver et jouer</h2>
-            <p className="mt-3 text-gray-600 dark:text-gray-300">
-              La communauté d’abord : collections ouvertes, recherche de cartes, decks publics. Puis vos outils perso — import, scan, et parties en ligne.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {features.map((feature) => (
-              <article
-                key={feature.title}
-                className="surface-card p-5 sm:p-6 hover:border-blue-200 dark:hover:border-blue-800 transition-colors"
-              >
-                <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 flex items-center justify-center mb-4">
-                  {feature.icon}
-                </div>
-                <h3 className="font-semibold text-lg">{feature.title}</h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{feature.text}</p>
+          <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {deckTools.map((tool) => (
+              <article key={tool.title} className="surface-card p-5 sm:p-6">
+                <h3 className="font-semibold text-lg">{tool.title}</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{tool.text}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section id="comment" className="border-y border-gray-200 dark:border-white/10 bg-white/60 dark:bg-white/5">
+        <section id="jouer" className="border-y border-gray-200 dark:border-white/10 bg-white/60 dark:bg-white/5">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-            <h2 className="text-3xl font-bold tracking-tight mb-10">En trois étapes</h2>
-            <ol className="grid md:grid-cols-3 gap-6">
-              {steps.map((step) => (
-                <li key={step.n} className="surface-card p-6">
-                  <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{step.n}</p>
-                  <h3 className="mt-2 font-semibold text-lg">{step.title}</h3>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{step.text}</p>
-                </li>
+            <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
+              <div>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Lobbies et parties</p>
+                <h2 className="text-3xl font-bold tracking-tight">Créez un salon, asseyez-vous, jouez.</h2>
+                <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
+                  Un playtest en ligne avec vos vrais decks. Ouvrez un lobby, invitez des adversaires, choisissez une liste — la vôtre ou une liste communautaire — puis lancez la table : piocher, poser, engager, PV. La vidéo est facultative. Les règles restent entre vous.
+                </p>
+                <Link to={playHref} className={`${primaryCtaClass} mt-8`}>
+                  {currentUser ? 'Ouvrir les lobbies' : joinLabel}
+                </Link>
+              </div>
+              <PlayLobbyPreview />
+            </div>
+            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {playTools.map((tool) => (
+                <article key={tool.title} className="surface-card p-5 sm:p-6">
+                  <h3 className="font-semibold text-lg">{tool.title}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{tool.text}</p>
+                </article>
               ))}
-            </ol>
-          </div>
-        </section>
-
-        <section id="jouer" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <div className="surface-card overflow-hidden grid lg:grid-cols-2">
-            <div className="p-6 sm:p-10">
-              <h2 className="text-3xl font-bold tracking-tight">Jouez avec les mêmes personnes</h2>
-              <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
-                Après avoir trouvé une carte ou copié un deck, lancez un salon. Invitez des adversaires et jouez avec votre collection — ou un deck déjà publié par un autre membre.
-              </p>
-              <Link to={appHref} className={`${primaryCtaClass} mt-8`}>
-                {appLabel}
-              </Link>
-            </div>
-            <div className="min-h-[14rem] bg-gradient-to-br from-slate-900 via-blue-950 to-emerald-950 p-8 flex items-end">
-              <p className="text-white/90 text-sm">Salons · decks communautaires · collections partagées</p>
             </div>
           </div>
         </section>
 
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
           <div className="rounded-2xl bg-blue-600 text-white px-6 py-10 sm:px-12 sm:py-14 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Prêt à rejoindre les autres joueurs ?</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Prêt à ranger vos cartes ?</h2>
               <p className="mt-2 text-blue-100 max-w-xl">
-                Connectez-vous pour partager votre collection, chercher des cartes dans la communauté et échanger.
+                Connectez-vous pour scanner votre collection, la partager, construire des decks et lancer une partie.
               </p>
             </div>
             <Link
@@ -367,7 +582,7 @@ export function Landing() {
 
       <footer className="border-t border-gray-200 dark:border-white/10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between text-sm text-gray-500 dark:text-gray-400">
-          <p>MTG Collection · collections partagées</p>
+          <p>MTG Collection</p>
           <div className="flex gap-4">
             <Link to={appHref} className="hover:text-gray-900 dark:hover:text-white">
               {appLabel}
