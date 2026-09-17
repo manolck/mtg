@@ -111,6 +111,7 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
             <li>Wishlist</li>
             <li>Statistiques de collection</li>
             <li>Avatar sélectionné</li>
+            <li>En partie (optionnel) : caméra et micro, transmis en pair-à-pair aux joueurs du lobby</li>
           </ul>
 
           <h3 className="text-lg font-semibold mt-4 mb-2">Utilisation des données</h3>
@@ -121,6 +122,7 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
             <li>Fournir les fonctionnalités de l&apos;application</li>
             <li>Améliorer l&apos;expérience utilisateur</li>
             <li>Gérer votre compte et vos préférences</li>
+            <li>Permettre le playtest vocal/vidéo entre joueurs d’un même lobby (WebRTC)</li>
           </ul>
 
           <h3 className="text-lg font-semibold mt-4 mb-2">Vos droits</h3>

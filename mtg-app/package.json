@@ -29,7 +29,8 @@
     "ocr:live": "node scripts/live-webcam-server.mjs",
     "test:rapidocr-crops": "node scripts/rapidocr-crop-bench.mjs",
     "migrate-user-collections": "node scripts/migrate-user-collections.js",
-    "migrate-decks-catalog": "node scripts/migrate-decks-catalog.js"
+    "migrate-decks-catalog": "node scripts/migrate-decks-catalog.js",
+    "ensure-play-collections": "node scripts/ensure-play-collections.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.32.1",

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/Layout/ProtectedRoute';
@@ -21,6 +21,9 @@ const Statistics = lazy(() => import('./pages/Statistics').then(module => ({ def
 const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default: module.Wishlist })));
 const Scan = lazy(() => import('./pages/Scan').then(module => ({ default: module.Scan })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const PlayLobbies = lazy(() => import('./pages/PlayLobbies').then(module => ({ default: module.PlayLobbies })));
+const PlayLobby = lazy(() => import('./pages/PlayLobby').then(module => ({ default: module.PlayLobby })));
+const PlayTable = lazy(() => import('./pages/PlayTable').then(module => ({ default: module.PlayTable })));
 import { setErrorToastCallback } from './services/errorHandler';
 import { useToast } from './context/ToastContext';
 import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
@@ -89,20 +92,18 @@ const PageLoader = () => (
   </div>
 );
 
-function App() {
+function AppShell() {
+  const location = useLocation();
+  const hideNav = /\/play\/[^/]+\/table\/?$/.test(location.pathname);
+
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <ErrorHandlerInitializer />
-        <PWAUpdateNotifier />
-        <MTGJSONInitializer />
-        <BrowserRouter>
-          <GDPRConsent />
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          <Navbar />
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
+    <>
+      <GDPRConsent />
+      <div className={hideNav ? 'min-h-screen bg-slate-950' : 'min-h-screen bg-gray-50 dark:bg-gray-900'}>
+        {!hideNav && <Navbar />}
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
               <Route
                 path="/collection"
                 element={
@@ -181,11 +182,48 @@ function App() {
                 }
               />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route
+                path="/play"
+                element={
+                  <ProtectedRoute>
+                    <PlayLobbies />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/play/:lobbyId"
+                element={
+                  <ProtectedRoute>
+                    <PlayLobby />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/play/:lobbyId/table"
+                element={
+                  <ProtectedRoute>
+                    <PlayTable />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/" element={<Navigate to="/collection" replace />} />
             </Routes>
           </Suspense>
         </div>
-      </BrowserRouter>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <ErrorHandlerInitializer />
+        <PWAUpdateNotifier />
+        <MTGJSONInitializer />
+        <BrowserRouter>
+          <AppShell />
+        </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
   );

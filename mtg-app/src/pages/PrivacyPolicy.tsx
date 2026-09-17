@@ -74,6 +74,12 @@ export function PrivacyPolicy() {
                   <strong>Données techniques</strong> : Adresse IP, type de navigateur, système d'exploitation 
                   (pour la sécurité et le support technique)
                 </li>
+                <li>
+                  <strong>Playtest (optionnel)</strong> : flux caméra et micro échangés en pair-à-pair
+                  (WebRTC) avec les autres joueurs du lobby. Un consentement spécifique est demandé
+                  à l’entrée de la table. PocketBase ne stocke que des signaux de connexion éphémères,
+                  pas les flux audio/vidéo.
+                </li>
               </ul>
             </section>
 

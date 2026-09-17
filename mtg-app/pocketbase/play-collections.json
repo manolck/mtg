@@ -1,0 +1,434 @@
+[
+  {
+    "id": "play_lobbies_id",
+    "name": "play_lobbies",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "pl_hostid",
+        "name": "hostId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pl_name",
+        "name": "name",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "pl_format",
+        "name": "format",
+        "type": "select",
+        "required": true,
+        "presentable": true,
+        "system": false,
+        "hidden": false,
+        "maxSelect": 1,
+        "values": ["commander", "standard", "pioneer", "modern", "historic", "pauper"]
+      },
+      {
+        "id": "pl_maxplayers",
+        "name": "maxPlayers",
+        "type": "number",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "onlyInt": true,
+        "min": 2,
+        "max": 4
+      },
+      {
+        "id": "pl_status",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSelect": 1,
+        "values": ["waiting", "playing", "closed"]
+      },
+      {
+        "id": "pl_passwordhash",
+        "name": "passwordHash",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_play_lobbies_status` ON `play_lobbies` (`status`)",
+      "CREATE INDEX `idx_play_lobbies_host` ON `play_lobbies` (`hostId`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && status != \"closed\"",
+    "viewRule": "@request.auth.id != \"\" && (status != \"closed\" || hostId = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
+    "deleteRule": "@request.auth.id != \"\" && (hostId = @request.auth.id || (@collection.users.id(@request.auth.id).roles != null && @collection.users.id(@request.auth.id).roles ~ \"admin\"))"
+  },
+  {
+    "id": "play_seats_id",
+    "name": "play_seats",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "ps_lobbyid",
+        "name": "lobbyId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "play_lobbies_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "ps_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "ps_seatindex",
+        "name": "seatIndex",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "onlyInt": true,
+        "min": 0,
+        "max": 3
+      },
+      {
+        "id": "ps_ready",
+        "name": "ready",
+        "type": "bool",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "ps_deckid",
+        "name": "deckId",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false
+      },
+      {
+        "id": "ps_decksnapshot",
+        "name": "deckSnapshot",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
+      },
+      {
+        "id": "ps_displayname",
+        "name": "displayName",
+        "type": "text",
+        "required": false,
+        "presentable": true,
+        "system": false,
+        "hidden": false
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_play_seats_lobby_user` ON `play_seats` (`lobbyId`, `userId`)",
+      "CREATE UNIQUE INDEX `idx_play_seats_lobby_seat` ON `play_seats` (`lobbyId`, `seatIndex`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "viewRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "createRule": "@request.auth.id != \"\" && userId = @request.auth.id && lobbyId.status = \"waiting\"",
+    "updateRule": "@request.auth.id != \"\" && (userId = @request.auth.id || lobbyId.hostId = @request.auth.id) && lobbyId.status != \"closed\"",
+    "deleteRule": "@request.auth.id != \"\" && (userId = @request.auth.id || lobbyId.hostId = @request.auth.id)"
+  },
+  {
+    "id": "play_matches_id",
+    "name": "play_matches",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "pm_lobbyid",
+        "name": "lobbyId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "play_lobbies_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pm_state",
+        "name": "state",
+        "type": "json",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 2000000
+      },
+      {
+        "id": "pm_updatedby",
+        "name": "updatedBy",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
+      },
+      {
+        "id": "pm_playerids",
+        "name": "playerIds",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 4,
+        "minSelect": 1
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_play_matches_lobby` ON `play_matches` (`lobbyId`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
+    "createRule": "@request.auth.id != \"\" && @request.body.lobbyId.hostId = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
+    "deleteRule": "@request.auth.id != \"\" && @request.auth.id = lobbyId.hostId"
+  },
+  {
+    "id": "play_rtc_signals_id",
+    "name": "play_rtc_signals",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "pr_from",
+        "name": "fromUserId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pr_to",
+        "name": "toUserId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pr_lobbyid",
+        "name": "lobbyId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "play_lobbies_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pr_payload",
+        "name": "payload",
+        "type": "json",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 200000
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_play_rtc_lobby_to` ON `play_rtc_signals` (`lobbyId`, `toUserId`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)",
+    "createRule": "@request.auth.id != \"\" && fromUserId = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)"
+  }
+]

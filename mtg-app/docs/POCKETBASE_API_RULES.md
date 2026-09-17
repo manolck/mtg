@@ -45,6 +45,23 @@ Champs à ajouter dans Admin → `decks` : `format`, `visibility`, `description`
 
 Appliquer aussi le script de migration `scripts/migrate-decks-catalog.js` après ajout des champs.
 
+## Playtest — lobbies et table
+
+Collections définies dans [`pocketbase/play-collections.json`](../pocketbase/play-collections.json). Les appliquer avec :
+
+```
+PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... npm run ensure-play-collections
+```
+
+(ou coller le JSON via Admin → Import collections). Règles versionnées dans `api-rules.json` :
+
+- `play_lobbies` : liste des lobbies non fermés ; writes hôte uniquement
+- `play_seats` : join seulement si `waiting` ; siège = soi ou hôte
+- `play_matches` : `state` JSON lisible/modifiable seulement par `playerIds`
+- `play_rtc_signals` : signaling WebRTC éphémère (from/to)
+
+TURN (NAT difficiles) : `VITE_ICE_SERVERS` dans `.env.example`.
+
 ## Création de comptes
 
 `users.createRule` est vide : pas d’inscription publique. Les comptes se créent depuis l’admin applicatif (rôle `admin`) ou l’admin PocketBase.

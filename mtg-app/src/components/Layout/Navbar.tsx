@@ -56,6 +56,9 @@ export function Navbar() {
               <Link to="/community/decks" className={navLinkClass}>
                 Communauté
               </Link>
+              <Link to="/play" className={navLinkClass}>
+                Jouer
+              </Link>
               <Link to="/wishlist" className={navLinkClass}>
                 Wishlist
               </Link>
@@ -171,6 +174,9 @@ export function Navbar() {
               </Link>
               <Link to="/community/decks" className={navLinkClass} onClick={closeMobileMenu}>
                 Communauté
+              </Link>
+              <Link to="/play" className={navLinkClass} onClick={closeMobileMenu}>
+                Jouer
               </Link>
               <Link to="/wishlist" className={navLinkClass} onClick={closeMobileMenu}>
                 Wishlist

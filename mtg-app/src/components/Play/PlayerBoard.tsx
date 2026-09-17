@@ -1,0 +1,480 @@
+import { useEffect, useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import type { PlayerTableState, TableCard, ZoneName } from '../../types/play';
+import { ZONE_LABELS } from '../../types/play';
+import { splitBattlefield } from '../../utils/playTable';
+import { CardLightbox } from '../Card/CardLightbox';
+import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { PlayCard } from './PlayCard';
+import { LibrarySearchPanel } from './LibrarySearchPanel';
+
+interface PlayerBoardProps {
+  player: PlayerTableState;
+  isSelf: boolean;
+  isTurn: boolean;
+  compact?: boolean;
+  onDraw?: () => void;
+  onShuffle?: () => void;
+  onMulligan?: () => void;
+  onPassTurn?: () => void;
+  onLife?: (delta: number) => void;
+  onPoison?: (delta: number) => void;
+  onMove?: (instanceId: string, from: ZoneName, to: ZoneName) => void;
+  onSearchLibrary?: (instanceId: string, to: ZoneName, options?: { toTop?: boolean; shuffle?: boolean }) => void;
+  onTap?: (instanceId: string) => void;
+  onFlip?: (instanceId: string) => void;
+  videoSlot?: ReactNode;
+}
+
+const MOVE_TARGETS: ZoneName[] = ['battlefield', 'graveyard', 'exile', 'hand', 'library', 'command'];
+
+interface MenuState {
+  card: TableCard;
+  from: ZoneName;
+  x: number;
+  y: number;
+}
+
+function primaryMove(from: ZoneName): ZoneName | null {
+  if (from === 'hand' || from === 'command') return 'battlefield';
+  if (from === 'battlefield') return 'graveyard';
+  if (from === 'graveyard') return 'battlefield';
+  if (from === 'exile') return 'battlefield';
+  return null;
+}
+
+const MANA_PIPS: Array<{ cx: number; cy: number; fill: string }> = [
+  { cx: 400, cy: 78, fill: '#f4f0d8' },
+  { cx: 555, cy: 155, fill: '#3b82c4' },
+  { cx: 555, cy: 325, fill: '#5b4a62' },
+  { cx: 400, cy: 402, fill: '#6ec4c8' },
+  { cx: 245, cy: 325, fill: '#c45c32' },
+  { cx: 245, cy: 155, fill: '#3f8f4a' },
+];
+
+function PlaymatBackdrop() {
+  const uid = useId().replace(/:/g, '');
+  const feltId = `playmatFelt-${uid}`;
+  return (
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      viewBox="0 0 800 500"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+    >
+      <defs>
+        <radialGradient id={feltId} cx="50%" cy="48%" r="72%">
+          <stop offset="0%" stopColor="#1a4a52" />
+          <stop offset="42%" stopColor="#0e2c38" />
+          <stop offset="100%" stopColor="#07141c" />
+        </radialGradient>
+      </defs>
+      <rect width="800" height="500" fill={`url(#${feltId})`} />
+      {[88, 132, 176, 222, 268].map((r) => (
+        <circle key={r} cx="400" cy="240" r={r} fill="none" stroke="#d4b24a" strokeOpacity="0.28" strokeWidth="1.4" />
+      ))}
+      {MANA_PIPS.map((pip) => (
+        <g key={`${pip.cx}-${pip.cy}`}>
+          <circle cx={pip.cx} cy={pip.cy} r="16" fill="#0b1c24" stroke="#d4b24a" strokeOpacity="0.55" strokeWidth="1.2" />
+          <circle cx={pip.cx} cy={pip.cy} r="8" fill={pip.fill} opacity="0.85" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function PlayerBoard({
+  player,
+  isSelf,
+  isTurn,
+  compact = false,
+  onDraw,
+  onShuffle,
+  onMulligan,
+  onPassTurn,
+  onLife,
+  onPoison,
+  onMove,
+  onSearchLibrary,
+  onTap,
+  onFlip,
+  videoSlot,
+}: PlayerBoardProps) {
+  const [lightbox, setLightbox] = useState<TableCard | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const { lands, other } = useMemo(() => splitBattlefield(player.battlefield), [player.battlefield]);
+
+  useEffect(() => {
+    if (!isSelf) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (event.key === 'd' || event.key === 'D') {
+        event.preventDefault();
+        onDraw?.();
+      } else if (event.key === '/' || event.key === 'f' || event.key === 'F') {
+        event.preventDefault();
+        setLibraryOpen(true);
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        onLife?.(event.shiftKey ? 5 : 1);
+      } else if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        onLife?.(event.shiftKey ? -5 : -1);
+      } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        onPassTurn?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isSelf, onDraw, onLife, onPassTurn]);
+
+  const showFace = (zone: ZoneName, card: TableCard) =>
+    !card.facedown && (isSelf || zone === 'battlefield' || zone === 'command' || zone === 'graveyard' || zone === 'exile');
+
+  const openMenu = (event: MouseEvent, card: TableCard, from: ZoneName) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setHover(null);
+    const pad = 8;
+    const width = 220;
+    const x = Math.min(event.clientX, window.innerWidth - width - pad);
+    const y = Math.min(event.clientY, window.innerHeight - 280);
+    setMenu({ card, from, x: Math.max(pad, x), y: Math.max(pad, y) });
+  };
+
+  const handleCardClick = (event: MouseEvent, card: TableCard, zone: ZoneName) => {
+    if (!isSelf) {
+      if (showFace(zone, card)) setLightbox(card);
+      return;
+    }
+    if (event.shiftKey) {
+      openMenu(event, card, zone);
+      return;
+    }
+    if (zone === 'battlefield') {
+      onTap?.(card.instanceId);
+      return;
+    }
+    const dest = primaryMove(zone);
+    if (dest) {
+      onMove?.(card.instanceId, zone, dest);
+      return;
+    }
+    openMenu(event, card, zone);
+  };
+
+  const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
+    if (!showFace(zone, card) || !card.imageUrl) {
+      setHover(null);
+      return;
+    }
+    setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+  };
+
+  const renderCards = (zone: ZoneName, cards: TableCard[], size: 'sm' | 'md' | 'lg', overlap = false) => (
+    <div className={`flex flex-wrap items-end ${overlap ? 'gap-0' : 'gap-1.5'}`}>
+      {cards.map((card, index) => (
+        <PlayCard
+          key={card.instanceId}
+          card={card}
+          hideFace={!showFace(zone, card)}
+          size={size}
+          className={overlap && index > 0 ? '-ml-5 sm:-ml-6 hover:ml-0' : ''}
+          onClick={(event) => handleCardClick(event, card, zone)}
+          onContextMenu={(event) => (isSelf ? openMenu(event, card, zone) : event.preventDefault())}
+          onDoubleClick={() => showFace(zone, card) && setLightbox(card)}
+          onMouseEnter={(event) => setCardHover(event, card, zone)}
+          onMouseLeave={() => setHover(null)}
+        />
+      ))}
+    </div>
+  );
+
+  const pile = (zone: 'library' | 'graveyard' | 'exile', onPileClick?: () => void) => {
+    const cards = player[zone];
+    const top = zone === 'library' ? undefined : cards[cards.length - 1];
+    const canSeeTop = top && showFace(zone, top);
+    const size = compact ? 'w-11 sm:w-12' : 'w-12 sm:w-16';
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.18em] text-amber-200/80 uppercase leading-none">
+          {ZONE_LABELS[zone]}
+        </p>
+        <button
+          type="button"
+          onClick={onPileClick}
+          onContextMenu={(event) => {
+            if (zone === 'library' && isSelf) {
+              event.preventDefault();
+              setLibraryOpen(true);
+              return;
+            }
+            if (isSelf && top) openMenu(event, top, zone);
+            else event.preventDefault();
+          }}
+          className={`relative ${size} aspect-[63/88] rounded-md bg-[#241c2c] ring-1 ring-amber-200/25 shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70`}
+          title={
+            zone === 'library' && isSelf
+              ? `Rechercher dans la bibliothèque (/) · ${cards.length} cartes`
+              : `${ZONE_LABELS[zone]} · ${cards.length}`
+          }
+        >
+          {canSeeTop && top?.imageUrl ? (
+            <img src={top.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover rounded-md opacity-80" />
+          ) : (
+            <span className="absolute inset-0 rounded-md bg-[repeating-linear-gradient(135deg,#3a3148_0_8px,#241c2c_8px_16px)]" />
+          )}
+          <span className="relative z-10 text-[10px] font-semibold bg-black/70 px-1.5 rounded">{cards.length}</span>
+        </button>
+      </div>
+    );
+  };
+
+  const lifeBlock = (
+    <div className="flex flex-col items-center">
+      {isSelf && (
+        <div className="flex gap-0.5 mb-0.5">
+          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-5)} title="−5 PV (Shift+−)">
+            −5
+          </button>
+          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(5)} title="+5 PV (Shift++)">
+            +5
+          </button>
+        </div>
+      )}
+      <p className={`font-black leading-none tabular-nums ${compact ? 'text-2xl' : 'text-4xl'} ${player.life <= 5 ? 'text-red-400' : 'text-amber-50'}`}>
+        {player.life}
+      </p>
+      {isSelf && (
+        <div className="flex gap-0.5 mt-0.5">
+          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-1)} title="−1 PV (−)">
+            −1
+          </button>
+          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(1)} title="+1 PV (+)">
+            +1
+          </button>
+        </div>
+      )}
+      {player.poison > 0 && <p className="text-[11px] text-lime-300 mt-0.5">☠ {player.poison}</p>}
+    </div>
+  );
+
+  return (
+    <div
+      className={`h-full min-h-0 flex flex-col rounded-xl overflow-hidden text-white ${
+        isTurn ? 'ring-2 ring-amber-400 shadow-[0_0_24px_rgba(251,191,36,0.25)]' : 'ring-1 ring-amber-200/20'
+      }`}
+    >
+      <div className="relative flex-1 min-h-0 flex">
+        <PlaymatBackdrop />
+        <div className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col px-2 pt-2 pb-1">
+          <div className="absolute left-2 top-2 z-20 max-w-[40%] flex items-center gap-2">
+            {videoSlot}
+            <div className="min-w-0">
+              <p className="font-semibold truncate leading-tight text-sm drop-shadow">
+                {player.displayName || 'Joueur'}
+                {isSelf ? ' · vous' : ''}
+              </p>
+              {isTurn ? (
+                <p className="text-[10px] font-medium text-amber-300 uppercase tracking-[0.2em]">Tour</p>
+              ) : !isSelf ? (
+                <p className="text-[11px] text-white/60">Main {player.hand.length}</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="shrink-0 flex flex-col items-center pt-1">
+            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/85 uppercase mb-1">
+              Commandement
+            </p>
+            {player.command.length > 0 ? (
+              renderCards('command', player.command, compact ? 'sm' : 'md')
+            ) : (
+              <div className="h-12 sm:h-16 w-10 sm:w-12 rounded-full border border-dashed border-amber-200/25" />
+            )}
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto py-1">
+            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/70 uppercase mb-1">
+              Champ de bataille
+            </p>
+            {other.length === 0 ? (
+              <p className="text-xs text-white/35 italic py-4 text-center">
+                {isSelf ? 'Cliquez une carte en main pour la poser.' : 'Aucun permanent.'}
+              </p>
+            ) : (
+              renderCards('battlefield', other, compact ? 'sm' : 'md')
+            )}
+          </div>
+
+          <div className="shrink-0 min-h-[3.5rem] border-t border-amber-200/15 pt-1">
+            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/70 uppercase mb-1 text-center">
+              Terrains
+            </p>
+            {lands.length === 0 ? (
+              <p className="text-[11px] text-white/30 italic text-center py-2">
+                {isSelf ? 'Posez vos terrains ici.' : '—'}
+              </p>
+            ) : (
+              <div className="flex justify-center">{renderCards('battlefield', lands, compact ? 'sm' : 'md')}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="relative z-10 shrink-0 w-[4.75rem] sm:w-[5.75rem] flex flex-col items-center gap-2 overflow-y-auto py-2 pr-1.5 pl-1 bg-black/25 border-l border-amber-200/15">
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/80 uppercase">PV</p>
+            {lifeBlock}
+            {isSelf && (
+              <button
+                type="button"
+                className="text-[11px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
+                onClick={() => onPoison?.(1)}
+                title="Marqueur poison"
+              >
+                +☠
+              </button>
+            )}
+          </div>
+          {pile('exile')}
+          {pile('library', isSelf ? () => setLibraryOpen(true) : undefined)}
+          {pile('graveyard')}
+        </div>
+      </div>
+
+      {isSelf && (
+        <div className="shrink-0 border-t border-amber-200/20 bg-black/55 px-2 pt-2 pb-2">
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+            <button type="button" className="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400" onClick={onDraw} title="Piocher (D)">
+              Piocher
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1.5 rounded-lg bg-white/10 text-xs hover:bg-white/20"
+              onClick={() => setLibraryOpen(true)}
+              title="Rechercher dans la bibliothèque (/)"
+            >
+              Rechercher
+            </button>
+            <button type="button" className="px-2 py-1.5 rounded-lg bg-white/10 text-xs hover:bg-white/20" onClick={onShuffle}>
+              Mélanger
+            </button>
+            <button type="button" className="px-2 py-1.5 rounded-lg bg-white/10 text-xs hover:bg-white/20" onClick={onMulligan}>
+              Mulligan
+            </button>
+            <button type="button" className="px-2 py-1.5 rounded-lg bg-white/10 text-xs hover:bg-white/20" onClick={onPassTurn} title="Passer le tour (Ctrl+Entrée)">
+              Fin de tour
+            </button>
+            <span className="ml-auto text-[11px] text-white/40 hidden md:inline">
+              Clic : poser / engager · Clic droit : déplacer · Survol : aperçu
+            </span>
+          </div>
+          <div className="overflow-x-auto pb-1">
+            {player.hand.length === 0 ? (
+              <p className="text-xs text-white/40 px-1">Main vide</p>
+            ) : (
+              renderCards('hand', player.hand, compact ? 'md' : 'lg', true)
+            )}
+          </div>
+        </div>
+      )}
+
+      {menu && isSelf && (
+        <div className="fixed inset-0 z-[95]" onClick={() => setMenu(null)} onContextMenu={(event) => event.preventDefault()}>
+          <div
+            className="absolute w-[220px] rounded-xl bg-slate-800 text-white shadow-2xl ring-1 ring-white/15 p-2"
+            style={{ left: menu.x, top: menu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="px-2 py-1 text-sm font-medium truncate">{menu.card.facedown ? 'Carte' : menu.card.name}</p>
+            {primaryMove(menu.from) && (
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold mb-1"
+                onClick={() => {
+                  const dest = primaryMove(menu.from);
+                  if (dest) onMove?.(menu.card.instanceId, menu.from, dest);
+                  setMenu(null);
+                }}
+              >
+                {menu.from === 'hand' || menu.from === 'command' ? 'Poser' : `Vers ${ZONE_LABELS[primaryMove(menu.from) as ZoneName]}`}
+              </button>
+            )}
+            {menu.from === 'battlefield' && (
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                onClick={() => {
+                  onTap?.(menu.card.instanceId);
+                  setMenu(null);
+                }}
+              >
+                {menu.card.tapped ? 'Dégager' : 'Engager'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+              onClick={() => {
+                onFlip?.(menu.card.instanceId);
+                setMenu(null);
+              }}
+            >
+              Retourner
+            </button>
+            {showFace(menu.from, menu.card) && (
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                onClick={() => {
+                  setLightbox(menu.card);
+                  setMenu(null);
+                }}
+              >
+                Voir en grand
+              </button>
+            )}
+            <div className="mt-1 pt-1 border-t border-white/10 grid grid-cols-2 gap-1">
+              {MOVE_TARGETS.filter((zone) => zone !== menu.from && zone !== primaryMove(menu.from)).map((zone) => (
+                <button
+                  key={zone}
+                  type="button"
+                  className="text-left px-2 py-1 rounded hover:bg-white/10 text-[11px] text-white/80"
+                  onClick={() => {
+                    onMove?.(menu.card.instanceId, menu.from, zone);
+                    setMenu(null);
+                  }}
+                >
+                  {ZONE_LABELS[zone]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hover && !menu && (
+        <CardHoverPreview imageUrl={hover.card.imageUrl} name={hover.card.name} anchorRect={hover.rect} />
+      )}
+
+      {libraryOpen && isSelf && (
+        <LibrarySearchPanel
+          cards={player.library}
+          onClose={() => setLibraryOpen(false)}
+          onTake={(card, to, options) => {
+            onSearchLibrary?.(card.instanceId, to, options);
+            if (options?.shuffle) setLibraryOpen(false);
+          }}
+        />
+      )}
+
+      {lightbox && (
+        <CardLightbox imageUrl={lightbox.imageUrl} name={lightbox.name} onClose={() => setLightbox(null)} />
+      )}
+    </div>
+  );
+}
