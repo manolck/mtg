@@ -16,7 +16,7 @@ import { searchMatchesText } from '../utils/fuzzyMatch';
 import { WishlistCardMenuModal } from '../components/Wishlist/WishlistCardMenuModal';
 import { WishlistSearchInput } from '../components/Wishlist/WishlistSearchInput';
 import { rarityLabel, sortRarities } from '../utils/cardSearchFilters';
-import type { MTGCard } from '../types/card';
+import type { MTGCard, WishlistItem } from '../types/card';
 
 type SortOption = 'name' | 'date' | 'rarity' | 'set' | 'quantity';
 

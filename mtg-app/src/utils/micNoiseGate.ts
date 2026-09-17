@@ -22,7 +22,7 @@ export class MicNoiseGate {
   private dest: MediaStreamAudioDestinationNode | null = null;
   private sourceTrack: MediaStreamTrack | null = null;
   private outputTrack: MediaStreamTrack | null = null;
-  private samples: Uint8Array | null = null;
+  private samples: Uint8Array<ArrayBuffer> | null = null;
   private amount = 0;
   private open = true;
   private raf = 0;

@@ -4,6 +4,7 @@ import { useDecks } from '../hooks/useDecks';
 import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
 import { getFormatSummary } from '../services/deckFormatRules';
+import { validateDeck } from '../utils/validationSchemas';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
