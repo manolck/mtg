@@ -20,6 +20,7 @@ import { VideoTile } from '../components/Play/VideoTile';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
 import { Spinner } from '../components/UI/Spinner';
+import { watchWithPoll } from '../utils/playRealtime';
 
 export function PlayTable() {
   const { lobbyId } = useParams<{ lobbyId: string }>();
@@ -56,7 +57,7 @@ export function PlayTable() {
   noiseGateRef.current = noiseGate;
   devicesRef.current = { cameraId, micId };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!lobbyId || !currentUser) return;
     try {
       const [nextLobby, nextSeats, match] = await Promise.all([
@@ -68,11 +69,18 @@ export function PlayTable() {
       setSeats(nextSeats);
       const seated = nextSeats.some((s) => s.userId === currentUser.uid);
       if (!seated) {
-        navigate(`/play/${lobbyId}`, { replace: true });
+        navigate(`/play/${lobbyId}`, { replace: true, state: { fromTable: true } });
         return;
       }
-      if (nextLobby.status !== 'playing' || !match) {
-        navigate(`/play/${lobbyId}`, { replace: true });
+      if (nextLobby.status === 'closed') {
+        navigate('/play', { replace: true });
+        return;
+      }
+      if (nextLobby.status !== 'playing') {
+        navigate(`/play/${lobbyId}`, { replace: true, state: { fromTable: true } });
+        return;
+      }
+      if (!match) {
         return;
       }
       setMatchId(match.id);
@@ -81,12 +89,16 @@ export function PlayTable() {
       errorHandler.handleAndShowError(err);
       navigate('/play', { replace: true });
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [lobbyId, currentUser, navigate]);
 
   useEffect(() => {
     void load();
+    const onChange = () => {
+      void load({ silent: true });
+    };
+    return watchWithPoll(onChange, () => () => {});
   }, [load]);
 
   useEffect(() => {
@@ -383,8 +395,11 @@ export function PlayTable() {
 
   if (loading || !state || !currentUser) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+      <div className="flex flex-col items-center justify-center gap-3 min-h-screen bg-slate-950 text-slate-200">
         <Spinner />
+        {!loading && lobby?.status === 'playing' && !state ? (
+          <p className="text-sm text-slate-400">Connexion à la table…</p>
+        ) : null}
       </div>
     );
   }

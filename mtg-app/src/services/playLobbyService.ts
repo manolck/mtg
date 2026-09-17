@@ -3,6 +3,7 @@ import { pbEqual } from '../utils/pocketbaseFilter';
 import { getDeckById } from './deckService';
 import { snapshotFromDeck } from '../utils/playTable';
 import { shouldCloseEmptyWaitingLobby } from '../utils/playLobby';
+import { safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
 import type { DeckFormat } from '../types/deck';
 import type { DeckSnapshot, LobbyStatus, PlayLobby, PlaySeat } from '../types/play';
 
@@ -203,10 +204,10 @@ export function subscribeLobby(
       if (!cancelled) onChange();
     })
     .then((unsub) => {
-      if (cancelled) unsub();
+      if (cancelled) safeRealtimeUnsub(unsub);
       else unsubs.push(unsub);
     })
-    .catch((err) => console.warn('play_lobbies subscribe failed', err));
+    .catch(swallowRealtimeError);
 
   pb.collection('play_seats')
     .subscribe('*', (e) => {
@@ -214,28 +215,31 @@ export function subscribeLobby(
       if (!cancelled && recLobby === lobbyId) onChange();
     })
     .then((unsub) => {
-      if (cancelled) unsub();
+      if (cancelled) safeRealtimeUnsub(unsub);
       else unsubs.push(unsub);
     })
-    .catch((err) => console.warn('play_seats subscribe failed', err));
+    .catch(swallowRealtimeError);
 
   return () => {
     cancelled = true;
-    unsubs.forEach((u) => u());
-    pb.collection('play_lobbies').unsubscribe(lobbyId);
-    pb.collection('play_seats').unsubscribe('*');
+    unsubs.forEach(safeRealtimeUnsub);
   };
 }
 
 export function subscribeLobbyList(onChange: () => void): () => void {
   let cancelled = false;
+  let unsub: (() => void) | undefined;
   pb.collection('play_lobbies')
     .subscribe('*', () => {
       if (!cancelled) onChange();
     })
-    .catch((err) => console.warn('play_lobbies list subscribe failed', err));
+    .then((next) => {
+      if (cancelled) safeRealtimeUnsub(next);
+      else unsub = next;
+    })
+    .catch(swallowRealtimeError);
   return () => {
     cancelled = true;
-    pb.collection('play_lobbies').unsubscribe('*');
+    if (unsub) safeRealtimeUnsub(unsub);
   };
 }

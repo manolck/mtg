@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -13,6 +13,7 @@ import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { Spinner } from '../components/UI/Spinner';
+import { watchWithPoll } from '../utils/playRealtime';
 
 export function PlayLobbies() {
   const { currentUser } = useAuth();
@@ -45,11 +46,15 @@ export function PlayLobbies() {
     }
   };
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
     void refresh();
-    return playLobbyService.subscribeLobbyList(() => {
-      void refresh();
-    });
+    const onChange = () => {
+      void refreshRef.current();
+    };
+    return watchWithPoll(onChange, () => playLobbyService.subscribeLobbyList(onChange));
   }, []);
 
   const handleCreate = async () => {

@@ -329,10 +329,10 @@
     "indexes": [
       "CREATE UNIQUE INDEX `idx_play_matches_lobby` ON `play_matches` (`lobbyId`)"
     ],
-    "listRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
-    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
-    "createRule": "@request.auth.id != \"\" && @request.body.lobbyId.hostId = @request.auth.id",
-    "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && lobbyId.hostId = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
     "deleteRule": "@request.auth.id != \"\" && @request.auth.id = lobbyId.hostId"
   },
   {

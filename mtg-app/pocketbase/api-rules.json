@@ -80,12 +80,12 @@
     "notes": "Join only while waiting. Seat owner or host can update/leave. deckSnapshot is a JSON copy of the chosen deck at ready/start."
   },
   "play_matches": {
-    "listRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
-    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
-    "createRule": "@request.auth.id != \"\" && @request.body.lobbyId.hostId = @request.auth.id",
-    "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || @request.auth.id ?= playerIds)",
+    "listRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && lobbyId.hostId = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
     "deleteRule": "@request.auth.id != \"\" && @request.auth.id = lobbyId.hostId",
-    "notes": "Match JSON (table state) is only readable/writable by seated players (playerIds). Last-write-wins with incremental state.version."
+    "notes": "Seated players can read/write match JSON via playerIds (0.22: playerIds.id ?= @request.auth.id). Last-write-wins with incremental state.version."
   },
   "play_rtc_signals": {
     "listRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)",

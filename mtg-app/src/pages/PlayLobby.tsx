@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
@@ -10,6 +10,7 @@ import type { PlayLobby, PlaySeat } from '../types/play';
 import { DECK_FORMAT_LABELS } from '../types/deck';
 import { isAdmin } from '../types/user';
 import { emptyWaitingLobbyRemainingMs, EMPTY_WAITING_LOBBY_MS, formatCountdown } from '../utils/playLobby';
+import { watchWithPoll } from '../utils/playRealtime';
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
@@ -63,13 +64,17 @@ export function PlayLobby() {
     }
   }, [lobbyId, navigate, fromTable, showError]);
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
     void refresh();
     if (!lobbyId) return;
-    return playLobbyService.subscribeLobby(lobbyId, () => {
-      void refresh();
-    });
-  }, [lobbyId, refresh]);
+    const onChange = () => {
+      void refreshRef.current();
+    };
+    return watchWithPoll(onChange, () => playLobbyService.subscribeLobby(lobbyId, onChange));
+  }, [lobbyId]);
 
   const mySeat = seats.find((s) => s.userId === currentUser?.uid);
   const isHost = lobby?.hostId === currentUser?.uid;

@@ -262,7 +262,7 @@ export class PlayRtcMesh {
     try {
       await pb.collection('play_rtc_signals').unsubscribe('*');
     } catch {
-      /* ignore */
+      /* PocketBase 0.22 realtime client id */
     }
   }
 
