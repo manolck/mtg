@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
@@ -41,7 +41,7 @@ export function Login() {
             Connexion
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Connectez-vous avec votre compte
+            Connectez-vous pour accéder à votre collection
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -78,6 +78,11 @@ export function Login() {
             Se connecter
           </Button>
         </form>
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Retour à l’accueil
+          </Link>
+        </p>
       </div>
     </div>
   );

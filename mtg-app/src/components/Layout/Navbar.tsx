@@ -33,7 +33,7 @@ export function Navbar() {
     try {
       await logout();
       setMobileMenuOpen(false);
-      navigate('/login');
+      navigate('/');
     } catch (error) {
       console.error('Error logging out:', error);
     }

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/Layout/ProtectedRoute';
@@ -7,6 +7,7 @@ import { AdminRoute } from './components/Layout/AdminRoute';
 import { Navbar } from './components/Layout/Navbar';
 import { Spinner } from './components/UI/Spinner';
 import { Login } from './pages/Login';
+import { Landing } from './pages/Landing';
 import { GDPRConsent } from './components/Legal/GDPRConsent';
 
 // Lazy load des routes principales pour réduire le bundle initial
@@ -94,18 +95,23 @@ const PageLoader = () => (
 
 function AppShell() {
   const location = useLocation();
-  const hideNav = /\/play\/[^/]+\/table\/?$/.test(location.pathname);
-
-  const fillViewport = hideNav || location.pathname === '/collection';
+  const isPlayTable = /\/play\/[^/]+\/table\/?$/.test(location.pathname);
+  const isPublicChrome =
+    location.pathname === '/' ||
+    location.pathname === '/login' ||
+    location.pathname === '/privacy-policy';
+  const hideNav = isPlayTable || isPublicChrome;
+  const fillViewport = isPlayTable || location.pathname === '/collection';
 
   return (
     <>
       <GDPRConsent />
-      <div className={hideNav ? 'h-full flex flex-col bg-slate-950 overflow-hidden' : 'h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden'}>
+      <div className={isPlayTable ? 'h-full flex flex-col bg-slate-950 overflow-hidden' : 'h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden'}>
         {!hideNav && <Navbar />}
         <div className={`flex-1 min-h-0 ${fillViewport ? 'overflow-hidden' : 'overflow-y-auto overflow-x-clip'}`}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
               <Route
                 path="/collection"
@@ -209,7 +215,6 @@ function AppShell() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/" element={<Navigate to="/collection" replace />} />
             </Routes>
           </Suspense>
         </div>
