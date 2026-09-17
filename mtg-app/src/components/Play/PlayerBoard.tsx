@@ -239,10 +239,10 @@ export function PlayerBoard({
     <div className="flex flex-col items-center">
       {isSelf && (
         <div className="flex gap-0.5 mb-0.5">
-          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-5)} title="−5 PV (Shift+−)">
+          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-5)} title="−5 PV (Shift+−)">
             −5
           </button>
-          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(5)} title="+5 PV (Shift++)">
+          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(5)} title="+5 PV (Shift++)">
             +5
           </button>
         </div>
@@ -252,10 +252,10 @@ export function PlayerBoard({
       </p>
       {isSelf && (
         <div className="flex gap-0.5 mt-0.5">
-          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-1)} title="−1 PV (−)">
+          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-1)} title="−1 PV (−)">
             −1
           </button>
-          <button type="button" className="h-5 w-7 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(1)} title="+1 PV (+)">
+          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(1)} title="+1 PV (+)">
             +1
           </button>
         </div>
@@ -386,8 +386,11 @@ export function PlayerBoard({
       {menu && isSelf && (
         <div className="fixed inset-0 z-[95]" onClick={() => setMenu(null)} onContextMenu={(event) => event.preventDefault()}>
           <div
-            className="absolute w-[220px] rounded-xl bg-slate-800 text-white shadow-2xl ring-1 ring-white/15 p-2"
-            style={{ left: menu.x, top: menu.y }}
+            className="absolute w-[min(220px,calc(100vw-1.5rem))] rounded-xl bg-slate-800 text-white shadow-2xl ring-1 ring-white/15 p-2"
+            style={{
+              left: Math.max(8, Math.min(menu.x, window.innerWidth - 236)),
+              top: Math.max(8, Math.min(menu.y, window.innerHeight - 280)),
+            }}
             onClick={(event) => event.stopPropagation()}
           >
             <p className="px-2 py-1 text-sm font-medium truncate">{menu.card.facedown ? 'Carte' : menu.card.name}</p>

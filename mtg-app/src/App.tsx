@@ -96,11 +96,14 @@ function AppShell() {
   const location = useLocation();
   const hideNav = /\/play\/[^/]+\/table\/?$/.test(location.pathname);
 
+  const fillViewport = hideNav || location.pathname === '/collection';
+
   return (
     <>
       <GDPRConsent />
-      <div className={hideNav ? 'min-h-screen bg-slate-950' : 'min-h-screen bg-gray-50 dark:bg-gray-900'}>
+      <div className={hideNav ? 'h-full flex flex-col bg-slate-950 overflow-hidden' : 'h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden'}>
         {!hideNav && <Navbar />}
+        <div className={`flex-1 min-h-0 ${fillViewport ? 'overflow-hidden' : 'overflow-y-auto overflow-x-clip'}`}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -209,6 +212,7 @@ function AppShell() {
               <Route path="/" element={<Navigate to="/collection" replace />} />
             </Routes>
           </Suspense>
+        </div>
         </div>
     </>
   );

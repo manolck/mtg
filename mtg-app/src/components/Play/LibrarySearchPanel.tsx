@@ -60,7 +60,7 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Nom, type, coût… (ex. land, counter, bolt)"
-            className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 w-full min-w-0 sm:flex-1 sm:min-w-[180px]"
           />
           <label className="flex items-center gap-2 text-xs text-white/80 whitespace-nowrap">
             <input

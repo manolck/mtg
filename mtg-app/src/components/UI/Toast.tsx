@@ -62,7 +62,7 @@ export function ToastItem({ toast, onClose }: ToastProps) {
         flex items-start gap-3
         animate-in slide-in-from-right-full
         dark:shadow-xl
-        min-w-[300px] max-w-md
+        min-w-0 w-full sm:min-w-[280px] max-w-md
       `}
       role="alert"
     >

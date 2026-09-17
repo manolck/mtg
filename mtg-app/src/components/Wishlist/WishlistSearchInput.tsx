@@ -442,7 +442,7 @@ export function WishlistSearchInput({
             }
           }}
           placeholder={placeholder}
-          className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          className="w-full min-h-[44px] px-4 py-2 pl-10 text-base sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
         />
         <svg
           className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
@@ -472,10 +472,10 @@ export function WishlistSearchInput({
 
       {/* Panneau de résultats avec colonnes : Suggestions à gauche, Résultats à droite - EN DROPDOWN */}
       {(scryfallSuggestions.length > 0 || showResults) && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden flex">
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[min(28rem,70vh)] overflow-hidden flex flex-col sm:flex-row">
           {/* Colonne gauche : Suggestions d'autocomplétion */}
           {scryfallSuggestions.length > 0 && (
-            <div className="w-1/2 border-r border-gray-300 dark:border-gray-600 overflow-y-auto max-h-96">
+            <div className="w-full sm:w-1/2 border-b sm:border-b-0 sm:border-r border-gray-300 dark:border-gray-600 overflow-y-auto max-h-48 sm:max-h-96">
               <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <div className="text-sm font-medium text-gray-900 dark:text-white">
                   Suggestions ({scryfallSuggestions.length})
@@ -515,7 +515,7 @@ export function WishlistSearchInput({
 
           {/* Colonne droite : Résultats de recherche */}
           {showResults && (collectionResults.length > 0 || scryfallResults.length > 0 || searchingScryfall) && (
-            <div className={`${scryfallSuggestions.length > 0 ? 'w-1/2' : 'w-full'} overflow-y-auto max-h-96`}>
+            <div className={`${scryfallSuggestions.length > 0 ? 'w-full sm:w-1/2' : 'w-full'} overflow-y-auto max-h-48 sm:max-h-96`}>
               {/* Résultats de la collection locale */}
               {collectionResults.length > 0 && (
                 <>

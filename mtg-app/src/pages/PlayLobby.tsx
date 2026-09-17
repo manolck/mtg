@@ -223,7 +223,7 @@ export function PlayLobby() {
 
   if (!lobby) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="page-shell">
         <p className="text-gray-600 dark:text-gray-400">Lobby introuvable.</p>
         <Link to="/play" className="text-blue-600 dark:text-blue-400 hover:underline">
           Retour aux lobbies
@@ -235,13 +235,13 @@ export function PlayLobby() {
   const slots = Array.from({ length: lobby.maxPlayers }, (_, i) => seats.find((s) => s.seatIndex === i));
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="page-shell">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link to="/play" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             ← Lobbies
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mt-2">{lobby.name}</h1>
+          <h1 className="page-title mt-2">{lobby.name}</h1>
           <p className="text-gray-600 dark:text-gray-400">
             {DECK_FORMAT_LABELS[lobby.format]} · {seats.length}/{lobby.maxPlayers} joueurs
           </p>
@@ -268,7 +268,7 @@ export function PlayLobby() {
         </div>
         {isHost && lobby.status === 'waiting' && (
           <div className="flex flex-col items-stretch sm:items-end gap-2">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={copyLink}>
                 Copier le lien
               </Button>

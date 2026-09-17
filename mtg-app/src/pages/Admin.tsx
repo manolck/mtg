@@ -146,12 +146,12 @@ export function Admin() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+    <div className="page-shell">
+      <div className="page-header">
+        <h1 className="page-title">
           Gestion des utilisateurs
         </h1>
-        <Button onClick={() => setShowCreateModal(true)}>
+        <Button onClick={() => setShowCreateModal(true)} className="shrink-0">
           + Créer un utilisateur
         </Button>
       </div>
@@ -205,8 +205,41 @@ export function Admin() {
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="surface-card overflow-hidden">
+          <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
+            {users.map((user) => (
+              <div key={user.uid} className="p-4 space-y-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white break-all">{user.email}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{user.pseudonym || '-'}</p>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {getUserRoles(user).map((role) => (
+                    <span
+                      key={role}
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        role === 'admin'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      {role === 'admin' ? 'Admin' : 'User'}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(user.createdAt)}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => openEditModal(user)} className="text-xs px-2 py-1">
+                    Modifier
+                  </Button>
+                  <Button variant="danger" onClick={() => handleDeleteUser(user.uid, user.email)} className="text-xs px-2 py-1">
+                    Supprimer
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -230,7 +263,7 @@ export function Admin() {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {users.map((user) => (
                   <tr key={user.uid} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white break-all">
                       {user.email}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -337,7 +370,7 @@ export function Admin() {
               Tous les utilisateurs ont le rôle "user" par défaut. Vous pouvez ajouter le rôle "admin" en plus.
             </p>
           </div>
-          <div className="flex gap-2 justify-end">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end">
             <Button
               variant="secondary"
               onClick={() => {
@@ -413,17 +446,7 @@ export function Admin() {
                 Le rôle "user" est toujours présent. Vous pouvez ajouter ou retirer le rôle "admin" sans modifier le rôle "user".
               </p>
             </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingUser(null);
-                  setError('');
-                }}
-              >
-                Annuler
-              </Button>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end">
               <Button
                 variant="secondary"
                 onClick={() => {

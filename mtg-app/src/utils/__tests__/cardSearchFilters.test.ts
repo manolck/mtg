@@ -22,13 +22,22 @@ describe('cardSearchFilters', () => {
       buildScryfallFilterClauses({
         colors: ['R', 'G'],
         exclusiveColors: true,
-        rarity: 'rare',
+        rarities: ['rare'],
         type: 'Creature',
         creatureType: 'Elf',
         language: 'fr',
         set: 'mh3',
       })
     ).toBe('c=gr r:rare t:creature t:elf lang:fr e:mh3');
+  });
+
+  it('builds OR rarity clauses', () => {
+    expect(
+      buildScryfallFilterClauses({
+        ...EMPTY_CARD_SEARCH_FILTERS,
+        rarities: ['common', 'rare'],
+      })
+    ).toBe('(r:common OR r:rare)');
   });
 
   it('treats colorless as c:c', () => {
@@ -47,7 +56,7 @@ describe('cardSearchFilters', () => {
 
   it('reports whether any filter is active', () => {
     expect(hasActiveCardSearchFilters(EMPTY_CARD_SEARCH_FILTERS)).toBe(false);
-    expect(hasActiveCardSearchFilters({ ...EMPTY_CARD_SEARCH_FILTERS, rarity: 'mythic' })).toBe(
+    expect(hasActiveCardSearchFilters({ ...EMPTY_CARD_SEARCH_FILTERS, rarities: ['mythic'] })).toBe(
       true
     );
   });

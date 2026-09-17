@@ -44,6 +44,10 @@ export function CardHoverPreview({ imageUrl, name, anchorRect }: CardHoverPrevie
   }, [anchorRect]);
 
   const src = largeCardImageUrl(imageUrl) || imageUrl;
+  const coarsePointer =
+    typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+
+  if (coarsePointer) return null;
 
   return createPortal(
     <div

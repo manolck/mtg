@@ -91,11 +91,11 @@ function QtyControls({
     return (
       <div className="flex items-center gap-1">
         {canSwap && (
-          <Button variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => onSwapPrint?.(entry)}>
+          <Button variant="secondary" size="sm" className="text-xs" onClick={() => onSwapPrint?.(entry)}>
             Print
           </Button>
         )}
-        <Button variant="danger" className="!px-2 !py-1" onClick={() => onRemove?.(entry)}>
+        <Button variant="danger" size="sm" onClick={() => onRemove?.(entry)}>
           Retirer
         </Button>
       </div>
@@ -105,27 +105,27 @@ function QtyControls({
     <div className="flex items-center gap-1 flex-wrap justify-center">
       <Button
         variant="secondary"
-        className="!px-2 !py-1"
+        size="sm"
         onClick={() => onDecrement?.(entry)}
         disabled={entry.quantity <= 1}
       >
         −
       </Button>
       <span className="w-8 text-center text-sm">{entry.quantity}</span>
-      <Button variant="secondary" className="!px-2 !py-1" onClick={() => onIncrement?.(entry)}>
+      <Button variant="secondary" size="sm" onClick={() => onIncrement?.(entry)}>
         +
       </Button>
       {canSwap && (
         <Button
           variant="secondary"
-          className="!px-2 !py-1 text-xs"
+          size="sm"
           title="Changer d'impression (collection)"
           onClick={() => onSwapPrint?.(entry)}
         >
           Print
         </Button>
       )}
-      <Button variant="danger" className="!px-2 !py-1" onClick={() => onRemove?.(entry)}>
+      <Button variant="danger" size="sm" onClick={() => onRemove?.(entry)}>
         ×
       </Button>
     </div>
@@ -258,7 +258,7 @@ export function DeckCardGrid({
     return (
       <div
         key={`${zone}-${entry.scryfallId}`}
-        className={`flex items-center gap-3 rounded-lg p-3 shadow-sm ${
+        className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg p-3 shadow-sm ${
           hasIssue
             ? 'bg-red-50 dark:bg-red-950/40 ring-2 ring-red-500'
             : 'bg-white dark:bg-gray-800'

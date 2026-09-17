@@ -522,8 +522,8 @@ export function CardScanWizard() {
   const isLoggedIn = !!currentUser;
 
   return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h1 className="page-title">
         Scanner une carte
       </h1>
 
@@ -672,7 +672,7 @@ export function CardScanWizard() {
               )}
             </>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setState((s) => ({ ...s, step: 1 }))}>Retour</Button>
           </div>
         </div>
@@ -704,12 +704,12 @@ export function CardScanWizard() {
             </>
           ) : !isLoggedIn ? (
             <>
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col sm:flex-row items-start gap-4">
                 {state.selectedCard.imageUrl && (
                   <img
                     src={state.selectedCard.imageUrl}
                     alt={state.selectedCard.name}
-                    className="w-40 rounded-lg border border-gray-300 dark:border-gray-600"
+                    className="w-32 sm:w-40 rounded-lg border border-gray-300 dark:border-gray-600"
                   />
                 )}
                 <div>
@@ -738,12 +738,12 @@ export function CardScanWizard() {
             </>
           ) : (
             <>
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col sm:flex-row items-start gap-4">
                 {state.selectedCard.imageUrl && (
                   <img
                     src={state.selectedCard.imageUrl}
                     alt={state.selectedCard.name}
-                    className="w-40 rounded-lg border border-gray-300 dark:border-gray-600"
+                    className="w-32 sm:w-40 rounded-lg border border-gray-300 dark:border-gray-600"
                   />
                 )}
                 <div>

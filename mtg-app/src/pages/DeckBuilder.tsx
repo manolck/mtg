@@ -633,7 +633,7 @@ export function DeckBuilder() {
 
   if (!deck) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center">
+      <div className="page-shell text-center">
         <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">Deck introuvable</p>
         <Button onClick={() => navigate('/decks')}>Retour aux decks</Button>
       </div>
@@ -648,15 +648,15 @@ export function DeckBuilder() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="page-shell">
       <div className="mb-6">
         <Button variant="secondary" onClick={() => navigate(isOwner ? '/decks' : '/community/decks')} className="mb-4">
           ← Retour
         </Button>
-        <div className="flex flex-wrap justify-between gap-4 items-start">
-          <div>
+        <div className="flex flex-col lg:flex-row lg:flex-wrap justify-between gap-4 items-start">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{deck.name}</h1>
+              <h1 className="page-title">{deck.name}</h1>
               <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                 {DECK_FORMAT_LABELS[deck.format]}
               </span>
@@ -721,7 +721,7 @@ export function DeckBuilder() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           {!readOnly && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow space-y-3">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Ajouter une carte ({activeTab})
@@ -810,14 +810,14 @@ export function DeckBuilder() {
                 )}
               </div>
               {searchInCollectionOnly && userCollections.length > 1 && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Quelle collection ?
                   </label>
                   <select
                     value={searchCollectionId || ''}
                     onChange={(e) => setSearchCollectionId(e.target.value || null)}
-                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="field-control sm:max-w-xs"
                   >
                     <option value="">Toutes mes collections</option>
                     {userCollections.map((col) => (
@@ -860,7 +860,7 @@ export function DeckBuilder() {
                       const commanderZone = activeTab === 'commanders';
                       return (
                         <li key={cardId} className={selected ? 'bg-blue-50 dark:bg-blue-950/30' : ''}>
-                          <div className="flex items-center gap-2 px-2 py-2">
+                          <div className="flex flex-wrap items-center gap-2 px-2 py-2">
                             <input
                               type="checkbox"
                               checked={selected}
@@ -948,7 +948,8 @@ export function DeckBuilder() {
                             )}
                             <Button
                               type="button"
-                              className="!px-2 !py-1 text-xs flex-shrink-0"
+                              className="flex-shrink-0"
+                              size="sm"
                               disabled={addingSearch}
                               onClick={() => handleAddCard(card, commanderZone ? 1 : qty)}
                             >
@@ -1001,7 +1002,7 @@ export function DeckBuilder() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 overflow-x-auto">
             <div className="flex flex-wrap gap-2">
               {tabs
                 .filter((t) => t.show)
@@ -1092,7 +1093,7 @@ export function DeckBuilder() {
         </div>
 
         <aside className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Possession</h3>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {ownership.totalOwned} / {ownership.totalNeeded}
@@ -1139,7 +1140,7 @@ export function DeckBuilder() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Courbe de mana</h3>
             <div className="flex items-end gap-1 h-24">
               {manaCurve.map((v, i) => (
@@ -1177,7 +1178,7 @@ export function DeckBuilder() {
           </div>
 
           {typeBreakdown.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Répartition (main)</h3>
               <ul className="space-y-1 text-sm">
                 {typeBreakdown.map((g) => (
@@ -1194,7 +1195,7 @@ export function DeckBuilder() {
           )}
 
           {isOwner && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow space-y-3">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">Description & tags</h3>
               <textarea
                 value={descriptionDraft}
@@ -1216,7 +1217,7 @@ export function DeckBuilder() {
           )}
 
           {!isOwner && deck.description && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
               <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Description</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{deck.description}</p>
             </div>
@@ -1237,7 +1238,7 @@ export function DeckBuilder() {
             className="w-full px-3 py-2 font-mono text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             placeholder={`4 Lightning Bolt\n1 Sol Ring (C21) 7\n\nSideboard\n2 Rest in Peace`}
           />
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowImport(false)}>
               Annuler
             </Button>

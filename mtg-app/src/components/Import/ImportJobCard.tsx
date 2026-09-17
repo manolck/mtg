@@ -69,9 +69,9 @@ export function ImportJobCard({
     : 0;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-4">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`font-semibold ${getStatusColor(importJob.status)}`}>
               {getStatusLabel(importJob.status)}
@@ -163,7 +163,7 @@ export function ImportJobCard({
         </div>
       )}
 
-      <div className="flex gap-2 mt-3">
+      <div className="flex flex-wrap gap-2 mt-3">
         {importJob.status === 'paused' && onResume && (
           <Button
             variant="primary"

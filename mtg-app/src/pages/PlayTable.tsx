@@ -190,8 +190,8 @@ export function PlayTable() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#07141c] text-white overflow-hidden">
-      <header className="shrink-0 relative z-30 flex items-center justify-between gap-3 px-3 py-1.5 bg-black/40 border-b border-white/10">
+    <div className="h-dvh flex flex-col bg-[#07141c] text-white overflow-hidden">
+      <header className="shrink-0 relative z-30 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 bg-black/40 border-b border-white/10">
         <div className="min-w-0">
           <Link
             to={`/play/${lobbyId}`}
@@ -205,7 +205,7 @@ export function PlayTable() {
         <p className="hidden lg:block text-[11px] text-white/45 max-w-xl truncate">
           Clic main → poser · Clic champ → engager · Clic droit → déplacer · D piocher · / bibliothèque · +/− PV
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <RtcControls
             camOn={camOn}
             micOn={micOn}
@@ -222,7 +222,7 @@ export function PlayTable() {
           />
           <button
             type="button"
-            className="relative z-30 text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20"
+            className="relative z-30 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 min-h-[36px]"
             onClick={() => {
               void meshRef.current?.destroy();
               meshRef.current = null;

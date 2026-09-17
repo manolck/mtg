@@ -104,7 +104,7 @@ function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
 
   return (
     <div
-      className="fixed top-4 right-4 z-50 flex flex-col items-end space-y-2 pointer-events-none"
+      className="fixed top-4 inset-x-4 sm:inset-x-auto sm:right-4 z-[60] flex flex-col items-stretch sm:items-end space-y-2 pointer-events-none"
       aria-live="polite"
       aria-atomic="true"
     >

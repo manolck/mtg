@@ -88,13 +88,13 @@ export function Decks() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex flex-wrap gap-3 justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mes Decks</h1>
-        <div className="flex gap-2">
+    <div className="page-shell">
+      <div className="page-header">
+        <h1 className="page-title">Mes Decks</h1>
+        <div className="flex flex-wrap gap-2">
           <Link
             to="/community/decks"
-            className="px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+            className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
           >
             Communauté
           </Link>
@@ -125,7 +125,7 @@ export function Decks() {
             return (
               <div
                 key={deck.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                className="surface-card p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start gap-2 mb-2">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -148,10 +148,10 @@ export function Decks() {
                     {deck.description}
                   </p>
                 )}
-                <div className="flex gap-2 mt-4">
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
                   <Link
                     to={`/decks/${deck.id}`}
-                    className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 text-center min-h-[44px] inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Ouvrir
                   </Link>
@@ -222,7 +222,7 @@ export function Decks() {
               placeholder="Stratégie, notes…"
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <Button
               variant="secondary"
               onClick={() => {

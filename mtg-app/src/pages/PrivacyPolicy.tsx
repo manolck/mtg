@@ -3,16 +3,16 @@ import { Button } from '../components/UI/Button';
 
 export function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="min-h-dvh bg-gray-50 dark:bg-gray-900 py-6 sm:py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 md:p-8">
+        <div className="surface-card p-5 sm:p-8">
           <div className="mb-6">
             <Link to="/collection">
               <Button variant="secondary" className="mb-4">
                 ← Retour
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="page-title mb-2">
               Politique de Confidentialité
             </h1>
             <p className="text-gray-600 dark:text-gray-400">

@@ -93,18 +93,18 @@ export function Statistics() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+    <div className="page-shell">
+      <h1 className="page-title mb-6 sm:mb-8">
         Statistiques de la Collection
       </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
         {/* Valeur estimée */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="surface-card p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Valeur Estimée
           </h2>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <select
               value={currency}
               onChange={(e) => {
@@ -135,13 +135,13 @@ export function Statistics() {
             </p>
           ) : (
             <p className="text-gray-600 dark:text-gray-400">
-              Cliquez sur "Actualiser" pour calculer
+              Cliquez sur &quot;Actualiser&quot; pour calculer
             </p>
           )}
         </div>
 
         {/* Total de cartes */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="surface-card p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Total de Cartes
           </h2>
@@ -152,7 +152,7 @@ export function Statistics() {
         </div>
 
         {/* Cartes par couleur */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="surface-card p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Par Couleur
           </h2>
@@ -201,7 +201,7 @@ export function Statistics() {
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Par rareté */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="surface-card p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Par Rareté
           </h2>
@@ -239,7 +239,7 @@ export function Statistics() {
         </div>
 
         {/* Top éditions */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="surface-card p-5 sm:p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Top 10 Éditions
           </h2>

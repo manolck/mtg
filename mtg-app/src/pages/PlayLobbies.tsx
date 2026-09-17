@@ -116,16 +116,16 @@ export function PlayLobbies() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Playtest</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 max-w-2xl">
+    <div className="page-shell">
+      <div className="page-header">
+        <div className="min-w-0">
+          <h1 className="page-title">Playtest</h1>
+          <p className="page-subtitle max-w-2xl">
             Créez un salon, envoyez le lien, choisissez un deck, puis jouez sur une table digitale
             (piocher, poser, engager, PV). La vidéo est optionnelle. Les règles Magic restent à votre charge.
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>Créer un lobby</Button>
+        <Button onClick={() => setShowCreate(true)} className="shrink-0">Créer un lobby</Button>
       </div>
 
       {loading ? (
@@ -139,7 +139,7 @@ export function PlayLobbies() {
           {lobbies.map((lobby) => (
             <li
               key={lobby.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3"
             >
               <div>
                 <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export function PlayLobbies() {
                   {DECK_FORMAT_LABELS[lobby.format]} · jusqu’à {lobby.maxPlayers} joueurs
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {lobby.status === 'waiting' ? (
                   <Button onClick={() => handleJoin(lobby)} loading={joiningId === lobby.id}>
                     Rejoindre
@@ -166,14 +166,14 @@ export function PlayLobbies() {
                 ) : (
                   <Link
                     to={`/play/${lobby.id}/table`}
-                    className="px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+                    className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                   >
                     Table
                   </Link>
                 )}
                 <Link
                   to={`/play/${lobby.id}`}
-                  className="px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+                  className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                 >
                   Détail
                 </Link>

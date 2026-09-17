@@ -15,7 +15,7 @@ import { normalizeSearchQueryToEnglish } from '../services/searchQueryNormalizer
 import { searchMatchesText } from '../utils/fuzzyMatch';
 import { WishlistCardMenuModal } from '../components/Wishlist/WishlistCardMenuModal';
 import { WishlistSearchInput } from '../components/Wishlist/WishlistSearchInput';
-import type { WishlistItem } from '../types/card';
+import { rarityLabel, sortRarities } from '../utils/cardSearchFilters';
 import type { MTGCard } from '../types/card';
 
 type SortOption = 'name' | 'date' | 'rarity' | 'set' | 'quantity';
@@ -39,7 +39,7 @@ export function Wishlist() {
   const { showSuccess, showError } = useToast();
 
   const [searchInput, setSearchInput] = useState('');
-  const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [_showDeleteModal, setShowDeleteModal] = useState(false);
@@ -98,9 +98,10 @@ export function Wishlist() {
       });
     }
 
-    // Filtre par rareté
-    if (selectedRarity) {
-      filtered = filtered.filter(item => item.rarity === selectedRarity);
+    // Filtre par rareté (OU)
+    if (selectedRarities.length > 0) {
+      const selected = new Set(selectedRarities.map((rarity) => rarity.toLowerCase()));
+      filtered = filtered.filter((item) => selected.has((item.rarity || '').toLowerCase()));
     }
 
     // Filtre par set
@@ -137,7 +138,7 @@ export function Wishlist() {
     });
 
     return filtered;
-  }, [items, deferredSearch, selectedRarity, selectedSet, sortBy]);
+  }, [items, deferredSearch, selectedRarities, selectedSet, sortBy]);
 
   // Statistiques améliorées
   const stats = useMemo(() => {
@@ -175,7 +176,10 @@ export function Wishlist() {
 
   // Raretés uniques pour le filtre
   const uniqueRarities = useMemo(() => {
-    return Array.from(new Set(items.map(item => item.rarity).filter(Boolean))) as string[];
+    const rarities = new Set(
+      items.map((item) => (item.rarity || '').toLowerCase()).filter(Boolean)
+    );
+    return sortRarities(Array.from(rarities));
   }, [items]);
 
   // Sets uniques pour le filtre
@@ -273,7 +277,7 @@ export function Wishlist() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="page-shell">
         <div className="flex justify-center py-8">
           <Spinner size="lg" />
         </div>
@@ -283,7 +287,7 @@ export function Wishlist() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="page-shell">
         <div className="text-center text-red-500">
           Erreur lors du chargement de la wishlist: {error.message}
         </div>
@@ -292,13 +296,13 @@ export function Wishlist() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+    <div className={`page-shell bg-gray-50 dark:bg-gray-900 ${filteredItems.length > 100 ? 'flex flex-col h-full min-h-0 overflow-hidden !py-3' : ''}`}>
+      <div className="page-header shrink-0">
+        <div className="min-w-0">
+          <h1 className="page-title">
             Ma Wishlist
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="page-subtitle">
             Gérez les cartes que vous souhaitez acquérir
           </p>
         </div>
@@ -306,6 +310,7 @@ export function Wishlist() {
           <Button
             variant="secondary"
             onClick={() => setShowExportModal(true)}
+            className="shrink-0"
           >
             Exporter
           </Button>
@@ -313,44 +318,44 @@ export function Wishlist() {
       </div>
 
       {/* Statistiques améliorées */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4 mb-4 shrink-0">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Total d'items</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {stats.totalItems}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Quantité totale</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {stats.totalQuantity}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Éditions</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {stats.uniqueSets}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Déjà possédées</div>
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {stats.alreadyInCollection}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Avec notes</div>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
             {stats.withNotes}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Prix cible</div>
           <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
             {stats.withTargetPrice}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="surface-card p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400">Filtrées</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {filteredItems.length}
@@ -359,9 +364,9 @@ export function Wishlist() {
       </div>
 
       {/* Filtres, recherche et tri */}
-      <div className="mb-6 space-y-4">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
+      <div className="mb-3 space-y-4 shrink-0">
+        <div className="flex flex-col lg:flex-row flex-wrap gap-4 items-stretch lg:items-end">
+          <div className="flex-1 min-w-0">
             <WishlistSearchInput
               value={searchInput}
               onChange={setSearchInput}
@@ -370,31 +375,46 @@ export function Wishlist() {
               placeholder="Rechercher dans toutes les collections de la communauté..."
             />
           </div>
-          <div className="min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          {uniqueRarities.length > 0 && (
+          <div className="filter-chip sm:min-w-0">
+            <label>
               Rareté
             </label>
-            <select
-              value={selectedRarity || ''}
-              onChange={(e) => setSelectedRarity(e.target.value || null)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">Toutes</option>
-              {uniqueRarities.map(rarity => (
-                <option key={rarity} value={rarity}>
-                  {rarity}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 gap-1 w-max">
+              {uniqueRarities.map((rarity) => {
+                const selected = selectedRarities.includes(rarity);
+                return (
+                  <button
+                    key={rarity}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRarities((current) =>
+                        current.includes(rarity)
+                          ? current.filter((value) => value !== rarity)
+                          : [...current, rarity]
+                      );
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium min-h-[36px] min-w-[4.75rem] inline-flex items-center justify-center transition-all ${
+                      selected
+                        ? 'bg-blue-600 dark:bg-blue-500 ring-2 ring-blue-400 dark:ring-blue-300 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    {rarityLabel(rarity)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          )}
+          <div className="filter-chip">
+            <label>
               Édition
             </label>
             <select
               value={selectedSet || ''}
               onChange={(e) => setSelectedSet(e.target.value || null)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="field-control"
             >
               <option value="">Toutes</option>
               {uniqueSets.map(set => (
@@ -404,14 +424,14 @@ export function Wishlist() {
               ))}
             </select>
           </div>
-          <div className="min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <div className="filter-chip">
+            <label>
               Trier par
             </label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="field-control"
             >
               <option value="date">Date d'ajout</option>
               <option value="name">Nom</option>
@@ -449,7 +469,7 @@ export function Wishlist() {
         </div>
       ) : filteredItems.length > 100 ? (
         // Utiliser la virtualisation pour les grandes wishlists (> 100 items)
-        <div className="w-full bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>
+        <div className="flex-1 min-h-0 w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
           <VirtualizedCardGrid
             cards={filteredItems.map(item => ({
               id: item.id,
@@ -530,7 +550,7 @@ export function Wishlist() {
         </div>
       ) : (
         // Grille normale pour les petites wishlists
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
           {filteredItems.map(item => {
             const inCollection = isCardInCollection(item.name);
             // Grouper les items avec le même nom pour CardDisplay
@@ -606,7 +626,7 @@ export function Wishlist() {
           <p className="text-gray-600 dark:text-gray-400">
             Sélectionnez le format d'exportation pour votre wishlist.
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               onClick={() => {
                 handleExport('csv');

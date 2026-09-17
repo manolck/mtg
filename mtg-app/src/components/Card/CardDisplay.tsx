@@ -1,4 +1,5 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, memo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { UserCard } from '../../types/card';
 import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
@@ -86,6 +87,15 @@ export const CardDisplay = memo(function CardDisplay({
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showEnlarged, setShowEnlarged] = useState(false);
 
+  useEffect(() => {
+    if (!showEnlarged) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowEnlarged(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showEnlarged]);
+
   // Grouper les cartes par langue pour l'affichage au survol
   const cardGroups = useMemo(() => {
     const cardsToGroup = allCardsWithSameName || [card];
@@ -123,7 +133,7 @@ export const CardDisplay = memo(function CardDisplay({
   return (
     <>
     <div 
-      className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col relative group cursor-pointer"
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden flex flex-col relative group cursor-pointer card-hover-lift"
       onClick={(e) => {
         // Ne pas ouvrir la vue agrandie si on clique sur un bouton d'action
         if ((e.target as HTMLElement).closest('button')) {
@@ -131,20 +141,8 @@ export const CardDisplay = memo(function CardDisplay({
         }
         setShowEnlarged(true);
       }}
-      style={{
-        transform: 'scale(1)',
-        transition: 'transform 0.3s ease-in-out',
-      }}
-      onMouseEnter={(e) => {
-        setShowMenu(true);
-        (e.currentTarget as HTMLElement).style.transform = 'scale(1.2)';
-        (e.currentTarget as HTMLElement).style.zIndex = '10';
-      }}
-      onMouseLeave={(e) => {
-        setShowMenu(false);
-        (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
-        (e.currentTarget as HTMLElement).style.zIndex = '1';
-      }}
+      onMouseEnter={() => setShowMenu(true)}
+      onMouseLeave={() => setShowMenu(false)}
     >
       {/* Image de la carte en entier */}
       <div className="relative w-full aspect-[63/88] bg-gray-100 dark:bg-gray-900">
@@ -234,9 +232,9 @@ export const CardDisplay = memo(function CardDisplay({
           </div>
         )}
 
-        {/* Overlay d'informations en bas - visible au survol */}
-        {showMenu && (cardGroups.totalQuantity > 0 || card.ownerProfile?.avatarId) && (
-          <div className="absolute bottom-0 left-0 right-0 bg-black/30 backdrop-blur-sm text-white p-2 transition-opacity duration-200">
+        {/* Overlay d'informations : toujours visible sur tactile, au survol sur desktop */}
+        {(cardGroups.totalQuantity > 0 || card.ownerProfile?.avatarId) && (
+          <div className={`absolute bottom-0 left-0 right-0 bg-black/40 backdrop-blur-sm text-white p-2 transition-opacity duration-200 ${showMenu ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}>
             <div className="flex items-center justify-between text-xs">
               {/* Langues avec quantités */}
               {cardGroups.totalQuantity > 0 && (
@@ -392,11 +390,14 @@ export const CardDisplay = memo(function CardDisplay({
     </div>
 
     {/* Modal pour la vue agrandie de la carte */}
-    {showEnlarged && (
+    {showEnlarged && createPortal(
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
         onClick={() => setShowEnlarged(false)}
         style={{ animation: 'fadeIn 0.2s ease-in-out' }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={cardName}
       >
         <div
           className="relative overflow-hidden"
@@ -504,7 +505,8 @@ export const CardDisplay = memo(function CardDisplay({
             </svg>
           </button>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );

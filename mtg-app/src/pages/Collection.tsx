@@ -23,6 +23,7 @@ import { ImportModal } from '../components/Import/ImportModal';
 import { ProgressBar } from '../components/UI/ProgressBar';
 import { Spinner } from '../components/UI/Spinner';
 import { userCardToDeckEntry } from '../utils/deckEntry';
+import { rarityLabel, sortRarities } from '../utils/cardSearchFilters';
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from '../types/deck';
 import { getFormatSummary } from '../services/deckFormatRules';
 
@@ -76,10 +77,9 @@ export function Collection() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [exclusiveColors, setExclusiveColors] = useState(false);
-  const [selectedRarity, setSelectedRarity] = useState<string | null>(null);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedCreatureType, setSelectedCreatureType] = useState<string | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [newDeckName, setNewDeckName] = useState('');
@@ -92,7 +92,6 @@ export function Collection() {
   const isViewingAllCollections = selectedUserId === 'all';
   const currentOwner = owners.find(o => o.userId === (selectedUserId || currentUser?.uid));
   const myOwner = owners.find(o => o.userId === currentUser?.uid);
-  const selectedCollection = userCollections.find((c) => c.id === selectedCollectionId);
   const [userSelectOpen, setUserSelectOpen] = useState(false);
   const userSelectRef = useRef<HTMLDivElement>(null);
 
@@ -242,10 +241,9 @@ export function Collection() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredSelectedColors = useDeferredValue(selectedColors);
   const deferredExclusiveColors = useDeferredValue(exclusiveColors);
-  const deferredSelectedRarity = useDeferredValue(selectedRarity);
+  const deferredSelectedRarities = useDeferredValue(selectedRarities);
   const deferredSelectedType = useDeferredValue(selectedType);
   const deferredSelectedCreatureType = useDeferredValue(selectedCreatureType);
-  const deferredSelectedLanguage = useDeferredValue(selectedLanguage);
   const deferredSelectedSet = useDeferredValue(selectedSet);
 
   // Filtrer les cartes
@@ -334,11 +332,14 @@ export function Collection() {
       });
     }
 
-    // Filtre par rareté
-    if (deferredSelectedRarity) {
-      filtered = filtered.filter(card => 
-        card.mtgData?.rarity === deferredSelectedRarity || card.rarity === deferredSelectedRarity
-      );
+    // Filtre par rareté (OU : une des raretés cochées)
+    if (deferredSelectedRarities.length > 0) {
+      const selected = new Set(deferredSelectedRarities.map((rarity) => rarity.toLowerCase()));
+      filtered = filtered.filter((card) => {
+        const mtgRarity = (card.mtgData?.rarity || '').toLowerCase();
+        const cardRarity = (card.rarity || '').toLowerCase();
+        return selected.has(mtgRarity) || selected.has(cardRarity);
+      });
     }
 
     // Filtre par type
@@ -359,13 +360,6 @@ export function Collection() {
       });
     }
 
-    // Filtre par langue
-    if (deferredSelectedLanguage) {
-      filtered = filtered.filter(card => 
-        (card.language || 'en').toLowerCase() === deferredSelectedLanguage.toLowerCase()
-      );
-    }
-
     // Filtre par édition
     if (deferredSelectedSet) {
       filtered = filtered.filter(card => {
@@ -375,7 +369,7 @@ export function Collection() {
     }
 
     return filtered;
-  }, [allCards, deferredSearchQuery, deferredSelectedColors, deferredExclusiveColors, deferredSelectedRarity, deferredSelectedType, deferredSelectedCreatureType, deferredSelectedLanguage, deferredSelectedSet]);
+  }, [allCards, deferredSearchQuery, deferredSelectedColors, deferredExclusiveColors, deferredSelectedRarities, deferredSelectedType, deferredSelectedCreatureType, deferredSelectedSet]);
 
   // Pré-calculer le Map des cartes par nom
   const cardsByNameMap = useMemo(() => {
@@ -397,24 +391,13 @@ export function Collection() {
     return { deduplicatedCards, map };
   }, [filteredCards]);
 
-  // Extraire les valeurs uniques pour les filtres
-  const availableLanguages = useMemo(() => {
-    const langs = new Set<string>();
-    allCards.forEach(card => {
-      if (card.language) {
-        langs.add(card.language);
-      }
-    });
-    return Array.from(langs).sort();
-  }, [allCards]);
-
   const availableRarities = useMemo(() => {
     const rarities = new Set<string>();
-    allCards.forEach(card => {
-      if (card.mtgData?.rarity) rarities.add(card.mtgData.rarity);
-      if (card.rarity) rarities.add(card.rarity);
+    allCards.forEach((card) => {
+      const rarity = (card.mtgData?.rarity || card.rarity || '').toLowerCase();
+      if (rarity) rarities.add(rarity);
     });
-    return Array.from(rarities).sort();
+    return sortRarities(Array.from(rarities));
   }, [allCards]);
 
   const availableTypes = useMemo(() => {
@@ -497,174 +480,162 @@ export function Collection() {
     };
   }, [hasMoreCards, loadingMore, loadMoreCards]);
 
+  const showLoadingMore = loadingMore && cards.length > 0;
+  const useVirtualGrid = Boolean(cardsByNameMap && cardsByNameMap.deduplicatedCards.length > 100);
+
   if (loading || loadingOwners) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
         <Spinner size="lg" />
       </div>
     );
   }
 
-  const showLoadingMore = loadingMore && cards.length > 0;
-
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="page-shell bg-gray-50 dark:bg-gray-900 flex flex-col h-full min-h-0 overflow-hidden !py-3">
       {/* 1. Menu en haut avec select pour choisir la collection */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          {currentOwner?.profile?.avatarId && (
-            <AvatarDisplay avatarId={currentOwner.profile.avatarId} size="md" />
-          )}
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {isViewingAllCollections 
-              ? 'Toutes les Collections' 
-              : isViewingOwnCollection 
-                ? (selectedCollectionId ? (selectedCollection?.name ?? 'Collection') : 'Toutes mes collections')
-                : `Collection de ${currentOwner?.profile?.pseudonym || 'Utilisateur'}`}
-            {filteredCards.length > 0 && ` (${filteredCards.length}${filteredCards.length !== allCards.length ? ` / ${allCards.length}` : ''})`}
-          </h1>
-        </div>
-
-        <div className="mb-4" ref={userSelectRef}>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Utilisateur :
-          </label>
-          <div className="relative w-full max-w-md">
-            <button
-              type="button"
-              onClick={() => setUserSelectOpen((o) => !o)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left"
-            >
-              {selectedUserId === 'all' ? (
-                <>
-                  <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-lg" aria-hidden>📚</span>
-                  <span className="flex-1">Toutes les Collections</span>
-                </>
-              ) : (
-                <>
-                  {currentOwner?.profile?.avatarId ? (
-                    <AvatarDisplay avatarId={currentOwner.profile.avatarId} size="md" />
-                  ) : (
-                    <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
-                  )}
-                  <span className="flex-1">
-                    {currentOwner?.profile?.pseudonym || currentOwner?.profile?.email || currentUser?.email || 'Moi'}
-                    {currentOwner?.cardCount != null && ` (${currentOwner.cardCount} cartes)`}
-                  </span>
-                </>
-              )}
-              <svg className={`w-5 h-5 text-gray-500 transition-transform ${userSelectOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {userSelectOpen && (
-              <ul
-                className="absolute z-20 mt-1 w-full py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto"
-                role="listbox"
-              >
-                <li
-                  role="option"
-                  aria-selected={(selectedUserId || currentUser?.uid) === currentUser?.uid}
-                  onClick={() => {
-                    setSelectedUserId(null);
-                    setUserSelectOpen(false);
-                  }}
-                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  {myOwner?.profile?.avatarId ? (
-                    <AvatarDisplay avatarId={myOwner.profile.avatarId} size="sm" />
-                  ) : (
-                    <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
-                  )}
-                  <span>{myOwner?.profile?.pseudonym || myOwner?.profile?.email || currentUser?.email || 'Moi'}</span>
-                  {myOwner?.cardCount != null && <span className="text-gray-500 dark:text-gray-400 text-sm">({myOwner.cardCount} cartes)</span>}
-                </li>
-                <li
-                  role="option"
-                  aria-selected={selectedUserId === 'all'}
-                  onClick={() => {
-                    setSelectedUserId('all');
-                    setUserSelectOpen(false);
-                  }}
-                  className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>📚</span>
-                  <span>Toutes les Collections</span>
-                </li>
-                {owners
-                  .filter((o) => o.userId !== currentUser?.uid)
-                  .map((owner) => (
-                    <li
-                      key={owner.userId}
-                      role="option"
-                      aria-selected={selectedUserId === owner.userId}
-                      onClick={() => {
-                        setSelectedUserId(owner.userId);
-                        setSelectedCollectionId(null);
-                        setUserSelectOpen(false);
-                      }}
-                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      {owner.profile?.avatarId ? (
-                        <AvatarDisplay avatarId={owner.profile.avatarId} size="sm" />
-                      ) : (
-                        <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
-                      )}
-                      <span>{owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'}</span>
-                      <span className="text-gray-500 dark:text-gray-400 text-sm">({owner.cardCount} cartes)</span>
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {isViewingOwnCollection && !isViewingAllCollections && (
-          <div className="mb-4">
+      <div className="mb-4 shrink-0">
+        <h1 className="sr-only">Collection</h1>
+        <div className="flex flex-col md:flex-row md:items-end gap-4">
+          <div className="flex-1 min-w-0" ref={userSelectRef}>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Quelle collection ?
+              Utilisateur :
             </label>
-            <select
-              value={selectedCollectionId ?? ''}
-              onChange={(e) => setSelectedCollectionId(e.target.value === '' ? null : e.target.value)}
-              className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Toutes mes collections</option>
-              {loadingUserCollections ? (
-                <option disabled>Chargement...</option>
-              ) : (
-                userCollections.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {col.name}
-                  </option>
-                ))
+            <div className="relative w-full">
+              <button
+                type="button"
+                onClick={() => setUserSelectOpen((o) => !o)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left min-h-[44px]"
+              >
+                {selectedUserId === 'all' ? (
+                  <>
+                    <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-lg" aria-hidden>📚</span>
+                    <span className="flex-1 min-w-0 truncate">Toutes les Collections</span>
+                  </>
+                ) : (
+                  <>
+                    {currentOwner?.profile?.avatarId ? (
+                      <AvatarDisplay avatarId={currentOwner.profile.avatarId} size="md" />
+                    ) : (
+                      <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                    )}
+                    <span className="flex-1 min-w-0 truncate">
+                      {currentOwner?.profile?.pseudonym || currentOwner?.profile?.email || currentUser?.email || 'Moi'}
+                      {currentOwner?.cardCount != null && ` (${currentOwner.cardCount} cartes)`}
+                    </span>
+                  </>
+                )}
+                <svg className={`w-5 h-5 text-gray-500 transition-transform ${userSelectOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {userSelectOpen && (
+                <ul
+                  className="absolute z-20 mt-1 w-full py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto"
+                  role="listbox"
+                >
+                  <li
+                    role="option"
+                    aria-selected={(selectedUserId || currentUser?.uid) === currentUser?.uid}
+                    onClick={() => {
+                      setSelectedUserId(null);
+                      setUserSelectOpen(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    {myOwner?.profile?.avatarId ? (
+                      <AvatarDisplay avatarId={myOwner.profile.avatarId} size="sm" />
+                    ) : (
+                      <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                    )}
+                    <span>{myOwner?.profile?.pseudonym || myOwner?.profile?.email || currentUser?.email || 'Moi'}</span>
+                    {myOwner?.cardCount != null && <span className="text-gray-500 dark:text-gray-400 text-sm">({myOwner.cardCount} cartes)</span>}
+                  </li>
+                  <li
+                    role="option"
+                    aria-selected={selectedUserId === 'all'}
+                    onClick={() => {
+                      setSelectedUserId('all');
+                      setUserSelectOpen(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>📚</span>
+                    <span>Toutes les Collections</span>
+                  </li>
+                  {owners
+                    .filter((o) => o.userId !== currentUser?.uid)
+                    .map((owner) => (
+                      <li
+                        key={owner.userId}
+                        role="option"
+                        aria-selected={selectedUserId === owner.userId}
+                        onClick={() => {
+                          setSelectedUserId(owner.userId);
+                          setSelectedCollectionId(null);
+                          setUserSelectOpen(false);
+                        }}
+                        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        {owner.profile?.avatarId ? (
+                          <AvatarDisplay avatarId={owner.profile.avatarId} size="sm" />
+                        ) : (
+                          <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
+                        )}
+                        <span>{owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'}</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-sm">({owner.cardCount} cartes)</span>
+                      </li>
+                    ))}
+                </ul>
               )}
-            </select>
+            </div>
           </div>
-        )}
+
+          {isViewingOwnCollection && !isViewingAllCollections && (
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Quelle collection ?
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowImportModal(true)}
+                  >
+                    Importer une collection
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowExportModal(true)}
+                    disabled={cards.length === 0}
+                  >
+                    Exporter la collection
+                  </Button>
+                </div>
+              </div>
+              <select
+                value={selectedCollectionId ?? ''}
+                onChange={(e) => setSelectedCollectionId(e.target.value === '' ? null : e.target.value)}
+                className="field-control w-full"
+              >
+                <option value="">Toutes mes collections</option>
+                {loadingUserCollections ? (
+                  <option disabled>Chargement...</option>
+                ) : (
+                  userCollections.map((col) => (
+                    <option key={col.id} value={col.id}>
+                      {col.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 2. Boutons exporter / importer */}
-      {isViewingOwnCollection && !isViewingAllCollections && (
-        <div className="mb-6 flex gap-2 flex-wrap">
-          <Button
-            variant="secondary"
-            onClick={() => setShowImportModal(true)}
-          >
-            Importer une collection
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => setShowExportModal(true)}
-            disabled={cards.length === 0}
-          >
-            Exporter la collection
-          </Button>
-        </div>
-      )}
-
       {/* 3. Zones de recherche */}
-      <div className="mb-6 space-y-4">
+      <div className="mb-3 space-y-3 shrink-0">
         {/* Barre de recherche */}
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
@@ -710,11 +681,11 @@ export function Collection() {
         </div>
 
         {/* Filtres */}
-        <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex flex-wrap gap-3 items-start">
           {/* Filtre par couleur */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Couleur:</label>
-            <div className="flex gap-1">
+          <div className="filter-chip sm:min-w-0">
+            <label>Couleur</label>
+            <div className="grid grid-cols-3 gap-1 w-max">
               {(['W', 'U', 'B', 'R', 'G', 'Colorless'] as const).map(color => (
                 <button
                   key={color}
@@ -729,7 +700,7 @@ export function Collection() {
                     });
                     startTransition(() => {});
                   }}
-                  className={`p-1.5 rounded transition-all ${
+                  className={`p-1.5 rounded-lg transition-all min-h-[36px] min-w-[36px] inline-flex items-center justify-center ${
                     selectedColors.includes(color)
                       ? 'bg-blue-600 dark:bg-blue-500 ring-2 ring-blue-400 dark:ring-blue-300'
                       : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
@@ -748,58 +719,73 @@ export function Collection() {
               ))}
             </div>
             {selectedColors.length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={exclusiveColors}
-                    onChange={(e) => {
-                      flushSync(() => {
-                        setExclusiveColors(e.target.checked);
-                      });
-                      startTransition(() => {});
-                    }}
-                    className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                    Exclusif
-                  </span>
-                </label>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={exclusiveColors}
+                  onChange={(e) => {
+                    flushSync(() => {
+                      setExclusiveColors(e.target.checked);
+                    });
+                    startTransition(() => {});
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                  Exclusif
+                </span>
+              </label>
             )}
           </div>
 
           {/* Filtre par rareté */}
           {availableRarities.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Rareté:</label>
-              <select
-                value={selectedRarity || ''}
-                onChange={(e) => {
-                  setSelectedRarity(e.target.value || null);
-                  startTransition(() => {});
-                }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Toutes</option>
-                {availableRarities.map(rarity => (
-                  <option key={rarity} value={rarity}>{rarity}</option>
-                ))}
-              </select>
+            <div className="filter-chip sm:min-w-0">
+              <label>Rareté</label>
+              <div className="grid grid-cols-2 gap-1 w-max">
+                {availableRarities.map((rarity) => {
+                  const selected = selectedRarities.includes(rarity);
+                  return (
+                    <button
+                      key={rarity}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        flushSync(() => {
+                          setSelectedRarities((current) =>
+                            current.includes(rarity)
+                              ? current.filter((value) => value !== rarity)
+                              : [...current, rarity]
+                          );
+                        });
+                        startTransition(() => {});
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium min-h-[36px] min-w-[4.75rem] inline-flex items-center justify-center transition-all ${
+                        selected
+                          ? 'bg-blue-600 dark:bg-blue-500 ring-2 ring-blue-400 dark:ring-blue-300 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
+                      }`}
+                    >
+                      {rarityLabel(rarity)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {/* Filtre par type */}
           {availableTypes.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
+            <div className="filter-chip">
+              <label>Type</label>
               <select
                 value={selectedType || ''}
                 onChange={(e) => {
                   setSelectedType(e.target.value || null);
                   startTransition(() => {});
                 }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="field-control"
               >
                 <option value="">Tous</option>
                 {availableTypes.map(type => (
@@ -811,15 +797,15 @@ export function Collection() {
 
           {/* Filtre par type de créature */}
           {availableCreatureTypes.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type de créature:</label>
+            <div className="filter-chip">
+              <label>Type de créature</label>
               <select
                 value={selectedCreatureType || ''}
                 onChange={(e) => {
                   setSelectedCreatureType(e.target.value || null);
                   startTransition(() => {});
                 }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="field-control"
               >
                 <option value="">Tous</option>
                 {availableCreatureTypes.map(creatureType => (
@@ -829,37 +815,17 @@ export function Collection() {
             </div>
           )}
 
-          {/* Filtre par langue */}
-          {availableLanguages.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Langue:</label>
-              <select
-                value={selectedLanguage || ''}
-                onChange={(e) => {
-                  setSelectedLanguage(e.target.value || null);
-                  startTransition(() => {});
-                }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Toutes</option>
-                {availableLanguages.map(lang => (
-                  <option key={lang} value={lang}>{lang.toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Filtre par édition */}
           {availableSets.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Édition:</label>
+            <div className="filter-chip sm:min-w-[12rem] sm:max-w-xs">
+              <label>Édition</label>
               <select
                 value={selectedSet || ''}
                 onChange={(e) => {
                   setSelectedSet(e.target.value || null);
                   startTransition(() => {});
                 }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px]"
+                className="field-control"
               >
                 <option value="">Toutes</option>
                 {availableSets.map(([code, name]) => (
@@ -872,16 +838,15 @@ export function Collection() {
           )}
 
           {/* Bouton réinitialiser les filtres */}
-          {(searchQuery || selectedColors.length > 0 || selectedRarity || selectedType || selectedCreatureType || selectedLanguage || selectedSet) && (
+          {(searchQuery || selectedColors.length > 0 || selectedRarities.length > 0 || selectedType || selectedCreatureType || selectedSet) && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setSearchInput('');
                 setSelectedColors([]);
-                setSelectedRarity(null);
+                setSelectedRarities([]);
                 setSelectedType(null);
                 setSelectedCreatureType(null);
-                setSelectedLanguage(null);
                 setSelectedSet(null);
               }}
               className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 underline"
@@ -894,18 +859,18 @@ export function Collection() {
 
       {/* Messages d'erreur et de progression */}
       {error && (
-        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="mb-4 shrink-0 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
         </div>
       )}
 
       {importProgress && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-4 shrink-0 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Import en cours...
             </h3>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {isImportPaused ? (
                 <Button variant="primary" onClick={() => resumeImport()} className="text-sm px-2 py-1">
                   Reprendre
@@ -929,7 +894,7 @@ export function Collection() {
       )}
 
       {showLoadingMore && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
+        <div className="mb-4 shrink-0 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-center gap-3">
           <Spinner size="md" />
           <p className="text-sm text-blue-600 dark:text-blue-400">
             Chargement des cartes restantes... ({cards.length} cartes chargées)
@@ -959,10 +924,9 @@ export function Collection() {
               setSearchQuery('');
               setSearchInput('');
               setSelectedColors([]);
-              setSelectedRarity(null);
+              setSelectedRarities([]);
               setSelectedType(null);
               setSelectedCreatureType(null);
-              setSelectedLanguage(null);
               setSelectedSet(null);
             }}
             className="text-blue-600 dark:text-blue-400 hover:underline"
@@ -972,7 +936,7 @@ export function Collection() {
         </div>
       ) : cardsByNameMap ? (
         (cardsByNameMap.deduplicatedCards.length > 100 ? (
-          <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
+          <div className="flex-1 min-h-0 w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
             <VirtualizedCardGrid
               cards={cardsByNameMap.deduplicatedCards}
               cardsByNameMap={cardsByNameMap}
@@ -987,7 +951,8 @@ export function Collection() {
             />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="flex-1 min-h-0 w-full overflow-y-auto collection-card-scroll">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
             {(cardsByNameMap?.deduplicatedCards || []).map((card, index) => {
               const cardsWithSameName = cardsByNameMap.map.get(card.name) || [card];
               return (
@@ -1006,13 +971,14 @@ export function Collection() {
                 />
               );
             })}
+            </div>
           </div>
         ))
       ) : null}
 
       {/* IntersectionObserver trigger pour charger plus de cartes */}
       {hasMoreCards && (
-        <div ref={loadMoreRef} className="flex justify-center items-center py-8">
+        <div ref={loadMoreRef} className="h-px w-full shrink-0 overflow-hidden" aria-hidden>
           {loadingMore && <Spinner size="md" />}
         </div>
       )}
@@ -1083,7 +1049,7 @@ export function Collection() {
                   ))}
               </select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button
                 onClick={handleConfirmMoveToCollection}
                 disabled={!moveTargetCollectionId || moving}

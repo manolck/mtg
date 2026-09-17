@@ -4,6 +4,29 @@ export const CARD_SEARCH_COLORS = ['W', 'U', 'B', 'R', 'G', 'Colorless'] as cons
 
 export const CARD_SEARCH_RARITIES = ['common', 'uncommon', 'rare', 'mythic'] as const;
 
+export const RARITY_LABELS: Record<string, string> = {
+  common: 'Commune',
+  uncommon: 'Unco',
+  rare: 'Rare',
+  mythic: 'Mythique',
+};
+
+export function rarityLabel(rarity: string): string {
+  return RARITY_LABELS[rarity.toLowerCase()] || rarity;
+}
+
+export function sortRarities(rarities: string[]): string[] {
+  const order = new Map<string, number>(CARD_SEARCH_RARITIES.map((rarity, index) => [rarity, index]));
+  return [...rarities].sort((a, b) => {
+    const ai = order.get(a.toLowerCase());
+    const bi = order.get(b.toLowerCase());
+    if (ai != null && bi != null) return ai - bi;
+    if (ai != null) return -1;
+    if (bi != null) return 1;
+    return a.localeCompare(b);
+  });
+}
+
 export const CARD_SEARCH_TYPES = [
   'Creature',
   'Instant',
@@ -98,7 +121,7 @@ export const CARD_SEARCH_CREATURE_TYPES = [
 export interface CardSearchFilters {
   colors: string[];
   exclusiveColors: boolean;
-  rarity: string | null;
+  rarities: string[];
   type: string | null;
   creatureType: string | null;
   language: string | null;
@@ -108,7 +131,7 @@ export interface CardSearchFilters {
 export const EMPTY_CARD_SEARCH_FILTERS: CardSearchFilters = {
   colors: [],
   exclusiveColors: false,
-  rarity: null,
+  rarities: [],
   type: null,
   creatureType: null,
   language: null,
@@ -118,7 +141,7 @@ export const EMPTY_CARD_SEARCH_FILTERS: CardSearchFilters = {
 export function hasActiveCardSearchFilters(filters: CardSearchFilters): boolean {
   return (
     filters.colors.length > 0 ||
-    Boolean(filters.rarity) ||
+    filters.rarities.length > 0 ||
     Boolean(filters.type) ||
     Boolean(filters.creatureType) ||
     Boolean(filters.language) ||
@@ -151,8 +174,9 @@ export function buildScryfallFilterClauses(filters?: Partial<CardSearchFilters> 
     }
   }
 
-  if (filters.rarity) {
-    parts.push(`r:${filters.rarity}`);
+  if (filters.rarities && filters.rarities.length > 0) {
+    const rarityClauses = filters.rarities.map((rarity) => `r:${rarity.toLowerCase()}`);
+    parts.push(rarityClauses.length === 1 ? rarityClauses[0] : `(${rarityClauses.join(' OR ')})`);
   }
   if (filters.type) {
     parts.push(`t:${filters.type.toLowerCase()}`);
@@ -224,8 +248,11 @@ export function deckEntryMatchesSearch(
     }
   }
 
-  if (filters.rarity && (entry.rarity || '').toLowerCase() !== filters.rarity.toLowerCase()) {
-    return false;
+  if (filters.rarities.length > 0) {
+    const cardRarity = (entry.rarity || '').toLowerCase();
+    if (!filters.rarities.some((rarity) => rarity.toLowerCase() === cardRarity)) {
+      return false;
+    }
   }
   if (filters.type && !(entry.typeLine || '').toLowerCase().includes(filters.type.toLowerCase())) {
     return false;

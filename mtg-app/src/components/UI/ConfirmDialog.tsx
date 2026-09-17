@@ -26,12 +26,13 @@ export function ConfirmDialog({
     <Modal isOpen={isOpen} onClose={onCancel} title={title}>
       <div className="space-y-4">
         <p className="text-gray-700 dark:text-gray-300">{message}</p>
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={onCancel}>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
             {cancelText}
           </Button>
           <Button
             variant={variant === 'danger' ? 'danger' : 'primary'}
+            className="w-full sm:w-auto"
             onClick={() => {
               onConfirm();
               onCancel();
@@ -44,6 +45,3 @@ export function ConfirmDialog({
     </Modal>
   );
 }
-
-
-

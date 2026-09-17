@@ -34,11 +34,12 @@ interface VirtualizedCardGridProps {
 
 // Breakpoints pour le nombre de colonnes (basés sur Tailwind)
 const getColumnCount = (width: number): number => {
-  if (width < 640) return 1; // sm
-  if (width < 768) return 2; // md
-  if (width < 1024) return 3; // lg
-  if (width < 1280) return 4; // xl
-  return 5; // 2xl+
+  if (width < 420) return 1;
+  if (width < 640) return 2;
+  if (width < 768) return 2;
+  if (width < 1024) return 3;
+  if (width < 1280) return 4;
+  return 5;
 };
 
 // Hauteur estimée d'une carte (aspect ratio 63/88 + padding)
@@ -60,7 +61,7 @@ export function VirtualizedCardGrid({
 }: VirtualizedCardGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
-  const [containerHeight, setContainerHeight] = useState(800);
+  const [containerHeight, setContainerHeight] = useState(0);
 
   // Observer pour détecter les changements de taille du conteneur
   useEffect(() => {
@@ -79,12 +80,11 @@ export function VirtualizedCardGrid({
         try {
           const rect = container.getBoundingClientRect();
           const width = rect.width || container.offsetWidth || window.innerWidth;
-          // Utiliser la hauteur du conteneur ou calculer depuis la fenêtre
-          const height = rect.height || window.innerHeight - 300;
+          const height = rect.height || container.clientHeight;
           
           if (width > 0 && height > 0) {
             setContainerWidth(width);
-            setContainerHeight(Math.max(height, 600)); // Minimum 600px
+            setContainerHeight(Math.floor(height));
           }
         } catch (error) {
           console.error('VirtualizedCardGrid: Error updating size:', error);
@@ -120,6 +120,36 @@ export function VirtualizedCardGrid({
         cleanup();
       }
     };
+  }, []);
+
+  const gridComponentRef = useRef<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [gridComponentReady, setGridComponentReady] = useState(false);
+
+  useEffect(() => {
+    if (gridComponentRef.current) {
+      setLoading(false);
+      setGridComponentReady(true);
+      return;
+    }
+
+    loadReactWindow()
+      .then((loadedGrid) => {
+        if (loadedGrid) {
+          gridComponentRef.current = loadedGrid;
+          setGridComponentReady(true);
+          setLoading(false);
+        } else {
+          setLoadError(new Error('Failed to load Grid component'));
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error('Error loading react-window:', error);
+        setLoadError(error);
+        setLoading(false);
+      });
   }, []);
 
   // Calculer le nombre de colonnes et de lignes
@@ -229,7 +259,7 @@ export function VirtualizedCardGrid({
   // S'assurer que les dimensions sont valides AVANT de rendre quoi que ce soit
   if (containerWidth <= 0 || containerHeight <= 0 || columnCount === 0) {
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           Chargement... (dimensions: {containerWidth}x{containerHeight}, colonnes: {columnCount})
         </div>
@@ -241,45 +271,13 @@ export function VirtualizedCardGrid({
   if (rowCount === 0) {
     console.warn('VirtualizedCardGrid: rowCount is 0, no cards to display');
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           Aucune carte à afficher
         </div>
       </div>
     );
   }
-
-  // Utiliser useRef pour stocker gridComponent et éviter les réinitialisations lors des re-renders
-  const gridComponentRef = useRef<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<Error | null>(null);
-  const [gridComponentReady, setGridComponentReady] = useState(false);
-
-  useEffect(() => {
-    // Ne charger qu'une seule fois si déjà chargé
-    if (gridComponentRef.current) {
-      setLoading(false);
-      setGridComponentReady(true);
-      return;
-    }
-
-    loadReactWindow()
-      .then((loadedGrid) => {
-        if (loadedGrid) {
-          gridComponentRef.current = loadedGrid;
-          setGridComponentReady(true);
-          setLoading(false);
-        } else {
-          setLoadError(new Error('Failed to load Grid component'));
-          setLoading(false);
-        }
-      })
-      .catch((error) => {
-        console.error('Error loading react-window:', error);
-        setLoadError(error);
-        setLoading(false);
-      });
-  }, []);
 
   // Composant de fallback
   const FallbackGrid = () => (
@@ -317,7 +315,7 @@ export function VirtualizedCardGrid({
       columnCount, columnWidth, containerHeight, rowCount, containerWidth, CARD_HEIGHT
     });
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <FallbackGrid />
       </div>
     );
@@ -327,7 +325,7 @@ export function VirtualizedCardGrid({
   if (!Cell || typeof Cell !== 'function') {
     console.error('VirtualizedCardGrid: Cell is not a valid function', Cell);
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <FallbackGrid />
       </div>
     );
@@ -349,7 +347,7 @@ export function VirtualizedCardGrid({
   // Si en cours de chargement, afficher un message
   if (loading) {
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           Chargement de la virtualisation...
         </div>
@@ -363,7 +361,7 @@ export function VirtualizedCardGrid({
       console.warn('VirtualizedCardGrid: Using fallback due to load error:', loadError);
     }
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <FallbackGrid />
       </div>
     );
@@ -374,7 +372,7 @@ export function VirtualizedCardGrid({
       !props.rowCount || !props.rowHeight || !props.width) {
     console.error('VirtualizedCardGrid: Invalid props after normalization', props);
     return (
-      <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <FallbackGrid />
       </div>
     );
@@ -385,7 +383,7 @@ export function VirtualizedCardGrid({
     // La signature est: ({ columnIndex, rowIndex, style }) => ReactElement
     // Utiliser createElement pour éviter les problèmes de contexte avec les composants chargés dynamiquement
     return (
-      <div ref={containerRef} className="w-full bg-gray-50 dark:bg-gray-900" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         {createElement(gridComponent, {
           columnCount: props.columnCount,
           columnWidth: props.columnWidth,
@@ -393,7 +391,8 @@ export function VirtualizedCardGrid({
           rowCount: props.rowCount,
           rowHeight: props.rowHeight,
           width: props.width,
-          style: { overflowX: 'hidden', backgroundColor: 'transparent' },
+          className: 'virtualized-card-grid',
+          style: { overflowX: 'hidden', overflowY: 'auto', backgroundColor: 'transparent' },
           children: Cell,
         })}
       </div>
@@ -401,7 +400,7 @@ export function VirtualizedCardGrid({
   } catch (error: any) {
     console.error('Error rendering VirtualizedCardGrid:', error);
     return (
-      <div ref={containerRef} className="w-full bg-gray-50 dark:bg-gray-900" style={{ minHeight: '600px' }}>
+      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
         <FallbackGrid />
       </div>
     );

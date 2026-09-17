@@ -46,24 +46,24 @@ export function CommunityDecks() {
   }, [format, search]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex flex-wrap justify-between items-center gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Decks communautaires</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+    <div className="page-shell">
+      <div className="page-header">
+        <div className="min-w-0">
+          <h1 className="page-title">Decks communautaires</h1>
+          <p className="page-subtitle">
             Consultez et copiez les decks partagés par la communauté.
           </p>
         </div>
         <Link
           to="/decks"
-          className="px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+          className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 shrink-0"
         >
           Mes decks
         </Link>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <div className="flex-1 min-w-[200px]">
+      <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3">
+        <div className="flex-1 min-w-0">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -73,7 +73,7 @@ export function CommunityDecks() {
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as DeckFormat | '')}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="field-control sm:w-auto"
         >
           <option value="">Tous les formats</option>
           {DECK_FORMATS.map((f) => (
@@ -110,10 +110,10 @@ export function CommunityDecks() {
               <Link
                 key={deck.id}
                 to={`/decks/${deck.id}`}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow block"
+                className="surface-card p-5 hover:shadow-md transition-shadow block min-w-0"
               >
                 <div className="flex justify-between gap-2 mb-2">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{deck.name}</h2>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white min-w-0 break-words">{deck.name}</h2>
                   <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0 h-fit">
                     {DECK_FORMAT_LABELS[deck.format]}
                   </span>

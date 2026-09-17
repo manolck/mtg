@@ -528,7 +528,7 @@ export function Profile() {
 
   if (!profile) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="page-shell">
         <p className="text-center text-gray-600 dark:text-gray-400">
           Erreur lors du chargement du profil
         </p>
@@ -537,8 +537,8 @@ export function Profile() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+    <div className="page-shell max-w-3xl">
+      <h1 className="page-title mb-6 sm:mb-8">
         Mon Profil
       </h1>
 
@@ -548,13 +548,13 @@ export function Profile() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 space-y-6">
+      <div className="surface-card p-4 sm:p-6 space-y-8">
         {/* Avatar Section */}
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Avatar
           </h2>
-          <div className="flex items-center gap-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 mb-6">
             <div className="flex-shrink-0">
               <AvatarDisplay 
                 avatarId={profile.avatarId} 
@@ -568,7 +568,7 @@ export function Profile() {
             </div>
           </div>
           
-          <div className="grid grid-cols-5 sm:grid-cols-10 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-4">
             {AVATARS.map((avatar) => (
               <button
                 key={avatar.id}
@@ -591,7 +591,7 @@ export function Profile() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Pseudonyme
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Input
               value={pseudonym}
               onChange={(e) => setPseudonym(e.target.value)}
@@ -603,6 +603,7 @@ export function Profile() {
               onClick={handleSavePseudonym}
               disabled={!pseudonym.trim() || pseudonym === profile.pseudonym || saving}
               loading={saving}
+              className="w-full sm:w-auto shrink-0"
             >
               Enregistrer
             </Button>
@@ -617,7 +618,7 @@ export function Profile() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Langue de recherche préférée
           </h2>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => handleLanguageChange('fr')}
               className={`px-6 py-3 rounded-lg border-2 transition-all font-medium ${
@@ -711,7 +712,7 @@ export function Profile() {
                   disabled={changingPassword}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
                 <Button
                   onClick={handleChangePassword}
                   disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
@@ -810,15 +811,15 @@ export function Profile() {
                     {userCollections.map((col) => (
                       <li
                         key={col.id}
-                        className="flex items-center justify-between gap-2 py-2 px-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 px-3 bg-gray-50 dark:bg-gray-900/40 rounded-lg"
                       >
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <span className="font-medium text-gray-900 dark:text-white min-w-0 break-words">
                           {col.name}
                           <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
                             ({collectionCounts[col.id] ?? 0} carte{(collectionCounts[col.id] ?? 0) !== 1 ? 's' : ''})
                           </span>
                         </span>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="secondary"
                             className="text-sm px-2 py-1"
@@ -852,7 +853,7 @@ export function Profile() {
           {displayProgress && (
             <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="mb-3">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Import en cours...
                   </h3>
