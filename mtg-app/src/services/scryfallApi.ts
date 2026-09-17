@@ -3,6 +3,7 @@ import { enrichCardWithFrenchData } from './magicCorporationService';
 import { LRUCache } from '../utils/LRUCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { scryfallQueue } from '../utils/apiQueue';
+import { extractDfcBack } from '../utils/dfcFaces';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
@@ -73,6 +74,12 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
     imageUrl: imageUris?.normal || imageUris?.large || imageUris?.png || imageUris?.border_crop,
     legalities: scryfallCard.legalities || undefined,
   };
+
+  const dfcBack = extractDfcBack(scryfallCard);
+  if (dfcBack) {
+    mtgCard.backImageUrl = dfcBack.backImageUrl;
+    mtgCard.backName = dfcBack.backName;
+  }
 
   // Ajouter les versions étrangères si disponibles
   // Note: Scryfall utilise `prints_search` pour les versions étrangères, mais on peut aussi utiliser `foreign_data` si présent

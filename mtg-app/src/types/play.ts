@@ -48,11 +48,15 @@ export interface TableCard {
   scryfallId: string;
   name: string;
   imageUrl?: string;
+  backImageUrl?: string;
+  backName?: string;
   manaCost?: string;
   typeLine?: string;
   cmc?: number;
   tapped: boolean;
   facedown: boolean;
+  /** Face verso visible (cartes recto-verso uniquement) */
+  transformed?: boolean;
 }
 
 export interface PlayerTableState {
@@ -90,7 +94,7 @@ export type PlayAction =
   | { type: 'moveCard'; userId: string; instanceId: string; from: ZoneName; to: ZoneName; facedown?: boolean; toTop?: boolean }
   | { type: 'searchLibrary'; userId: string; instanceId: string; to: ZoneName; toTop?: boolean; shuffle?: boolean }
   | { type: 'tap'; userId: string; instanceId: string }
-  | { type: 'flip'; userId: string; instanceId: string }
+  | { type: 'flip'; userId: string; instanceId: string; backImageUrl?: string; backName?: string }
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'passTurn' }

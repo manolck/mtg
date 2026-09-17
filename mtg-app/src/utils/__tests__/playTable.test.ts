@@ -231,4 +231,64 @@ describe('playTable', () => {
     expect(lands.map((c) => c.name)).toEqual(['Forest']);
     expect(other.map((c) => c.name)).toEqual(['Kinnan, Bonder Prodigy']);
   });
+
+  it('flips only double-faced cards to their printed back', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'DFC',
+            format: 'modern',
+            mainboard: [
+              { ...bolt, quantity: 7 },
+              {
+                scryfallId: 'westvale',
+                name: 'Westvale Abbey',
+                quantity: 1,
+                imageUrl: 'https://example.com/westvale-front.jpg',
+                backImageUrl: 'https://example.com/ormendahl.jpg',
+                backName: 'Ormendahl, Profane Prince',
+              },
+            ],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 }
+    );
+    const playerId = 'u1';
+    const player = state.players[0];
+    const dfc = [...player.hand, ...player.library].find((card) => card.scryfallId === 'westvale');
+    const regular = player.hand.find((card) => card.scryfallId === 'bolt');
+    expect(dfc && regular).toBeTruthy();
+    const dfcFrom = player.hand.some((card) => card.instanceId === dfc!.instanceId) ? 'hand' : 'library';
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: playerId,
+      instanceId: dfc!.instanceId,
+      from: dfcFrom,
+      to: 'battlefield',
+    });
+    const afterRegular = applyMatchAction(state, { type: 'flip', userId: playerId, instanceId: regular!.instanceId });
+    expect(afterRegular).toBe(state);
+
+    state = applyMatchAction(state, {
+      type: 'flip',
+      userId: playerId,
+      instanceId: dfc!.instanceId,
+      backImageUrl: dfc!.backImageUrl,
+      backName: dfc!.backName,
+    });
+    const flipped = state.players[0].battlefield.find((c) => c.instanceId === dfc!.instanceId);
+    expect(flipped?.transformed).toBe(true);
+    expect(flipped?.facedown).toBe(false);
+    expect(flipped?.backImageUrl).toBe('https://example.com/ormendahl.jpg');
+
+    state = applyMatchAction(state, { type: 'flip', userId: playerId, instanceId: dfc!.instanceId });
+    expect(state.players[0].battlefield.find((c) => c.instanceId === dfc!.instanceId)?.transformed).toBe(false);
+  });
 });

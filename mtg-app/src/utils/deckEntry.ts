@@ -18,6 +18,8 @@ export function mtgCardToDeckEntry(card: MTGCard, quantity: number = 1): DeckEnt
     colors: card.colors,
     colorIdentity: card.colorIdentity || card.colors,
     imageUrl: card.imageUrl,
+    backImageUrl: card.backImageUrl,
+    backName: card.backName,
     legalities: card.legalities,
   };
 }
@@ -37,6 +39,8 @@ export function userCardToDeckEntry(card: UserCard, quantity: number = 1): DeckE
     colors: card.mtgData?.colors,
     colorIdentity: card.mtgData?.colorIdentity || card.mtgData?.colors,
     imageUrl: card.mtgData?.imageUrl,
+    backImageUrl: card.backImageUrl || card.mtgData?.backImageUrl,
+    backName: card.backMtgData?.name || card.mtgData?.backName,
     legalities: card.mtgData?.legalities,
   };
 }
@@ -53,5 +57,7 @@ export function userCardToMtgCard(card: UserCard): MTGCard | null {
     number: mtg.number || card.collectorNumber,
     rarity: mtg.rarity || card.rarity,
     imageUrl: mtg.imageUrl,
+    backImageUrl: mtg.backImageUrl || card.backImageUrl,
+    backName: mtg.backName || card.backMtgData?.name,
   };
 }

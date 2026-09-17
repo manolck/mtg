@@ -17,8 +17,8 @@ export function PlayAvConsent({ isOpen, onAccept, onDecline }: PlayAvConsentProp
           qu’au signaling (offres/ICE).
         </p>
         <p>
-          Vous pouvez refuser : la partie continue sans vidéo ni audio. Vous pourrez couper caméra
-          et micro à tout moment.
+          Vous pouvez refuser : la partie continue sans vidéo ni audio. Ensuite, l’icône ⚙ permet
+          de choisir la caméra et le micro, ou de couper le flux à tout moment.
         </p>
         <div className="flex flex-col sm:flex-row gap-2 pt-2">
           <Button onClick={onAccept} className="flex-1">

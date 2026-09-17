@@ -1,5 +1,8 @@
 import type { MouseEvent } from 'react';
 import type { TableCard } from '../../types/play';
+import { visibleCardFace } from '../../utils/playTable';
+
+export const MTG_CARD_BACK_URL = '/play/mtg-card-back.png';
 
 const SIZE_CLASS = {
   sm: 'w-10 sm:w-12',
@@ -13,6 +16,8 @@ interface PlayCardProps {
   size?: keyof typeof SIZE_CLASS;
   className?: string;
   title?: string;
+  canTransform?: boolean;
+  onTransform?: () => void;
   onClick?: (event: MouseEvent) => void;
   onContextMenu?: (event: MouseEvent) => void;
   onDoubleClick?: (event: MouseEvent) => void;
@@ -26,6 +31,8 @@ export function PlayCard({
   size = 'md',
   className = '',
   title,
+  canTransform = false,
+  onTransform,
   onClick,
   onContextMenu,
   onDoubleClick,
@@ -33,12 +40,13 @@ export function PlayCard({
   onMouseLeave,
 }: PlayCardProps) {
   const hidden = hideFace || card.facedown;
-  const src = !hidden && card.imageUrl ? card.imageUrl : '';
+  const face = visibleCardFace(card);
+  const src = hidden ? MTG_CARD_BACK_URL : face.imageUrl || MTG_CARD_BACK_URL;
 
   return (
     <button
       type="button"
-      title={title || (hidden ? 'Carte cachée' : card.name)}
+      title={title || (hidden ? 'Carte cachée' : face.name)}
       onClick={onClick}
       onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
@@ -48,11 +56,33 @@ export function PlayCard({
         SIZE_CLASS[size]
       } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${className}`}
     >
-      {src ? (
-        <img src={src} alt={card.name} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
-      ) : (
-        <span className="absolute inset-0 flex items-center justify-center bg-[repeating-linear-gradient(135deg,#2a2233_0_8px,#1a1520_8px_16px)] text-[9px] font-semibold tracking-wide text-amber-100/80">
-          MTG
+      <img
+        src={src}
+        alt={hidden ? 'Dos de carte' : face.name}
+        className="absolute inset-0 h-full w-full object-cover"
+        draggable={false}
+      />
+      {canTransform && !hidden && onTransform && (
+        <span
+          role="button"
+          tabIndex={0}
+          title={card.transformed ? 'Revenir au recto' : 'Voir le verso'}
+          className="absolute bottom-0.5 right-0.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[11px] text-amber-100 ring-1 ring-white/30 hover:bg-amber-500 hover:text-black"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onTransform();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              onTransform();
+            }
+          }}
+        >
+          ↻
         </span>
       )}
     </button>

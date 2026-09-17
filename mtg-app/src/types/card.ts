@@ -20,6 +20,8 @@ export interface MTGCard {
   loyalty?: string;
   multiverseid?: number;
   imageUrl?: string;
+  backImageUrl?: string;
+  backName?: string;
   legalities?: Record<string, string>;
   foreignNames?: Array<{
     name: string;

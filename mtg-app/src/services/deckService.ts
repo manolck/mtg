@@ -58,6 +58,8 @@ function normalizeEntry(raw: unknown): DeckEntry | null {
     colors: e.colors,
     colorIdentity: e.colorIdentity,
     imageUrl: e.imageUrl,
+    backImageUrl: e.backImageUrl,
+    backName: e.backName,
     legalities: e.legalities,
   };
 }
@@ -523,6 +525,8 @@ export function mtgCardToDeckEntry(
     rarity: card.rarity,
     colors: card.colors,
     imageUrl: card.imageUrl,
+    backImageUrl: (card as { backImageUrl?: string }).backImageUrl,
+    backName: extras?.backName,
     ...extras,
   };
 }

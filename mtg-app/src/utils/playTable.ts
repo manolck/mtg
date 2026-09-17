@@ -27,11 +27,14 @@ function expandEntries(entries: DeckEntry[] | undefined, prefix: string): TableC
         scryfallId: entry.scryfallId,
         name: entry.name,
         imageUrl: entry.imageUrl,
+        backImageUrl: entry.backImageUrl,
+        backName: entry.backName,
         manaCost: entry.manaCost,
         typeLine: entry.typeLine,
         cmc: entry.cmc,
         tapped: false,
         facedown: false,
+        transformed: false,
       });
     }
   }
@@ -133,6 +136,7 @@ function moveCard(
     ...source[idx],
     tapped: to === 'battlefield' ? source[idx].tapped : false,
     facedown: facedown ?? (to === 'library' ? true : false),
+    transformed: to === 'library' ? false : source[idx].transformed,
   };
   if (to !== 'battlefield') {
     card.tapped = false;
@@ -154,17 +158,45 @@ function toggleTap(player: PlayerTableState, instanceId: string): PlayerTableSta
   return { ...player, battlefield };
 }
 
-function toggleFlip(player: PlayerTableState, instanceId: string): PlayerTableState {
+function toggleFlip(
+  player: PlayerTableState,
+  instanceId: string,
+  backImageUrl?: string,
+  backName?: string,
+): PlayerTableState {
   const zones: ZoneName[] = ['battlefield', 'hand', 'exile', 'command', 'graveyard'];
   for (const zone of zones) {
     const list = cardsOf(player, zone);
     const idx = list.findIndex((c) => c.instanceId === instanceId);
     if (idx >= 0) {
-      const next = list.map((c, i) => (i === idx ? { ...c, facedown: !c.facedown } : c));
+      const card = list[idx];
+      const resolvedBack = card.backImageUrl || backImageUrl;
+      if (!resolvedBack) return player;
+      const next = list.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              backImageUrl: resolvedBack,
+              backName: c.backName || backName,
+              transformed: !c.transformed,
+            }
+          : c,
+      );
       return withZone(player, zone, next);
     }
   }
   return player;
+}
+
+export function isDoubleFacedCard(card: Pick<TableCard, 'backImageUrl'>): boolean {
+  return Boolean(card.backImageUrl);
+}
+
+export function visibleCardFace(card: TableCard): { imageUrl?: string; name: string } {
+  if (card.transformed && card.backImageUrl) {
+    return { imageUrl: card.backImageUrl, name: card.backName || card.name };
+  }
+  return { imageUrl: card.imageUrl, name: card.name };
 }
 
 function mulligan(player: PlayerTableState, random?: () => number): PlayerTableState {
@@ -226,7 +258,7 @@ export function applyMatchAction(
       nextPlayer = toggleTap(player, action.instanceId);
       break;
     case 'flip':
-      nextPlayer = toggleFlip(player, action.instanceId);
+      nextPlayer = toggleFlip(player, action.instanceId, action.backImageUrl, action.backName);
       break;
     case 'setLife':
       nextPlayer = { ...player, life: player.life + action.delta };

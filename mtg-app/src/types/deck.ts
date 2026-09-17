@@ -26,6 +26,9 @@ export interface DeckEntry {
   colors?: string[];
   colorIdentity?: string[];
   imageUrl?: string;
+  /** Face verso des cartes transform / DFC */
+  backImageUrl?: string;
+  backName?: string;
   /** Légalités Scryfall dénormalisées au moment de l'ajout */
   legalities?: Partial<Record<DeckFormat | string, string>>;
 }

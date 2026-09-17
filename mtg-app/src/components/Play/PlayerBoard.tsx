@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import type { PlayerTableState, TableCard, ZoneName } from '../../types/play';
 import { ZONE_LABELS } from '../../types/play';
-import { splitBattlefield } from '../../utils/playTable';
+import { splitBattlefield, isDoubleFacedCard, visibleCardFace } from '../../utils/playTable';
 import { CardLightbox } from '../Card/CardLightbox';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
-import { PlayCard } from './PlayCard';
+import { PlayCard, MTG_CARD_BACK_URL } from './PlayCard';
 import { LibrarySearchPanel } from './LibrarySearchPanel';
+import { useDfcFaces } from '../../hooks/useDfcFaces';
 
 interface PlayerBoardProps {
   player: PlayerTableState;
@@ -21,7 +22,7 @@ interface PlayerBoardProps {
   onMove?: (instanceId: string, from: ZoneName, to: ZoneName) => void;
   onSearchLibrary?: (instanceId: string, to: ZoneName, options?: { toTop?: boolean; shuffle?: boolean }) => void;
   onTap?: (instanceId: string) => void;
-  onFlip?: (instanceId: string) => void;
+  onFlip?: (instanceId: string, faces?: { backImageUrl?: string; backName?: string }) => void;
   videoSlot?: ReactNode;
 }
 
@@ -104,6 +105,29 @@ export function PlayerBoard({
   const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const { lands, other } = useMemo(() => splitBattlefield(player.battlefield), [player.battlefield]);
+  const dfcIds = useMemo(
+    () =>
+      [...player.hand, ...player.battlefield, ...player.graveyard, ...player.exile, ...player.command, ...player.library].map(
+        (card) => card.scryfallId,
+      ),
+    [player],
+  );
+  const dfcFaces = useDfcFaces(dfcIds);
+
+  const resolveCard = (card: TableCard): TableCard => {
+    const extra = dfcFaces.get(card.scryfallId);
+    return {
+      ...card,
+      backImageUrl: card.backImageUrl || extra?.backImageUrl,
+      backName: card.backName || extra?.backName,
+    };
+  };
+
+  const flipCard = (card: TableCard) => {
+    const resolved = resolveCard(card);
+    if (!isDoubleFacedCard(resolved)) return;
+    onFlip?.(resolved.instanceId, { backImageUrl: resolved.backImageUrl, backName: resolved.backName });
+  };
 
   useEffect(() => {
     if (!isSelf) return;
@@ -169,67 +193,112 @@ export function PlayerBoard({
   };
 
   const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
-    if (!showFace(zone, card) || !card.imageUrl) {
+    const resolved = resolveCard(card);
+    if (!showFace(zone, resolved)) {
       setHover(null);
       return;
     }
-    setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+    const face = visibleCardFace(resolved);
+    if (!face.imageUrl) {
+      setHover(null);
+      return;
+    }
+    setHover({ card: { ...resolved, imageUrl: face.imageUrl, name: face.name }, rect: event.currentTarget.getBoundingClientRect() });
   };
 
   const renderCards = (zone: ZoneName, cards: TableCard[], size: 'sm' | 'md' | 'lg', overlap = false) => (
     <div className={`flex flex-wrap items-end ${overlap ? 'gap-0' : 'gap-1.5'}`}>
-      {cards.map((card, index) => (
-        <PlayCard
-          key={card.instanceId}
-          card={card}
-          hideFace={!showFace(zone, card)}
-          size={size}
-          className={overlap && index > 0 ? '-ml-5 sm:-ml-6 hover:ml-0' : ''}
-          onClick={(event) => handleCardClick(event, card, zone)}
-          onContextMenu={(event) => (isSelf ? openMenu(event, card, zone) : event.preventDefault())}
-          onDoubleClick={() => showFace(zone, card) && setLightbox(card)}
-          onMouseEnter={(event) => setCardHover(event, card, zone)}
-          onMouseLeave={() => setHover(null)}
-        />
-      ))}
+      {cards.map((card, index) => {
+        const resolved = resolveCard(card);
+        return (
+          <PlayCard
+            key={card.instanceId}
+            card={resolved}
+            hideFace={!showFace(zone, resolved)}
+            size={size}
+            className={overlap && index > 0 ? '-ml-5 sm:-ml-6 hover:ml-0' : ''}
+            canTransform={Boolean(isSelf && isDoubleFacedCard(resolved))}
+            onTransform={() => flipCard(resolved)}
+            onClick={(event) => handleCardClick(event, resolved, zone)}
+            onContextMenu={(event) => (isSelf ? openMenu(event, resolved, zone) : event.preventDefault())}
+            onDoubleClick={() => showFace(zone, resolved) && setLightbox(resolved)}
+            onMouseEnter={(event) => setCardHover(event, resolved, zone)}
+            onMouseLeave={() => setHover(null)}
+          />
+        );
+      })}
     </div>
   );
 
-  const pile = (zone: 'library' | 'graveyard' | 'exile', onPileClick?: () => void) => {
+  const pile = (zone: 'library' | 'graveyard' | 'exile' | 'command', onPileClick?: () => void) => {
     const cards = player[zone];
     const top = zone === 'library' ? undefined : cards[cards.length - 1];
-    const canSeeTop = top && showFace(zone, top);
-    const size = compact ? 'w-11 sm:w-12' : 'w-12 sm:w-16';
+    const resolvedTop = top ? resolveCard(top) : undefined;
+    const canSeeTop = resolvedTop && showFace(zone, resolvedTop);
+    const topFace = resolvedTop ? visibleCardFace(resolvedTop) : undefined;
+    const size = compact ? 'w-11 sm:w-12' : 'w-12 sm:w-[3.75rem]';
+    const shortLabel =
+      zone === 'command' ? 'Cmd' : zone === 'library' ? 'Lib' : zone === 'graveyard' ? 'Cim' : 'Exil';
+    const count = cards.length;
     return (
-      <div className="flex flex-col items-center gap-1">
-        <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.18em] text-amber-200/80 uppercase leading-none">
-          {ZONE_LABELS[zone]}
+      <div className="flex flex-col items-center gap-0.5 min-w-0">
+        <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.14em] text-amber-200/80 uppercase leading-none truncate max-w-full">
+          {shortLabel}
         </p>
         <button
           type="button"
-          onClick={onPileClick}
+          onClick={(event) => {
+            if (onPileClick) {
+              onPileClick();
+              return;
+            }
+            if (isSelf && top && zone === 'command') {
+              handleCardClick(event, resolveCard(top), zone);
+            }
+          }}
           onContextMenu={(event) => {
             if (zone === 'library' && isSelf) {
               event.preventDefault();
               setLibraryOpen(true);
               return;
             }
-            if (isSelf && top) openMenu(event, top, zone);
+            if (isSelf && top) openMenu(event, resolveCard(top), zone);
             else event.preventDefault();
           }}
-          className={`relative ${size} aspect-[63/88] rounded-md bg-[#241c2c] ring-1 ring-amber-200/25 shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70`}
+          className={`relative ${size} aspect-[63/88] rounded-md bg-[#241c2c] ring-1 ring-amber-200/25 shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70 shrink-0`}
           title={
             zone === 'library' && isSelf
-              ? `Rechercher dans la bibliothèque (/) · ${cards.length} cartes`
-              : `${ZONE_LABELS[zone]} · ${cards.length}`
+              ? `Rechercher dans la bibliothèque (/) · ${count} cartes`
+              : `${ZONE_LABELS[zone]} · ${count}`
           }
         >
-          {canSeeTop && top?.imageUrl ? (
-            <img src={top.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover rounded-md opacity-80" />
+          {canSeeTop && topFace?.imageUrl ? (
+            <img src={topFace.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover rounded-md opacity-90" />
+          ) : count > 0 ? (
+            <img
+              src={MTG_CARD_BACK_URL}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover rounded-md"
+              draggable={false}
+            />
           ) : (
-            <span className="absolute inset-0 rounded-md bg-[repeating-linear-gradient(135deg,#3a3148_0_8px,#241c2c_8px_16px)]" />
+            <span className="absolute inset-0 rounded-md bg-[#241c2c]" />
           )}
-          <span className="relative z-10 text-[10px] font-semibold bg-black/70 px-1.5 rounded">{cards.length}</span>
+          <span className="relative z-10 text-[10px] font-semibold bg-black/70 px-1.5 rounded">{count}</span>
+          {isSelf && resolvedTop && isDoubleFacedCard(resolvedTop) && (
+            <span
+              role="button"
+              title={resolvedTop.transformed ? 'Revenir au recto' : 'Voir le verso'}
+              className="absolute bottom-0.5 right-0.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[11px] text-amber-100 ring-1 ring-white/30 hover:bg-amber-500 hover:text-black"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                flipCard(resolvedTop);
+              }}
+            >
+              ↻
+            </span>
+          )}
         </button>
       </div>
     );
@@ -273,29 +342,37 @@ export function PlayerBoard({
       <div className="relative flex-1 min-h-0 flex">
         <PlaymatBackdrop />
         <div className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col px-2 pt-2 pb-1">
-          <div className="absolute left-2 top-2 z-20 max-w-[40%] flex items-center gap-2">
-            {videoSlot}
-            <div className="min-w-0">
-              <p className="font-semibold truncate leading-tight text-sm drop-shadow">
-                {player.displayName || 'Joueur'}
-                {isSelf ? ' · vous' : ''}
-              </p>
-              {isTurn ? (
-                <p className="text-[10px] font-medium text-amber-300 uppercase tracking-[0.2em]">Tour</p>
-              ) : !isSelf ? (
-                <p className="text-[11px] text-white/60">Main {player.hand.length}</p>
-              ) : null}
+          <div className="shrink-0 flex items-start justify-between gap-2 mb-1">
+            <div className="min-w-0 flex items-center gap-2">
+              {videoSlot}
+              <div className="min-w-0">
+                <p className="font-semibold truncate leading-tight text-sm drop-shadow">
+                  {player.displayName || 'Joueur'}
+                  {isSelf ? ' · vous' : ''}
+                </p>
+                {isTurn ? (
+                  <p className="text-[10px] font-medium text-amber-300 uppercase tracking-[0.2em]">Tour</p>
+                ) : !isSelf ? (
+                  <p className="text-[11px] text-white/60">Main {player.hand.length}</p>
+                ) : null}
+              </div>
             </div>
-          </div>
-          <div className="shrink-0 flex flex-col items-center pt-1">
-            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/85 uppercase mb-1">
-              Commandement
-            </p>
-            {player.command.length > 0 ? (
-              renderCards('command', player.command, compact ? 'sm' : 'md')
-            ) : (
-              <div className="h-12 sm:h-16 w-10 sm:w-12 rounded-full border border-dashed border-amber-200/25" />
-            )}
+            <div className="flex items-start gap-1 shrink-0">
+              <div className="flex flex-col items-center">
+                <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/80 uppercase">PV</p>
+                {lifeBlock}
+              </div>
+              {isSelf && (
+                <button
+                  type="button"
+                  className="text-[11px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 mt-4"
+                  onClick={() => onPoison?.(1)}
+                  title="Marqueur poison"
+                >
+                  +☠
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto py-1">
@@ -320,29 +397,18 @@ export function PlayerBoard({
                 {isSelf ? 'Posez vos terrains ici.' : '—'}
               </p>
             ) : (
-              <div className="flex justify-center">{renderCards('battlefield', lands, compact ? 'sm' : 'md')}</div>
+              <div className="flex justify-center overflow-x-auto">{renderCards('battlefield', lands, compact ? 'sm' : 'md')}</div>
             )}
           </div>
         </div>
 
-        <div className="relative z-10 shrink-0 w-[4.75rem] sm:w-[5.75rem] flex flex-col items-center gap-2 overflow-y-auto py-2 pr-1.5 pl-1 bg-black/25 border-l border-amber-200/15">
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.22em] text-amber-200/80 uppercase">PV</p>
-            {lifeBlock}
-            {isSelf && (
-              <button
-                type="button"
-                className="text-[11px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
-                onClick={() => onPoison?.(1)}
-                title="Marqueur poison"
-              >
-                +☠
-              </button>
-            )}
+        <div className="relative z-10 shrink-0 w-[6.75rem] sm:w-[8.25rem] flex flex-col justify-center gap-2 py-2 pr-1.5 pl-1 bg-black/25 border-l border-amber-200/15">
+          <div className="grid grid-cols-2 gap-x-1.5 gap-y-2 place-items-center">
+            {pile('command')}
+            {pile('exile')}
+            {pile('library', isSelf ? () => setLibraryOpen(true) : undefined)}
+            {pile('graveyard')}
           </div>
-          {pile('exile')}
-          {pile('library', isSelf ? () => setLibraryOpen(true) : undefined)}
-          {pile('graveyard')}
         </div>
       </div>
 
@@ -393,7 +459,9 @@ export function PlayerBoard({
             }}
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="px-2 py-1 text-sm font-medium truncate">{menu.card.facedown ? 'Carte' : menu.card.name}</p>
+            <p className="px-2 py-1 text-sm font-medium truncate">
+              {menu.card.facedown ? 'Carte' : visibleCardFace(resolveCard(menu.card)).name}
+            </p>
             {primaryMove(menu.from) && (
               <button
                 type="button"
@@ -419,16 +487,18 @@ export function PlayerBoard({
                 {menu.card.tapped ? 'Dégager' : 'Engager'}
               </button>
             )}
-            <button
-              type="button"
-              className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-              onClick={() => {
-                onFlip?.(menu.card.instanceId);
-                setMenu(null);
-              }}
-            >
-              Retourner
-            </button>
+            {isDoubleFacedCard(resolveCard(menu.card)) && (
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                onClick={() => {
+                  flipCard(menu.card);
+                  setMenu(null);
+                }}
+              >
+                {resolveCard(menu.card).transformed ? 'Revenir au recto' : 'Retourner (verso)'}
+              </button>
+            )}
             {showFace(menu.from, menu.card) && (
               <button
                 type="button"
@@ -461,7 +531,11 @@ export function PlayerBoard({
       )}
 
       {hover && !menu && (
-        <CardHoverPreview imageUrl={hover.card.imageUrl} name={hover.card.name} anchorRect={hover.rect} />
+        <CardHoverPreview
+          imageUrl={visibleCardFace(hover.card).imageUrl}
+          name={visibleCardFace(hover.card).name}
+          anchorRect={hover.rect}
+        />
       )}
 
       {libraryOpen && isSelf && (
@@ -476,7 +550,11 @@ export function PlayerBoard({
       )}
 
       {lightbox && (
-        <CardLightbox imageUrl={lightbox.imageUrl} name={lightbox.name} onClose={() => setLightbox(null)} />
+        <CardLightbox
+          imageUrl={visibleCardFace(lightbox).imageUrl}
+          name={visibleCardFace(lightbox).name}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   );
