@@ -11,6 +11,7 @@ import {
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
 import { Input } from '../components/UI/Input';
+import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 
 export function CommunityDecks() {
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -107,36 +108,34 @@ export function CommunityDecks() {
               countEntries(deck.commanders) +
               countEntries(deck.cards.sideboard);
             return (
-              <Link
-                key={deck.id}
-                to={`/decks/${deck.id}`}
-                className="surface-card p-5 hover:shadow-md transition-shadow block min-w-0"
-              >
-                <div className="flex justify-between gap-2 mb-2">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white min-w-0 break-words">{deck.name}</h2>
-                  <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0 h-fit">
-                    {DECK_FORMAT_LABELS[deck.format]}
-                  </span>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
-                  {total} cartes
-                  {deck.sourceDeckId ? ' · fork' : ''}
-                </p>
-                {deck.description && (
-                  <p className="text-sm text-gray-500 line-clamp-2">{deck.description}</p>
-                )}
-                {deck.tags && deck.tags.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {deck.tags.slice(0, 5).map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+              <Link key={deck.id} to={`/decks/${deck.id}`} className="block min-w-0 hover:brightness-110 transition">
+                <DeckCoverCard deck={deck}>
+                  <div className="flex justify-between gap-2 mb-2">
+                    <h2 className="text-lg sm:text-xl font-semibold text-white min-w-0 break-words drop-shadow">{deck.name}</h2>
+                    <span className="text-xs px-2 py-1 rounded bg-white/20 text-white shrink-0 h-fit backdrop-blur-sm">
+                      {DECK_FORMAT_LABELS[deck.format]}
+                    </span>
                   </div>
-                )}
+                  <p className="text-white/80 text-sm mb-2">
+                    {total} cartes
+                    {deck.sourceDeckId ? ' · fork' : ''}
+                  </p>
+                  {deck.description && (
+                    <p className="text-sm text-white/70 line-clamp-2">{deck.description}</p>
+                  )}
+                  {deck.tags && deck.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {deck.tags.slice(0, 5).map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-xs px-2 py-0.5 rounded bg-white/15 text-white/90"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </DeckCoverCard>
               </Link>
             );
           })}

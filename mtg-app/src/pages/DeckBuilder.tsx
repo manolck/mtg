@@ -32,6 +32,7 @@ import { CardSearchFilterBar } from '../components/Card/CardSearchFilterBar';
 import { CardHoverPreview } from '../components/Card/CardHoverPreview';
 import { CardLightbox } from '../components/Card/CardLightbox';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
+import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
 import { ShoppingListModal, deckEntryAsMtgCard } from '../components/Deck/ShoppingListModal';
 import { SwapPrintModal } from '../components/Deck/SwapPrintModal';
@@ -653,54 +654,56 @@ export function DeckBuilder() {
         <Button variant="secondary" onClick={() => navigate(isOwner ? '/decks' : '/community/decks')} className="mb-4">
           ← Retour
         </Button>
-        <div className="flex flex-col lg:flex-row lg:flex-wrap justify-between gap-4 items-start">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="page-title">{deck.name}</h1>
-              <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {DECK_FORMAT_LABELS[deck.format]}
-              </span>
-              <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-                {deck.visibility}
-              </span>
+        <DeckCoverCard deck={deck} className="mb-2">
+          <div className="flex flex-col lg:flex-row lg:flex-wrap justify-between gap-4 items-start">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="page-title text-white drop-shadow">{deck.name}</h1>
+                <span className="text-xs px-2 py-1 rounded bg-white/20 text-white backdrop-blur-sm">
+                  {DECK_FORMAT_LABELS[deck.format]}
+                </span>
+                <span className="text-xs px-2 py-1 rounded bg-white/15 text-white/90">
+                  {deck.visibility}
+                </span>
+              </div>
+              <p className="text-white/80 mt-2">
+                Main {mainCount}
+                {deck.format !== 'commander' ? ` · Side ${sideCount}` : ''}
+                {estimatedPrice != null ? ` · ~$${estimatedPrice}` : ''}
+              </p>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Main {mainCount}
-              {deck.format !== 'commander' ? ` · Side ${sideCount}` : ''}
-              {estimatedPrice != null ? ` · ~$${estimatedPrice}` : ''}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setShowSampleHand(true)}>
-              Sample hand
-            </Button>
-            <Button variant="secondary" onClick={handleExport}>
-              Exporter
-            </Button>
-            {isOwner && (
-              <>
-                <Button variant="secondary" onClick={() => setShowImport(true)}>
-                  Importer liste
-                </Button>
-                {deck.visibility === 'public' ? (
-                  <Button variant="secondary" onClick={handleUnpublish}>
-                    Rendre privé
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setShowSampleHand(true)}>
+                Sample hand
+              </Button>
+              <Button variant="secondary" onClick={handleExport}>
+                Exporter
+              </Button>
+              {isOwner && (
+                <>
+                  <Button variant="secondary" onClick={() => setShowImport(true)}>
+                    Importer liste
                   </Button>
-                ) : (
-                  <Button onClick={handlePublish} loading={publishing}>
-                    Publier
+                  {deck.visibility === 'public' ? (
+                    <Button variant="secondary" onClick={handleUnpublish}>
+                      Rendre privé
+                    </Button>
+                  ) : (
+                    <Button onClick={handlePublish} loading={publishing}>
+                      Publier
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={handleShareUnlisted}>
+                    Lien unlisted
                   </Button>
-                )}
-                <Button variant="secondary" onClick={handleShareUnlisted}>
-                  Lien unlisted
-                </Button>
-              </>
-            )}
-            {readOnly && (
-              <Button onClick={handleFork}>Copier dans mes decks</Button>
-            )}
+                </>
+              )}
+              {readOnly && (
+                <Button onClick={handleFork}>Copier dans mes decks</Button>
+              )}
+            </div>
           </div>
-        </div>
+        </DeckCoverCard>
       </div>
 
       {validation && (validation.errors.length > 0 || validation.warnings.length > 0) && (

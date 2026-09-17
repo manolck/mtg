@@ -25,6 +25,7 @@ import { Spinner } from '../components/UI/Spinner';
 import { userCardToDeckEntry } from '../utils/deckEntry';
 import { rarityLabel, sortRarities } from '../utils/cardSearchFilters';
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from '../types/deck';
+import { getDeckBackdropUrl } from '../utils/deckArt';
 import { getFormatSummary } from '../services/deckFormatRules';
 
 export function Collection() {
@@ -1123,15 +1124,28 @@ export function Collection() {
                 Ou sélectionner un deck existant
               </h3>
               <div className="space-y-2">
-                {decks.map((deck) => (
-                  <button
-                    key={deck.id}
-                    onClick={() => handleSelectDeck(deck.id)}
-                    className="w-full text-left px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    {deck.name}
-                  </button>
-                ))}
+                {decks.map((deck) => {
+                  const backdrop = getDeckBackdropUrl(deck);
+                  return (
+                    <button
+                      key={deck.id}
+                      onClick={() => handleSelectDeck(deck.id)}
+                      className="relative overflow-hidden w-full text-left px-4 py-3 rounded-lg min-h-[52px] transition-colors"
+                    >
+                      {backdrop ? (
+                        <>
+                          <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 hover:bg-black/50" />
+                        </>
+                      ) : (
+                        <div className="absolute inset-0 bg-gray-100 dark:bg-gray-700" />
+                      )}
+                      <span className={`relative z-10 font-medium ${backdrop ? 'text-white drop-shadow' : 'text-gray-900 dark:text-white'}`}>
+                        {deck.name}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

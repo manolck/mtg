@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as deckService from '../../services/deckService';
 import { DECK_FORMAT_LABELS, countEntries, type Deck, type DeckFormat } from '../../types/deck';
+import { getDeckBackdropUrl, pickDeckIconCard } from '../../utils/deckArt';
 import { Button } from '../UI/Button';
 import { Input } from '../UI/Input';
 import { Modal } from '../UI/Modal';
@@ -107,34 +108,47 @@ export function DeckPickerModal({
         </p>
       ) : (
         <ul className="space-y-2">
-          {decks.map((deck) => (
-            <li
-              key={deck.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
-            >
-              {deck.commanders?.[0]?.imageUrl ? (
-                <img
-                  src={deck.commanders[0].imageUrl}
-                  alt=""
-                  className="w-9 aspect-[63/88] rounded object-cover shrink-0"
-                />
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-gray-900 dark:text-white truncate">{deck.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {DECK_FORMAT_LABELS[deck.format]} · {countEntries(deck.cards.mainboard)} cartes
-                  {deck.commanders?.length ? ` · ${deck.commanders.map((c) => c.name).join(', ')}` : ''}
-                </p>
-              </div>
-              <Button
-                onClick={() => handlePick(deck.id)}
-                disabled={picking !== null}
-                loading={picking === deck.id}
+          {decks.map((deck) => {
+            const backdrop = getDeckBackdropUrl(deck);
+            const icon = pickDeckIconCard(deck);
+            return (
+              <li
+                key={deck.id}
+                className="relative overflow-hidden flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 min-h-[72px]"
               >
-                Choisir
-              </Button>
-            </li>
-          ))}
+                {backdrop && (
+                  <>
+                    <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-black/65" />
+                  </>
+                )}
+                {icon?.imageUrl ? (
+                  <img
+                    src={icon.imageUrl}
+                    alt=""
+                    className="relative z-10 w-9 aspect-[63/88] rounded object-cover shrink-0"
+                  />
+                ) : null}
+                <div className="relative z-10 min-w-0 flex-1">
+                  <p className={`font-medium truncate ${backdrop ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                    {deck.name}
+                  </p>
+                  <p className={`text-xs ${backdrop ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                    {DECK_FORMAT_LABELS[deck.format]} · {countEntries(deck.cards.mainboard)} cartes
+                    {deck.commanders?.length ? ` · ${deck.commanders.map((c) => c.name).join(', ')}` : ''}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => handlePick(deck.id)}
+                  disabled={picking !== null}
+                  loading={picking === deck.id}
+                  className="relative z-10"
+                >
+                  Choisir
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Modal>

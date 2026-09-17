@@ -15,7 +15,7 @@ import {
   countEntries,
   type DeckFormat,
 } from '../types/deck';
-import { validateDeck } from '../utils/validationSchemas';
+import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 
 export function Decks() {
   const { decks, loading, error, createDeck, deleteDeck } = useDecks();
@@ -123,32 +123,29 @@ export function Decks() {
               countEntries(deck.commanders) +
               countEntries(deck.cards.sideboard);
             return (
-              <div
-                key={deck.id}
-                className="surface-card p-5 hover:shadow-md transition-shadow"
-              >
+              <DeckCoverCard key={deck.id} deck={deck}>
                 <div className="flex justify-between items-start gap-2 mb-2">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-xl font-semibold text-white drop-shadow">
                     {deck.name}
                   </h2>
-                  <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                  <span className="text-xs px-2 py-1 rounded bg-white/20 text-white shrink-0 backdrop-blur-sm">
                     {DECK_FORMAT_LABELS[deck.format]}
                   </span>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400 mb-1">
+                <p className="text-white/80 mb-1">
                   {total} carte{total !== 1 ? 's' : ''}
                   {deck.visibility !== 'private' && (
-                    <span className="ml-2 text-xs uppercase tracking-wide text-green-600 dark:text-green-400">
+                    <span className="ml-2 text-xs uppercase tracking-wide text-emerald-300">
                       {deck.visibility}
                     </span>
                   )}
                 </p>
                 {deck.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+                  <p className="text-sm text-white/70 mb-4 line-clamp-2">
                     {deck.description}
                   </p>
                 )}
-                <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                <div className="flex flex-col sm:flex-row gap-2 mt-auto pt-4">
                   <Link
                     to={`/decks/${deck.id}`}
                     className="flex-1 text-center min-h-[44px] inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -162,7 +159,7 @@ export function Decks() {
                     Supprimer
                   </Button>
                 </div>
-              </div>
+              </DeckCoverCard>
             );
           })}
         </div>
