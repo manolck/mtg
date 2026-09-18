@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { rtcLinkLabel, rtcLinkRingClass, type RtcLinkStatus } from '../../utils/rtcLinkStatus';
 import { VideoTile } from './VideoTile';
 
 interface RtcControlsProps {
   camOn: boolean;
   micOn: boolean;
+  linkStatus?: RtcLinkStatus;
   onToggleCam: () => void;
   onToggleMic: () => void;
   cameras: MediaDeviceInfo[];
@@ -128,6 +130,7 @@ function MicLevelMeter({ stream, micOn }: { stream?: MediaStream | null; micOn: 
 export function RtcControls({
   camOn,
   micOn,
+  linkStatus = 'idle',
   onToggleCam,
   onToggleMic,
   cameras,
@@ -164,15 +167,21 @@ export function RtcControls({
 
   const selectClass =
     'w-full rounded-lg bg-black/40 border border-white/15 text-xs text-white px-2 py-1.5 outline-none focus:ring-1 focus:ring-sky-400';
+  const ring = rtcLinkRingClass(linkStatus);
+  const linkHint = rtcLinkLabel(linkStatus);
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1.5">
+      <span className="sr-only" aria-live="polite">
+        {linkHint}
+      </span>
       <button
         type="button"
         onClick={onToggleMic}
         disabled={disabled}
-        title={micOn ? 'Couper le micro' : 'Activer le micro'}
-        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${
+        title={`${micOn ? 'Couper le micro' : 'Activer le micro'} — ${linkHint}`}
+        aria-label={`${micOn ? 'Couper le micro' : 'Activer le micro'}. ${linkHint}`}
+        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
           micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-600 hover:bg-red-500'
         }`}
       >
@@ -182,8 +191,9 @@ export function RtcControls({
         type="button"
         onClick={onToggleCam}
         disabled={disabled}
-        title={camOn ? 'Couper la caméra' : 'Activer la caméra'}
-        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${
+        title={`${camOn ? 'Couper la caméra' : 'Activer la caméra'} — ${linkHint}`}
+        aria-label={`${camOn ? 'Couper la caméra' : 'Activer la caméra'}. ${linkHint}`}
+        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
           camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-600 hover:bg-red-500'
         }`}
       >
@@ -193,8 +203,8 @@ export function RtcControls({
         type="button"
         onClick={() => setOpen((value) => !value)}
         disabled={disabled}
-        title="Choisir caméra et micro"
-        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${
+        title={`Choisir caméra et micro — ${linkHint}`}
+        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
           open ? 'bg-sky-600 hover:bg-sky-500' : error ? 'bg-red-600 hover:bg-red-500' : 'bg-white/10 hover:bg-white/20'
         }`}
         aria-expanded={open}
@@ -210,6 +220,19 @@ export function RtcControls({
           className="absolute right-0 top-full mt-2 z-50 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-white/15 bg-[#0c1b24] shadow-xl p-3 space-y-3"
         >
           <p className="text-xs font-semibold text-white/80">Sources</p>
+          <p
+            className={`text-[11px] leading-snug ${
+              linkStatus === 'connected'
+                ? 'text-emerald-300'
+                : linkStatus === 'disconnected'
+                  ? 'text-red-300'
+                  : linkStatus === 'connecting'
+                    ? 'text-amber-300'
+                    : 'text-white/50'
+            }`}
+          >
+            {linkHint}
+          </p>
           {previewStream && previewStream.getTracks().length > 0 && (
             <VideoTile stream={previewStream} muted label="Aperçu" compact={false} />
           )}

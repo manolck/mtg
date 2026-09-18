@@ -23,6 +23,7 @@ import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvCon
 import { RemoteAudioHub } from '../components/Play/RemoteAudio';
 import { Spinner } from '../components/UI/Spinner';
 import { watchWithPoll } from '../utils/playRealtime';
+import type { RtcLinkStatus } from '../utils/rtcLinkStatus';
 
 export function PlayTable() {
   const { lobbyId } = useParams<{ lobbyId: string }>();
@@ -44,6 +45,7 @@ export function PlayTable() {
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [rtcLink, setRtcLink] = useState<RtcLinkStatus>('idle');
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
   const [tableView, setTableView] = useState<'all' | 'active'>('all');
   const attachPickIdRef = useRef<string | null>(null);
@@ -176,6 +178,7 @@ export function PlayTable() {
           return next;
         });
       },
+      onLinkStatus: setRtcLink,
     });
     meshRef.current = mesh;
     let stream = new MediaStream();
@@ -369,6 +372,7 @@ export function PlayTable() {
       captureStreamRef.current = null;
       gateRef.current?.destroy();
       gateRef.current = null;
+      setRtcLink('idle');
       void meshRef.current?.destroy();
       meshRef.current = null;
     };
@@ -403,11 +407,13 @@ export function PlayTable() {
 
   const players = useMemo(() => {
     if (!state || !currentUser) return [];
-    return [...state.players].sort((a, b) => {
-      if (a.userId === currentUser.uid) return 1;
-      if (b.userId === currentUser.uid) return -1;
-      return a.seatIndex - b.seatIndex;
-    });
+    return [...state.players]
+      .filter((player) => !isDummyUserId(player.userId))
+      .sort((a, b) => {
+        if (a.userId === currentUser.uid) return 1;
+        if (b.userId === currentUser.uid) return -1;
+        return a.seatIndex - b.seatIndex;
+      });
   }, [state, currentUser]);
 
   if (loading || !state || !currentUser) {
@@ -421,9 +427,7 @@ export function PlayTable() {
     );
   }
 
-  const activePlayer =
-    state.players.find((player) => player.seatIndex === state.turnSeatIndex) ||
-    players.find((player) => player.seatIndex === state.turnSeatIndex);
+  const activePlayer = players.find((player) => player.seatIndex === state.turnSeatIndex) || players[0];
   const shownPlayers = tableView === 'active' && activePlayer ? [activePlayer] : players;
   const count = players.length;
   const shownCount = shownPlayers.length;
@@ -438,7 +442,7 @@ export function PlayTable() {
         player={player}
         isSelf={isSelf}
         viewerId={currentUser.uid}
-        opponents={state.players
+        opponents={players
           .filter((p) => p.userId !== currentUser.uid)
           .map((p) => ({ userId: p.userId, displayName: p.displayName }))}
         isTurn={state.turnSeatIndex === player.seatIndex}
@@ -503,7 +507,7 @@ export function PlayTable() {
         onHideHandCard={(instanceId) => send({ type: 'hideHandCard', userId: currentUser.uid, instanceId })}
         onRevealLibraryTop={(viewerIds) => send({ type: 'revealLibraryTop', userId: currentUser.uid, viewerIds })}
         onHideLibraryTop={() => send({ type: 'hideLibraryTop', userId: currentUser.uid })}
-        tablePlayers={state.players}
+        tablePlayers={players}
         attachPickId={attachPickId}
         onStartAttach={(instanceId) => setAttachPickId(instanceId)}
         onPickAttachHost={(hostInstanceId) => {
@@ -590,6 +594,7 @@ export function PlayTable() {
           <RtcControls
             camOn={camOn}
             micOn={micOn}
+            linkStatus={rtcLink}
             cameras={cameras}
             mics={mics}
             cameraId={cameraId}

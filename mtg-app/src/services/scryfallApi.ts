@@ -104,30 +104,32 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
 }
 
 /**
- * Récupère une carte par code de set, numéro de collection et langue (endpoint Scryfall).
- * Utiliser pour obtenir la version française avec la bonne image.
- * @returns MTGCard ou null si 404 (pas d'édition dans cette langue)
+ * French scan of this exact set/number, if Scryfall has one.
+ * Multilingual search returns HTTP 200 with an empty-of-fr list when that printing
+ * was never translated (The List, promos, star numbers) — GET .../fr would 404 in the console.
  */
-async function fetchCardBySetNumberAndLang(
+async function fetchFrenchPrinting(
   setCode: string,
-  collectorNumber: string,
-  lang: 'en' | 'fr'
+  collectorNumber: string
 ): Promise<MTGCard | null> {
   const code = setCode?.toLowerCase().trim();
-  const number = encodeURIComponent(String(collectorNumber).trim());
+  const number = String(collectorNumber).trim().replace(/"/g, '');
   if (!code || !number) return null;
-  const path = lang === 'en' ? `${code}/${number}` : `${code}/${number}/${lang}`;
-  const url = `${SCRYFALL_API_BASE_URL}/cards/${path}`;
+  const query = `s:${code} cn:"${number}"`;
+  const url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(query)}&unique=prints&include_multilingual=true`;
   try {
     const response = await scryfallQueue.enqueue(
       () => fetchWithRetry(url, {
-        headers: { 'User-Agent': 'MTGCollectionApp/1.0', 'Accept': 'application/json' },
+        headers: { 'User-Agent': 'MTGCollectionApp/1.0', Accept: 'application/json' },
       }, { maxRetries: 2, initialDelay: 500, maxDelay: 4000, retryableStatuses: [429, 500, 502, 503, 504] }),
       'normal'
     );
     if (!response.ok) return null;
     const data = await response.json();
-    return convertScryfallCardToMTGCard(data);
+    const french = Array.isArray(data?.data)
+      ? data.data.find((card: { lang?: string }) => card.lang === 'fr')
+      : null;
+    return french ? convertScryfallCardToMTGCard(french) : null;
   } catch {
     return null;
   }
@@ -180,10 +182,12 @@ export async function searchCardByScryfallId(
 
     const scryfallCard = await response.json();
     
-    // ÉTAPE 2 : Si préférence française, tenter d'abord la version FR via /cards/:code/:number/fr (image correcte)
+    // ÉTAPE 2 : Si préférence française, tenter d'abord la version FR (image correcte)
     let mtgCard: MTGCard;
-    if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
-      const frenchCard = await fetchCardBySetNumberAndLang(scryfallCard.set, scryfallCard.collector_number, 'fr');
+    if (preferFrench && scryfallCard.lang === 'fr') {
+      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
+    } else if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
+      const frenchCard = await fetchFrenchPrinting(scryfallCard.set, scryfallCard.collector_number);
       if (frenchCard?.imageUrl && frenchCard?.name) {
         mtgCard = frenchCard;
       } else {
@@ -242,7 +246,7 @@ export async function searchCardBySetAndNumber(
   try {
     // ÉTAPE 1 : Si préférence française, tenter d'abord la version FR (image correcte)
     if (preferFrench) {
-      const frenchCard = await fetchCardBySetNumberAndLang(setCode, collectorNumber, 'fr');
+      const frenchCard = await fetchFrenchPrinting(setCode, collectorNumber);
       if (frenchCard?.imageUrl && frenchCard?.name) {
         setCachedCard(cacheKey, frenchCard);
         return frenchCard;
@@ -351,8 +355,10 @@ export async function searchCardByNameAndNumberScryfall(
 
     const scryfallCard = englishCards[0];
     let mtgCard: MTGCard;
-    if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
-      const frenchCard = await fetchCardBySetNumberAndLang(scryfallCard.set, scryfallCard.collector_number, 'fr');
+    if (preferFrench && scryfallCard.lang === 'fr') {
+      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
+    } else if (preferFrench && scryfallCard.set && scryfallCard.collector_number) {
+      const frenchCard = await fetchFrenchPrinting(scryfallCard.set, scryfallCard.collector_number);
       if (frenchCard?.imageUrl && frenchCard?.name) {
         mtgCard = frenchCard;
       } else {

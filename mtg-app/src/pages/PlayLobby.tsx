@@ -237,7 +237,10 @@ export function PlayLobby() {
     );
   }
 
-  const slots = Array.from({ length: lobby.maxPlayers }, (_, i) => seats.find((s) => s.seatIndex === i));
+  const slots = [...seats].sort((a, b) => a.seatIndex - b.seatIndex);
+  const canJoinSeat = Boolean(
+    currentUser && !mySeat && lobby.status === 'waiting' && seats.length < lobby.maxPlayers,
+  );
 
   return (
     <div className="page-shell">
@@ -277,6 +280,11 @@ export function PlayLobby() {
               <Button variant="secondary" onClick={copyLink}>
                 Copier le lien
               </Button>
+              {canJoinSeat && (
+                <Button onClick={handleJoin} loading={joining}>
+                  Rejoindre
+                </Button>
+              )}
               <Button onClick={handleStart} loading={starting} disabled={!allReady} title={startHint}>
                 Lancer la partie
               </Button>
@@ -293,6 +301,11 @@ export function PlayLobby() {
         )}
         {!isHost && (
           <div className="flex flex-col items-stretch sm:items-end gap-2">
+            {canJoinSeat && (
+              <Button onClick={handleJoin} loading={joining}>
+                Rejoindre
+              </Button>
+            )}
             <Button variant="secondary" onClick={copyLink}>
               Copier le lien
             </Button>
@@ -310,17 +323,15 @@ export function PlayLobby() {
         )}
       </div>
 
-      <div className={`grid gap-4 ${lobby.maxPlayers > 2 ? 'md:grid-cols-2' : 'md:grid-cols-2'}`}>
-        {slots.map((seat, index) => (
+      <div className={`grid gap-4 ${slots.length > 1 ? 'md:grid-cols-2' : ''}`}>
+        {slots.map((seat) => (
           <SeatPane
-            key={index}
+            key={seat.id}
             seat={seat}
-            seatIndex={index}
-            isHost={Boolean(seat && seat.userId === lobby.hostId)}
-            isSelf={Boolean(seat && seat.userId === currentUser?.uid)}
-            canJoin={!mySeat && lobby.status === 'waiting' && !seat}
-            joining={joining}
-            onJoin={handleJoin}
+            seatIndex={seat.seatIndex}
+            isHost={seat.userId === lobby.hostId}
+            isSelf={seat.userId === currentUser?.uid}
+            canJoin={false}
             onLeave={handleLeave}
             onPickDeck={() => setPickerOpen(true)}
             onToggleReady={handleReady}

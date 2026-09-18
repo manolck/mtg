@@ -1,9 +1,34 @@
+import { pb } from '../services/pocketbase';
+
 const POLL_MS = 1500;
+
+/** Private SDK field: cap EventSource retries on broken HTTP/2 proxies. */
+const realtimeClient = pb.realtime as unknown as { maxReconnectAttempts: number };
+realtimeClient.maxReconnectAttempts = 2;
+
+let realtimeUnavailable = false;
+
+export function isRealtimeUnavailable(): boolean {
+  return realtimeUnavailable;
+}
+
+function markRealtimeUnavailable(): void {
+  if (realtimeUnavailable) return;
+  realtimeUnavailable = true;
+  void pb.realtime.unsubscribe().catch(() => {});
+}
 
 export function swallowRealtimeError(err: unknown): void {
   const status = (err as { status?: number } | null)?.status;
-  if (status === 404) return;
-  console.warn('PocketBase realtime', err);
+  const message = String((err as { message?: string } | null)?.message || '');
+  const expected =
+    realtimeUnavailable ||
+    status === 404 ||
+    status === 0 ||
+    /Failed to establish realtime connection/i.test(message) ||
+    /autocancelled/i.test(message);
+  if (!expected) console.warn('PocketBase realtime', err);
+  markRealtimeUnavailable();
 }
 
 export function safeRealtimeUnsub(run: () => unknown): void {

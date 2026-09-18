@@ -4,7 +4,7 @@ import { applyMatchAction, createInitialMatchState } from '../utils/playTable';
 import type { MatchState, PlayAction, PlayMatch, PlaySeat } from '../types/play';
 import type { DeckFormat } from '../types/deck';
 import { snapshotSeatDeck, updateLobbyStatus } from './playLobbyService';
-import { safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
+import { isRealtimeUnavailable, safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
 
 function relationId(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -106,6 +106,7 @@ function actionFrom(action: PlayAction, userId: string): PlayAction {
 }
 
 export function subscribeMatch(matchId: string, onUpdate: (match: PlayMatch) => void): () => void {
+  if (isRealtimeUnavailable()) return () => {};
   let cancelled = false;
   let unsub: (() => void) | undefined;
   pb.collection('play_matches')

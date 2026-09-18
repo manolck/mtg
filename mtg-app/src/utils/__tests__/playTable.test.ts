@@ -1044,8 +1044,8 @@ describe('playTable', () => {
     expect(state.players[0].library.some((card) => card.instanceId === top.instanceId)).toBe(false);
   });
 
-  it('adds a dummy player on seat 2 with a mirrored library', () => {
-    let state = createInitialMatchState(
+  it('ignores addSeat so dummy boards cannot be added', () => {
+    const state = createInitialMatchState(
       [
         seat({
           userId: 'u1',
@@ -1064,24 +1064,8 @@ describe('playTable', () => {
       { random: () => 0 },
     );
     expect(state.players).toHaveLength(1);
-    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' }, { random: () => 0 });
-    expect(state.players).toHaveLength(2);
-    const dummy = state.players[1];
-    expect(dummy.userId).toBe('dummy:1');
-    expect(dummy.seatIndex).toBe(1);
-    expect(dummy.displayName).toBe('Siège 2');
-    expect(dummy.life).toBe(40);
-    expect(dummy.hand).toHaveLength(7);
-    expect(dummy.command).toHaveLength(1);
-    expect(dummy.command[0].instanceId).not.toBe(state.players[0].command[0].instanceId);
-    const version = state.version;
-    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1 });
-    expect(state.version).toBe(version);
-
-    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2, displayName: 'Siège 3' }, { random: () => 0 });
-    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 3, displayName: 'Siège 4' }, { random: () => 0 });
-    expect(state.players.map((player) => player.seatIndex).sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
-    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2 });
-    expect(state.players).toHaveLength(4);
+    const next = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' }, { random: () => 0 });
+    expect(next.players).toHaveLength(1);
+    expect(next).toBe(state);
   });
 });

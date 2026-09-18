@@ -3,7 +3,7 @@ import { pbEqual } from '../utils/pocketbaseFilter';
 import { getDeckById } from './deckService';
 import { snapshotFromDeck } from '../utils/playTable';
 import { shouldCloseEmptyWaitingLobby } from '../utils/playLobby';
-import { safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
+import { isRealtimeUnavailable, safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
 import type { DeckFormat } from '../types/deck';
 import type { DeckSnapshot, LobbyStatus, PlayLobby, PlaySeat } from '../types/play';
 
@@ -196,6 +196,7 @@ export function subscribeLobby(
   lobbyId: string,
   onChange: () => void
 ): () => void {
+  if (isRealtimeUnavailable()) return () => {};
   let cancelled = false;
   const unsubs: Array<() => void> = [];
 
@@ -227,6 +228,7 @@ export function subscribeLobby(
 }
 
 export function subscribeLobbyList(onChange: () => void): () => void {
+  if (isRealtimeUnavailable()) return () => {};
   let cancelled = false;
   let unsub: (() => void) | undefined;
   pb.collection('play_lobbies')

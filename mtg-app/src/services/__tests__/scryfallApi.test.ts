@@ -65,6 +65,39 @@ describe('scryfallApi', () => {
       expect(fetchWithRetry).toHaveBeenCalled();
     });
 
+    it('loads French printings via multilingual search instead of GET /fr', async () => {
+      fetchWithRetry
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ ...mockScryfallCard, id: 'lookup-id' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [
+              mockScryfallCard,
+              {
+                ...mockScryfallCard,
+                lang: 'fr',
+                printed_name: 'Eclair',
+                image_uris: { normal: 'https://fr.example/bolt.jpg' },
+              },
+            ],
+          }),
+        });
+
+      const result = await searchCardByScryfallId('lookup-id', true);
+
+      expect(result?.name).toBe('Eclair');
+      expect(result?.imageUrl).toBe('https://fr.example/bolt.jpg');
+      const urls = fetchWithRetry.mock.calls.map((call) => String(call[0]));
+      expect(urls.some((url) => url.includes('include_multilingual=true'))).toBe(true);
+      expect(urls.some((url) => /\/cards\/[^/]+\/[^/]+\/fr(?:\?|$)/.test(url))).toBe(false);
+    });
+
     it('should return null for 404 error', async () => {
       fetchWithRetry.mockResolvedValueOnce({
         ok: false,
@@ -90,11 +123,17 @@ describe('scryfallApi', () => {
 
   describe('searchCardBySetAndNumber', () => {
     it('should fetch card by set code and collector number', async () => {
-      fetchWithRetry.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockScryfallCard,
-      });
+      fetchWithRetry
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => mockScryfallCard,
+        });
 
       const result = await searchCardBySetAndNumber('m21', '161');
 

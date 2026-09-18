@@ -418,11 +418,7 @@ export function applyMatchAction(
   }
 
   if (action.type === 'addSeat') {
-    return addDummyPlayer(state, action.userId, {
-      seatIndex: action.seatIndex,
-      displayName: action.displayName,
-      random: options?.random,
-    });
+    return state;
   }
 
   if (action.type === 'chooseHandCard') {
