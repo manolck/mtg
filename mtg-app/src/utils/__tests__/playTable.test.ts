@@ -10,6 +10,7 @@ import {
   filterPublicZoneCards,
   isPlaymatAttachable,
   isPlaymatLand,
+  isHandCardChosen,
   snapshotFromDeck,
   splitBattlefield,
   tableBattlefieldCards,
@@ -105,6 +106,45 @@ describe('playTable', () => {
     expect(state.players[0].life).toBe(20);
     expect(state.players[0].hand).toHaveLength(7);
     expect(state.players[0].library).toHaveLength(3);
+  });
+
+  it('reorders cards in hand by toIndex', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Order',
+            format: 'modern',
+            mainboard: [
+              { scryfallId: 'a', name: 'Alpha', quantity: 1 },
+              { scryfallId: 'b', name: 'Bravo', quantity: 1 },
+              { scryfallId: 'c', name: 'Charlie', quantity: 1 },
+              { scryfallId: 'd', name: 'Delta', quantity: 1 },
+              { scryfallId: 'e', name: 'Echo', quantity: 1 },
+              { scryfallId: 'f', name: 'Foxtrot', quantity: 1 },
+              { scryfallId: 'g', name: 'Golf', quantity: 1 },
+            ],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 }
+    );
+    const ids = state.players[0].hand.map((card) => card.instanceId);
+    const moved = ids[0];
+    state = applyMatchAction(state, { type: 'reorderHand', userId: 'u1', instanceId: moved, toIndex: 2 });
+    expect(state.players[0].hand.map((card) => card.instanceId)).toEqual([ids[1], ids[2], moved, ids[3], ids[4], ids[5], ids[6]]);
+
+    const unchanged = applyMatchAction(state, { type: 'reorderHand', userId: 'u1', instanceId: moved, toIndex: 2 });
+    expect(unchanged.version).toBe(state.version);
+
+    const last = ids[6];
+    state = applyMatchAction(state, { type: 'reorderHand', userId: 'u1', instanceId: last, toIndex: 0 });
+    expect(state.players[0].hand[0].instanceId).toBe(last);
   });
 
   it('draws, taps, moves, and increments version', () => {
@@ -258,6 +298,103 @@ describe('playTable', () => {
     expect(attached.other.map((c) => c.name)).toEqual(['Bear']);
   });
 
+  it('moves transformed lands and animated lands between playmat rows', () => {
+    expect(
+      isPlaymatLand({
+        name: 'Ojer Kaslem, Deepest Growth',
+        typeLine: 'Legendary Creature — God',
+        backName: 'Temple of Cultivation',
+        backTypeLine: 'Land',
+        transformed: true,
+      }),
+    ).toBe(true);
+    expect(
+      isPlaymatLand({
+        name: 'Ojer Kaslem, Deepest Growth',
+        typeLine: 'Legendary Creature — God',
+        backName: 'Temple of Cultivation',
+        backTypeLine: 'Land',
+        transformed: false,
+      }),
+    ).toBe(false);
+    expect(
+      isPlaymatLand({
+        name: 'Ojer Kaslem, Deepest Growth // Temple of Cultivation',
+        typeLine: 'Legendary Creature — God // Land',
+        transformed: true,
+      }),
+    ).toBe(true);
+    expect(isPlaymatLand({ name: 'Mutavault', typeLine: 'Land', playmatRow: 'battlefield' })).toBe(false);
+    expect(isPlaymatLand({ name: 'Grizzly Bears', typeLine: 'Creature — Bear', playmatRow: 'lands' })).toBe(true);
+
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Lands',
+            format: 'modern',
+            mainboard: [{ scryfallId: 'forest', name: 'Forest', typeLine: 'Basic Land — Forest', quantity: 8 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const forest = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      from: 'hand',
+      to: 'battlefield',
+    });
+    expect(splitBattlefield(state.players[0].battlefield).lands.map((card) => card.instanceId)).toEqual([forest.instanceId]);
+
+    state = applyMatchAction(state, {
+      type: 'setPlaymatRow',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      row: 'battlefield',
+    });
+    expect(state.players[0].battlefield[0].playmatRow).toBe('battlefield');
+    expect(splitBattlefield(state.players[0].battlefield).other.map((card) => card.instanceId)).toEqual([forest.instanceId]);
+
+    state = applyMatchAction(state, {
+      type: 'setPlaymatRow',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      row: 'lands',
+    });
+    expect(splitBattlefield(state.players[0].battlefield).lands.map((card) => card.instanceId)).toEqual([forest.instanceId]);
+
+    state = applyMatchAction(state, {
+      type: 'setPlaymatRow',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      row: null,
+    });
+    expect(state.players[0].battlefield[0].playmatRow).toBeUndefined();
+
+    state = applyMatchAction(state, {
+      type: 'setPlaymatRow',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      row: 'battlefield',
+    });
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: forest.instanceId,
+      from: 'battlefield',
+      to: 'graveyard',
+    });
+    expect(state.players[0].graveyard[0].playmatRow).toBeUndefined();
+  });
+
   it('flips only double-faced cards to their printed back', () => {
     let state = createInitialMatchState(
       [
@@ -308,11 +445,13 @@ describe('playTable', () => {
       instanceId: dfc!.instanceId,
       backImageUrl: dfc!.backImageUrl,
       backName: dfc!.backName,
+      backTypeLine: 'Legendary Creature — Demon',
     });
     const flipped = state.players[0].battlefield.find((c) => c.instanceId === dfc!.instanceId);
     expect(flipped?.transformed).toBe(true);
     expect(flipped?.facedown).toBe(false);
     expect(flipped?.backImageUrl).toBe('https://example.com/ormendahl.jpg');
+    expect(flipped?.backTypeLine).toBe('Legendary Creature — Demon');
 
     state = applyMatchAction(state, { type: 'flip', userId: playerId, instanceId: dfc!.instanceId });
     expect(state.players[0].battlefield.find((c) => c.instanceId === dfc!.instanceId)?.transformed).toBe(false);
@@ -453,9 +592,103 @@ describe('playTable', () => {
     state = applyMatchAction(state, { type: 'hideLibraryTop', userId: 'u1' });
     expect(canSeeLibraryTop(owner(), 'u2')).toBe(false);
 
+    state = applyMatchAction(state, { type: 'revealLibraryTop', userId: 'u1', viewerIds: ['u1'] });
+    expect(canSeeLibraryTop(owner(), 'u1')).toBe(true);
+    expect(canSeeLibraryTop(owner(), 'u2')).toBe(false);
+
     state = applyMatchAction(state, { type: 'revealLibraryTop', userId: 'u1', viewerIds: ['*'] });
     state = applyMatchAction(state, { type: 'shuffleLibrary', userId: 'u1' }, { random: () => 0.4 });
     expect(canSeeLibraryTop(owner(), 'u2')).toBe(false);
+  });
+
+  it('lets an opponent choose several cards in a hand, visible to the owner', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'a',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'b',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 }
+    );
+    const target = () => state.players[1];
+    const first = target().hand[0];
+    const second = target().hand[1];
+
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u2',
+      instanceId: first.instanceId,
+    });
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u2',
+      instanceId: second.instanceId,
+    });
+    expect(isHandCardChosen(target(), first.instanceId)).toBe(true);
+    expect(isHandCardChosen(target(), second.instanceId)).toBe(true);
+    expect(target().chosenHandCards).toEqual([
+      { instanceId: first.instanceId, by: 'u1' },
+      { instanceId: second.instanceId, by: 'u1' },
+    ]);
+
+    const beforeOwn = state.version;
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u1',
+      instanceId: state.players[0].hand[0].instanceId,
+    });
+    expect(state.version).toBe(beforeOwn);
+
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u2',
+      instanceId: first.instanceId,
+    });
+    expect(isHandCardChosen(target(), first.instanceId)).toBe(false);
+    expect(isHandCardChosen(target(), second.instanceId)).toBe(true);
+
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u2',
+      instanceId: second.instanceId,
+      from: 'hand',
+      to: 'graveyard',
+    });
+    expect(isHandCardChosen(target(), second.instanceId)).toBe(false);
+
+    const third = target().hand[0];
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u2',
+      instanceId: third.instanceId,
+    });
+    state = applyMatchAction(state, { type: 'clearHandChoices', userId: 'u1', ownerId: 'u2' });
+    expect(target().chosenHandCards).toEqual([]);
   });
 
   it('attaches several auras or equipment to a host and clears them if the host leaves', () => {
@@ -802,5 +1035,40 @@ describe('playTable', () => {
     expect(state.players[0].library[0].instanceId).toBe(next.instanceId);
     expect(state.players[0].graveyard.map((card) => card.instanceId)).toContain(top.instanceId);
     expect(state.players[0].library.some((card) => card.instanceId === top.instanceId)).toBe(false);
+  });
+
+  it('adds a dummy player on seat 2 with a mirrored library', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          displayName: 'Host',
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Solo',
+            format: 'commander',
+            mainboard: [{ ...bolt, quantity: 12 }],
+            commanders: [{ ...commander, quantity: 1 }],
+          },
+        }),
+      ],
+      'commander',
+      { random: () => 0 },
+    );
+    expect(state.players).toHaveLength(1);
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' }, { random: () => 0 });
+    expect(state.players).toHaveLength(2);
+    const dummy = state.players[1];
+    expect(dummy.userId).toBe('dummy:1');
+    expect(dummy.seatIndex).toBe(1);
+    expect(dummy.displayName).toBe('Siège 2');
+    expect(dummy.life).toBe(40);
+    expect(dummy.hand).toHaveLength(7);
+    expect(dummy.command).toHaveLength(1);
+    expect(dummy.command[0].instanceId).not.toBe(state.players[0].command[0].instanceId);
+    const version = state.version;
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1 });
+    expect(state.version).toBe(version);
   });
 });

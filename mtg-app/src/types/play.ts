@@ -57,6 +57,10 @@ export interface TableCard {
   facedown: boolean;
   /** Face verso visible (cartes recto-verso uniquement) */
   transformed?: boolean;
+  /** Type de la face verso (DFC), pour classer terrains / permanents. */
+  backTypeLine?: string;
+  /** Forcer l’affichage sur la rangée terrains ou champ de bataille. */
+  playmatRow?: 'lands' | 'battlefield';
   /** Permanent auquel cette carte est attachée (aura / équipement). */
   attachedTo?: string;
   /** Marqueurs (id wiki → quantité). */
@@ -86,6 +90,11 @@ export interface ShownHandCard {
   to: RevealAudience;
 }
 
+export interface ChosenHandCard {
+  instanceId: string;
+  by: string;
+}
+
 export interface PlayerTableState {
   userId: string;
   seatIndex: number;
@@ -102,6 +111,8 @@ export interface PlayerTableState {
   shownHandTo?: RevealAudience;
   /** Cartes de la main montrées individuellement. */
   shownHandCards?: ShownHandCard[];
+  /** Cartes de la main désignées par un adversaire (le propriétaire les voit). */
+  chosenHandCards?: ChosenHandCard[];
   /** Dessus de bibliothèque révélé pour cette audience. */
   libraryTopRevealedTo?: RevealAudience;
 }
@@ -149,6 +160,8 @@ export type PlayAction =
   | { type: 'hideHand'; userId: string }
   | { type: 'showHandCard'; userId: string; instanceId: string; viewerIds: RevealAudience }
   | { type: 'hideHandCard'; userId: string; instanceId: string }
+  | { type: 'chooseHandCard'; userId: string; ownerId: string; instanceId: string }
+  | { type: 'clearHandChoices'; userId: string; ownerId: string }
   | { type: 'revealLibraryTop'; userId: string; viewerIds: RevealAudience }
   | { type: 'hideLibraryTop'; userId: string }
   | { type: 'attachCard'; userId: string; instanceId: string; hostInstanceId: string | null }
@@ -158,8 +171,11 @@ export type PlayAction =
   | { type: 'removeToken'; userId: string; instanceId: string }
   | { type: 'scry'; userId: string; count: number; onTop: string[]; onBottom: string[] }
   | { type: 'surveil'; userId: string; count: number; onTop: string[]; toGraveyard: string[] }
+  | { type: 'addSeat'; userId: string; seatIndex?: number; displayName?: string }
+  | { type: 'reorderHand'; userId: string; instanceId: string; toIndex: number }
   | { type: 'tap'; userId: string; instanceId: string }
-  | { type: 'flip'; userId: string; instanceId: string; backImageUrl?: string; backName?: string }
+  | { type: 'flip'; userId: string; instanceId: string; backImageUrl?: string; backName?: string; backTypeLine?: string }
+  | { type: 'setPlaymatRow'; userId: string; instanceId: string; row: 'lands' | 'battlefield' | null }
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'passTurn' }

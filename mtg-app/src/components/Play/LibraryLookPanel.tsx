@@ -86,7 +86,7 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
               <li key={id} className="flex items-center gap-2 rounded-lg bg-black/30 p-1.5">
                 <button
                   type="button"
-                  className="w-[4.5rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
+                  className="w-[3.6rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
                   onMouseEnter={(event) =>
                     card.imageUrl
                       ? setHover({ card, rect: event.currentTarget.getBoundingClientRect() })

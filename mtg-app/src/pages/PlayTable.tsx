@@ -15,6 +15,7 @@ import {
 } from '../services/playRtcService';
 import { MicNoiseGate } from '../utils/micNoiseGate';
 import type { MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
+import { isDummyUserId } from '../utils/playTable';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
 import { VideoTile } from '../components/Play/VideoTile';
 import { RtcControls } from '../components/Play/RtcControls';
@@ -43,6 +44,7 @@ export function PlayTable() {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
+  const [tableView, setTableView] = useState<'all' | 'active'>('all');
   const attachPickIdRef = useRef<string | null>(null);
   attachPickIdRef.current = attachPickId;
   const meshRef = useRef<PlayRtcMesh | null>(null);
@@ -159,7 +161,9 @@ export function PlayTable() {
   const startRtc = useCallback(async (withMedia: boolean) => {
     if (!lobbyId || !currentUser || meshRef.current) return;
     const gen = ++startGenRef.current;
-    const peerIds = (stateRef.current?.players || seats).map((p) => p.userId);
+    const peerIds = (stateRef.current?.players || seats)
+      .map((p) => p.userId)
+      .filter((id) => !isDummyUserId(id));
     const mesh = new PlayRtcMesh(lobbyId, currentUser.uid, {
       onRemoteStream: (userId, stream) => {
         setRemoteStreams((prev) => ({ ...prev, [userId]: new MediaStream(stream.getTracks()) }));
@@ -402,9 +406,6 @@ export function PlayTable() {
     });
   }, [state, currentUser]);
 
-  const count = players.length;
-  const stacked = count <= 2;
-
   if (loading || !state || !currentUser) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 min-h-screen bg-slate-950 text-slate-200">
@@ -415,6 +416,15 @@ export function PlayTable() {
       </div>
     );
   }
+
+  const activePlayer =
+    state.players.find((player) => player.seatIndex === state.turnSeatIndex) ||
+    players.find((player) => player.seatIndex === state.turnSeatIndex);
+  const shownPlayers = tableView === 'active' && activePlayer ? [activePlayer] : players;
+  const count = players.length;
+  const shownCount = shownPlayers.length;
+  const stacked = shownCount <= 2;
+  const focusedOther = tableView === 'active' && Boolean(activePlayer && activePlayer.userId !== currentUser.uid);
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
@@ -429,6 +439,7 @@ export function PlayTable() {
           .map((p) => ({ userId: p.userId, displayName: p.displayName }))}
         isTurn={state.turnSeatIndex === player.seatIndex}
         compact={compact}
+        seatHome={tableView === 'active'}
         videoSlot={
           <VideoTile
             stream={stream}
@@ -468,8 +479,16 @@ export function PlayTable() {
         }
         onTap={(instanceId) => send({ type: 'tap', userId: currentUser.uid, instanceId })}
         onFlip={(instanceId, faces) =>
-          send({ type: 'flip', userId: currentUser.uid, instanceId, backImageUrl: faces?.backImageUrl, backName: faces?.backName })
+          send({
+            type: 'flip',
+            userId: currentUser.uid,
+            instanceId,
+            backImageUrl: faces?.backImageUrl,
+            backName: faces?.backName,
+            backTypeLine: faces?.backTypeLine,
+          })
         }
+        onSetPlaymatRow={(instanceId, row) => send({ type: 'setPlaymatRow', userId: currentUser.uid, instanceId, row })}
         onShowHand={(viewerIds) => send({ type: 'showHand', userId: currentUser.uid, viewerIds })}
         onHideHand={() => send({ type: 'hideHand', userId: currentUser.uid })}
         onShowHandCard={(instanceId, viewerIds) =>
@@ -513,6 +532,15 @@ export function PlayTable() {
         onSurveil={(count, onTop, toGraveyard) =>
           send({ type: 'surveil', userId: currentUser.uid, count, onTop, toGraveyard })
         }
+        onReorderHand={(instanceId, toIndex) =>
+          send({ type: 'reorderHand', userId: currentUser.uid, instanceId, toIndex })
+        }
+        onToggleHandChoice={(instanceId) =>
+          send({ type: 'chooseHandCard', userId: currentUser.uid, ownerId: player.userId, instanceId })
+        }
+        onClearHandChoices={() =>
+          send({ type: 'clearHandChoices', userId: currentUser.uid, ownerId: player.userId })
+        }
       />
     );
   };
@@ -530,10 +558,39 @@ export function PlayTable() {
           </Link>
           <p className="text-sm font-semibold truncate leading-tight">{lobby?.name || 'Table'}</p>
         </div>
-        <p className="hidden lg:block text-[11px] text-white/45 max-w-xl truncate">
-          Clic main → poser · Regard/Surveil · Jeton → chercher · Aura/équipement → attacher · Clic champ → engager · Clic droit → marqueurs / déplacer · D piocher · / bibliothèque · +/− PV
-        </p>
+        <div className="flex items-center rounded-lg bg-black/30 ring-1 ring-white/15 p-0.5 shrink-0">
+          <button
+            type="button"
+            className={`px-2 sm:px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-semibold ${
+              tableView === 'all' ? 'bg-amber-400 text-black' : 'text-white/70 hover:text-white'
+            }`}
+            onClick={() => setTableView('all')}
+          >
+            Vue globale
+          </button>
+          <button
+            type="button"
+            title={activePlayer?.displayName ? `Plateau de ${activePlayer.displayName}` : 'Joueur dont c’est le tour'}
+            className={`px-2 sm:px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-semibold ${
+              tableView === 'active' ? 'bg-amber-400 text-black' : 'text-white/70 hover:text-white'
+            }`}
+            onClick={() => setTableView('active')}
+          >
+            Joueur actif
+          </button>
+        </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {!state.players.some((p) => p.seatIndex === 1) && (
+            <button
+              type="button"
+              className="relative z-30 text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 min-h-[36px]"
+              onClick={() =>
+                send({ type: 'addSeat', userId: currentUser.uid, seatIndex: 1, displayName: 'Siège 2' })
+              }
+            >
+              Ajouter siège 2
+            </button>
+          )}
           <RtcControls
             camOn={camOn}
             micOn={micOn}
@@ -584,24 +641,35 @@ export function PlayTable() {
         </div>
       )}
 
-      <div
-        className={
-          stacked
-            ? 'flex-1 min-h-0 flex flex-col gap-0 p-1'
-            : `flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-1 p-1`
-        }
-      >
-        {players.map((player, index) => {
-          const isSelf = player.userId === currentUser.uid;
-          const compact = stacked ? !isSelf : count >= 3 && !isSelf;
-          const span = !stacked && count === 3 && index === 2 ? 'md:col-span-2' : '';
-          const stackedSize = stacked ? 'flex-1 min-h-0' : 'min-h-0';
-          return (
-            <section key={player.userId} className={`${stacked ? stackedSize : `min-h-0 ${span}`}`}>
-              {renderPane(player, compact)}
-            </section>
-          );
-        })}
+      <div className="flex-1 min-h-0 relative">
+        <div
+          className={
+            stacked
+              ? 'h-full min-h-0 flex flex-col gap-0 p-1'
+              : 'h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-1 p-1'
+          }
+        >
+          {shownPlayers.map((player, index) => {
+            const isSelf = player.userId === currentUser.uid;
+            const compact = shownCount > 1 && (stacked ? !isSelf : count >= 3 && !isSelf);
+            const span = !stacked && shownCount === 3 && index === 2 ? 'md:col-span-2' : '';
+            const stackedSize = stacked ? 'flex-1 min-h-0' : 'min-h-0';
+            return (
+              <section key={player.userId} className={`${stacked ? stackedSize : `min-h-0 ${span}`}`}>
+                {renderPane(player, compact)}
+              </section>
+            );
+          })}
+        </div>
+        {focusedOther && (
+          <button
+            type="button"
+            className="absolute bottom-4 right-4 z-40 min-h-[52px] px-4 sm:px-5 rounded-xl text-sm font-bold shadow-2xl bg-amber-400 text-black ring-4 ring-amber-100/90 hover:bg-amber-300"
+            onClick={() => send({ type: 'passTurn' })}
+          >
+            Fin de tour
+          </button>
+        )}
       </div>
 
       <PlayAvConsent

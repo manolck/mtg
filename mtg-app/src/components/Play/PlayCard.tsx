@@ -6,9 +6,9 @@ import { visibleCardFace } from '../../utils/playTable';
 export const MTG_CARD_BACK_URL = '/play/mtg-card-back.png';
 
 const SIZE_CLASS = {
-  sm: 'w-[3.75rem] sm:w-[4.5rem]',
-  md: 'w-[5.25rem] sm:w-[6.75rem]',
-  lg: 'w-[6.375rem] sm:w-[7.5rem] md:w-[8.25rem]',
+  sm: 'w-12 sm:w-[3.6rem]',
+  md: 'w-[4.2rem] sm:w-[5.4rem]',
+  lg: 'w-[5.1rem] sm:w-24 md:w-[6.6rem]',
 };
 
 interface PlayCardProps {
@@ -26,6 +26,7 @@ interface PlayCardProps {
   onMouseLeave?: () => void;
   onCounterDelta?: (counterId: string, delta: number) => void;
   onOpenCounters?: () => void;
+  chosen?: boolean;
 }
 
 export function PlayCard({
@@ -43,6 +44,7 @@ export function PlayCard({
   onMouseLeave,
   onCounterDelta,
   onOpenCounters,
+  chosen = false,
 }: PlayCardProps) {
   const hidden = hideFace;
   const face = visibleCardFace(card);
@@ -63,7 +65,9 @@ export function PlayCard({
       onMouseLeave={onMouseLeave}
       className={`relative aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] shadow-md ring-1 ring-white/10 shrink-0 transition-transform duration-150 hover:z-20 hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
         SIZE_CLASS[size]
-      } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${className}`}
+      } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${
+        chosen ? 'ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.55)]' : ''
+      } ${className}`}
     >
       <img
         src={src}
@@ -75,6 +79,16 @@ export function PlayCard({
         <span className="absolute left-0.5 bottom-0.5 z-10 rounded bg-fuchsia-700/90 px-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wide text-white">
           Jeton
         </span>
+      )}
+      {chosen && (
+        <>
+          <span className="absolute inset-x-0 top-0 z-20 bg-sky-500/95 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white">
+            Choisi
+          </span>
+          <span className="absolute inset-x-0 bottom-0 z-20 bg-sky-500/95 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white">
+            Choisi
+          </span>
+        </>
       )}
       {canTransform && !hidden && onTransform && (
         <span

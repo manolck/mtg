@@ -104,6 +104,7 @@ export function createPlayerFromSnapshot(
     command: expandEntries(snapshot?.commanders, `${seat.userId}-cmd`),
     shownHandTo: [],
     shownHandCards: [],
+    chosenHandCards: [],
     libraryTopRevealedTo: [],
   };
 }
@@ -171,7 +172,43 @@ export function visibleOpponentHand(owner: PlayerTableState, viewerId: string): 
 function pruneHandReveals(player: PlayerTableState): PlayerTableState {
   const ids = new Set(player.hand.map((card) => card.instanceId));
   const shownHandCards = (player.shownHandCards || []).filter((item) => ids.has(item.instanceId));
-  return { ...player, shownHandCards };
+  const chosenHandCards = (player.chosenHandCards || []).filter((item) => ids.has(item.instanceId));
+  return { ...player, shownHandCards, chosenHandCards };
+}
+
+export function isHandCardChosen(player: PlayerTableState, instanceId: string): boolean {
+  return (player.chosenHandCards || []).some((item) => item.instanceId === instanceId);
+}
+
+function toggleHandChoice(state: MatchState, action: { userId: string; ownerId: string; instanceId: string }): MatchState {
+  if (action.userId === action.ownerId) return state;
+  const owner = findPlayer(state, action.ownerId);
+  if (!owner) return state;
+  if (!owner.hand.some((card) => card.instanceId === action.instanceId)) return state;
+  const current = owner.chosenHandCards || [];
+  const already = current.some((item) => item.instanceId === action.instanceId && item.by === action.userId);
+  const chosenHandCards = already
+    ? current.filter((item) => !(item.instanceId === action.instanceId && item.by === action.userId))
+    : [...current, { instanceId: action.instanceId, by: action.userId }];
+  return replacePlayer(state, { ...owner, chosenHandCards });
+}
+
+function clearHandChoices(state: MatchState, action: { ownerId: string }): MatchState {
+  const owner = findPlayer(state, action.ownerId);
+  if (!owner) return state;
+  if (!(owner.chosenHandCards || []).length) return state;
+  return replacePlayer(state, { ...owner, chosenHandCards: [] });
+}
+
+function reorderHandCards(player: PlayerTableState, instanceId: string, toIndex: number): PlayerTableState {
+  const from = player.hand.findIndex((card) => card.instanceId === instanceId);
+  if (from < 0) return player;
+  const next = [...player.hand];
+  const [card] = next.splice(from, 1);
+  const clamped = Math.max(0, Math.min(Math.trunc(toIndex), next.length));
+  if (clamped === from) return player;
+  next.splice(clamped, 0, card);
+  return { ...player, hand: next };
 }
 
 function moveCard(
@@ -198,6 +235,7 @@ function moveCard(
     facedown: facedown ?? (to === 'library' ? true : false),
     transformed: to === 'library' ? false : source[idx].transformed,
     attachedTo: to === 'battlefield' ? source[idx].attachedTo : undefined,
+    playmatRow: to === 'battlefield' ? source[idx].playmatRow : undefined,
   };
   if (to !== 'battlefield') {
     card.tapped = false;
@@ -226,11 +264,29 @@ function toggleTap(player: PlayerTableState, instanceId: string): PlayerTableSta
   return { ...player, battlefield };
 }
 
+function setPlaymatRow(
+  player: PlayerTableState,
+  instanceId: string,
+  row: 'lands' | 'battlefield' | null,
+): PlayerTableState {
+  const idx = player.battlefield.findIndex((card) => card.instanceId === instanceId);
+  if (idx < 0) return player;
+  const nextRow = row || undefined;
+  if (player.battlefield[idx].playmatRow === nextRow) return player;
+  return {
+    ...player,
+    battlefield: player.battlefield.map((card, index) =>
+      index === idx ? { ...card, playmatRow: nextRow } : card,
+    ),
+  };
+}
+
 function toggleFlip(
   player: PlayerTableState,
   instanceId: string,
   backImageUrl?: string,
   backName?: string,
+  backTypeLine?: string,
 ): PlayerTableState {
   const zones: ZoneName[] = ['battlefield', 'hand', 'exile', 'command', 'graveyard'];
   for (const zone of zones) {
@@ -246,6 +302,7 @@ function toggleFlip(
               ...c,
               backImageUrl: resolvedBack,
               backName: c.backName || backName,
+              backTypeLine: c.backTypeLine || backTypeLine,
               transformed: !c.transformed,
             }
           : c,
@@ -276,7 +333,74 @@ function mulligan(player: PlayerTableState, random?: () => number): PlayerTableS
     hand,
     shownHandTo: [],
     shownHandCards: [],
+    chosenHandCards: [],
     libraryTopRevealedTo: [],
+  };
+}
+
+export const DUMMY_USER_PREFIX = 'dummy:';
+
+export function isDummyUserId(userId: string): boolean {
+  return userId.startsWith(DUMMY_USER_PREFIX);
+}
+
+export function dummyUserIdForSeat(seatIndex: number): string {
+  return `${DUMMY_USER_PREFIX}${seatIndex}`;
+}
+
+function cloneCardsForDummy(cards: TableCard[], prefix: string): TableCard[] {
+  return cards
+    .filter((card) => !card.isToken)
+    .map((card, index) => ({
+      ...card,
+      instanceId: `${prefix}-${index}`,
+      tapped: false,
+      facedown: false,
+      attachedTo: undefined,
+    }));
+}
+
+export function addDummyPlayer(
+  state: MatchState,
+  actorUserId: string,
+  options?: { seatIndex?: number; displayName?: string; random?: () => number }
+): MatchState {
+  const actor = findPlayer(state, actorUserId);
+  if (!actor) return state;
+  const seatIndex = options?.seatIndex ?? 1;
+  if (state.players.some((player) => player.seatIndex === seatIndex)) return state;
+  if (state.players.length >= 4) return state;
+  const userId = dummyUserIdForSeat(seatIndex);
+  if (state.players.some((player) => player.userId === userId)) return state;
+
+  const commander = isCommanderFormat(state.format);
+  const pool = cloneCardsForDummy(
+    [...actor.library, ...actor.hand, ...actor.battlefield, ...actor.graveyard, ...actor.exile],
+    `${userId}-lib`,
+  );
+  const shuffled = shuffleCards(pool, options?.random);
+  const hand = shuffled.splice(0, Math.min(STARTING_HAND, shuffled.length));
+  const dummy: PlayerTableState = {
+    userId,
+    seatIndex,
+    displayName: options?.displayName || `Siège ${seatIndex + 1}`,
+    life: commander ? 40 : 20,
+    poison: 0,
+    library: shuffled,
+    hand,
+    battlefield: [],
+    graveyard: [],
+    exile: [],
+    command: cloneCardsForDummy(actor.command, `${userId}-cmd`),
+    shownHandTo: [],
+    shownHandCards: [],
+    chosenHandCards: [],
+    libraryTopRevealedTo: [],
+  };
+  return {
+    ...state,
+    version: state.version + 1,
+    players: [...state.players, dummy],
   };
 }
 
@@ -291,6 +415,22 @@ export function applyMatchAction(
     const currentIdx = seats.indexOf(state.turnSeatIndex);
     const nextSeat = seats[(currentIdx + 1) % seats.length];
     return { ...state, version: state.version + 1, turnSeatIndex: nextSeat };
+  }
+
+  if (action.type === 'addSeat') {
+    return addDummyPlayer(state, action.userId, {
+      seatIndex: action.seatIndex,
+      displayName: action.displayName,
+      random: options?.random,
+    });
+  }
+
+  if (action.type === 'chooseHandCard') {
+    return toggleHandChoice(state, action);
+  }
+
+  if (action.type === 'clearHandChoices') {
+    return clearHandChoices(state, action);
   }
 
   const rawPlayer = findPlayer(state, action.userId);
@@ -368,7 +508,10 @@ export function applyMatchAction(
       nextPlayer = toggleTap(player, action.instanceId);
       break;
     case 'flip':
-      nextPlayer = toggleFlip(player, action.instanceId, action.backImageUrl, action.backName);
+      nextPlayer = toggleFlip(player, action.instanceId, action.backImageUrl, action.backName, action.backTypeLine);
+      break;
+    case 'setPlaymatRow':
+      nextPlayer = setPlaymatRow(player, action.instanceId, action.row);
       break;
     case 'setLife':
       nextPlayer = { ...player, life: player.life + action.delta };
@@ -398,6 +541,9 @@ export function applyMatchAction(
       break;
     case 'surveil':
       nextPlayer = applyLibraryLook(player, action.count, action.onTop, action.toGraveyard, 'graveyard');
+      break;
+    case 'reorderHand':
+      nextPlayer = reorderHandCards(player, action.instanceId, action.toIndex);
       break;
     default:
       return state;
@@ -587,25 +733,45 @@ function setCardFacedown(player: PlayerTableState, instanceId: string, facedown:
   return player;
 }
 
-export function isPlaymatLand(card: Pick<TableCard, 'name' | 'typeLine'>): boolean {
-  const firstFace = (card.typeLine || '').split('//')[0].trim();
-  if (/\bland\b/i.test(firstFace)) return true;
-  const firstName = (card.name || '').split('//')[0].trim().toLowerCase();
+export function visiblePlaymatTypeLine(card: Pick<TableCard, 'typeLine' | 'transformed' | 'backTypeLine'>): string {
+  if (card.transformed) {
+    if (card.backTypeLine) return card.backTypeLine.trim();
+    const faces = (card.typeLine || '').split('//').map((part) => part.trim()).filter(Boolean);
+    if (faces[1]) return faces[1];
+  }
+  return (card.typeLine || '').split('//')[0].trim();
+}
+
+function visiblePlaymatName(card: Pick<TableCard, 'name' | 'transformed' | 'backName'>): string {
+  if (card.transformed && card.backName) return card.backName.split('//')[0].trim();
+  return (card.name || '').split('//')[0].trim();
+}
+
+export function isPlaymatLand(
+  card: Pick<TableCard, 'name' | 'typeLine' | 'transformed' | 'backName' | 'backTypeLine' | 'playmatRow'>,
+): boolean {
+  if (card.playmatRow === 'lands') return true;
+  if (card.playmatRow === 'battlefield') return false;
+  const face = visiblePlaymatTypeLine(card);
+  if (/\bland\b/i.test(face)) return true;
+  const faceName = visiblePlaymatName(card).toLowerCase();
   return (
-    firstName === 'plains' ||
-    firstName === 'island' ||
-    firstName === 'swamp' ||
-    firstName === 'mountain' ||
-    firstName === 'forest' ||
-    firstName === 'wastes'
+    faceName === 'plains' ||
+    faceName === 'island' ||
+    faceName === 'swamp' ||
+    faceName === 'mountain' ||
+    faceName === 'forest' ||
+    faceName === 'wastes'
   );
 }
 
-export function isPlaymatEnchantment(card: Pick<TableCard, 'name' | 'typeLine'>): boolean {
+export function isPlaymatEnchantment(
+  card: Pick<TableCard, 'name' | 'typeLine' | 'transformed' | 'backName' | 'backTypeLine' | 'playmatRow'>,
+): boolean {
   if (isPlaymatLand(card)) return false;
-  const firstFace = (card.typeLine || '').split('//')[0].trim();
-  if (!/\benchantment\b/i.test(firstFace)) return false;
-  if (/\bcreature\b/i.test(firstFace)) return false;
+  const face = visiblePlaymatTypeLine(card);
+  if (!/\benchantment\b/i.test(face)) return false;
+  if (/\bcreature\b/i.test(face)) return false;
   return true;
 }
 

@@ -8,10 +8,10 @@ describe('dfcFaces', () => {
       layout: 'modal_dfc',
       card_faces: [
         { name: 'Front', image_uris: { normal: 'https://front.jpg' } },
-        { name: 'Back', image_uris: { normal: 'https://back.jpg' } },
+        { name: 'Back', type_line: 'Land', image_uris: { normal: 'https://back.jpg' } },
       ],
     });
-    expect(back).toEqual({ backImageUrl: 'https://back.jpg', backName: 'Back' });
+    expect(back).toEqual({ backImageUrl: 'https://back.jpg', backName: 'Back', backTypeLine: 'Land' });
   });
 
   it('ignores split cards without a second printed face', () => {

@@ -9,6 +9,7 @@ export const DFC_LAYOUTS = new Set([
 export interface DfcBack {
   backImageUrl: string;
   backName?: string;
+  backTypeLine?: string;
 }
 
 type ImageUris = {
@@ -28,13 +29,17 @@ export function isDfcLayout(layout?: string): boolean {
 
 export function extractDfcBack(scryfallCard: {
   layout?: string;
-  card_faces?: Array<{ name?: string; image_uris?: ImageUris }>;
+  card_faces?: Array<{ name?: string; type_line?: string; image_uris?: ImageUris }>;
 }): DfcBack | null {
   if (!isDfcLayout(scryfallCard.layout)) return null;
   const back = scryfallCard.card_faces?.[1];
   const backImageUrl = imageFromUris(back?.image_uris);
   if (!backImageUrl) return null;
-  return { backImageUrl, backName: back?.name };
+  return {
+    backImageUrl,
+    backName: back?.name,
+    ...(back?.type_line ? { backTypeLine: back.type_line } : {}),
+  };
 }
 
 const cache = new Map<string, DfcBack | null>();
@@ -72,7 +77,7 @@ export async function fetchDfcBacks(ids: string[]): Promise<Record<string, DfcBa
           continue;
         }
         const payload = (await response.json()) as {
-          data?: Array<{ id: string; layout?: string; card_faces?: Array<{ name?: string; image_uris?: ImageUris }> }>;
+          data?: Array<{ id: string; layout?: string; card_faces?: Array<{ name?: string; type_line?: string; image_uris?: ImageUris }> }>;
         };
         for (const card of payload.data || []) {
           cache.set(card.id, extractDfcBack(card));
