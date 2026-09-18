@@ -561,7 +561,7 @@ export function filterLibraryCards(cards: TableCard[], query: string): TableCard
   const q = query.trim().toLowerCase();
   if (!q) return cards;
   return cards.filter((card) => {
-    const haystack = [card.name, card.typeLine, card.manaCost]
+    const haystack = [card.name, card.oracleName, card.typeLine, card.manaCost, card.backName]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -753,15 +753,24 @@ export function isPlaymatLand(
   if (card.playmatRow === 'lands') return true;
   if (card.playmatRow === 'battlefield') return false;
   const face = visiblePlaymatTypeLine(card);
-  if (/\bland\b/i.test(face)) return true;
-  const faceName = visiblePlaymatName(card).toLowerCase();
+  if (/\bland\b/i.test(face) || /\bterrain\b/i.test(face)) return true;
+  const faceName = visiblePlaymatName(card)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
   return (
     faceName === 'plains' ||
+    faceName === 'plaines' ||
     faceName === 'island' ||
+    faceName === 'ile' ||
     faceName === 'swamp' ||
+    faceName === 'marais' ||
     faceName === 'mountain' ||
+    faceName === 'montagne' ||
     faceName === 'forest' ||
-    faceName === 'wastes'
+    faceName === 'foret' ||
+    faceName === 'wastes' ||
+    faceName === 'etendues desolees'
   );
 }
 
@@ -770,14 +779,14 @@ export function isPlaymatEnchantment(
 ): boolean {
   if (isPlaymatLand(card)) return false;
   const face = visiblePlaymatTypeLine(card);
-  if (!/\benchantment\b/i.test(face)) return false;
-  if (/\bcreature\b/i.test(face)) return false;
+  if (!/\benchantment\b/i.test(face) && !/\benchantement\b/i.test(face)) return false;
+  if (/\bcreature\b/i.test(face) || /\bcréature\b/i.test(face)) return false;
   return true;
 }
 
 export function isPlaymatAttachable(card: Pick<TableCard, 'typeLine'>): boolean {
   const firstFace = (card.typeLine || '').split('//')[0].trim();
-  return /\baura\b/i.test(firstFace) || /\bequipment\b/i.test(firstFace);
+  return /\baura\b/i.test(firstFace) || /\bequipment\b/i.test(firstFace) || /\béquipement\b/i.test(firstFace);
 }
 
 export function tableBattlefieldCards(players: PlayerTableState[]): TableCard[] {

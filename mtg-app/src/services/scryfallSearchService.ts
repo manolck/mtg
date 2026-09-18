@@ -21,6 +21,7 @@ import {
   type CardSearchFilters,
 } from '../utils/cardSearchFilters';
 import { extractDfcBack } from '../utils/dfcFaces';
+import { scryfallPrintedName, scryfallPrintedText } from '../utils/scryfallPrinted';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
@@ -50,7 +51,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
   
   const mtgCard: MTGCard = {
     id: scryfallCard.id,
-    name: scryfallCard.name, // Toujours en anglais depuis Scryfall
+    name: scryfallPrintedName(scryfallCard) || scryfallCard.name,
     layout: scryfallCard.layout,
     manaCost: frontFace.mana_cost || scryfallCard.mana_cost,
     cmc: scryfallCard.cmc,
@@ -64,7 +65,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
     rarity: scryfallCard.rarity,
     set: scryfallCard.set,
     setName: scryfallCard.set_name,
-    text: frontFace.oracle_text || scryfallCard.oracle_text,
+    text: scryfallPrintedText(frontFace) || scryfallPrintedText(scryfallCard),
     artist: scryfallCard.artist,
     number: scryfallCard.collector_number,
     power: frontFace.power || scryfallCard.power,
@@ -534,7 +535,11 @@ function tokenSearchClause(query: string): string {
   return words.map((word) => `(name:${word} OR t:${word})`).join(' ');
 }
 
-export async function searchPlayTokens(query: string, limit = 30): Promise<MTGCard[]> {
+export async function searchPlayTokens(
+  query: string,
+  limit = 30,
+  preferredLanguage?: 'en' | 'fr',
+): Promise<MTGCard[]> {
   const trimmed = (query || '').trim();
   const inner = trimmed.length >= 2 ? tokenSearchClause(trimmed) : COMMON_TOKEN_QUERY;
   const scryfallQuery = `is:token ${inner}`.trim();
@@ -578,7 +583,17 @@ export async function searchPlayTokens(query: string, limit = 30): Promise<MTGCa
       cards.push(mtgCard);
       if (cards.length >= limit) break;
     }
-    return cards;
+    if (preferredLanguage !== 'fr') return cards;
+    const enriched = await Promise.all(cards.map((card) => enrichCardWithFrenchData(card, true)));
+    for (const card of enriched) {
+      const frenchName = card.foreignNames?.find((fn) => fn.language === 'French' || fn.language === 'fr');
+      if (!frenchName) continue;
+      if (frenchName.name) card.name = frenchName.name;
+      if (frenchName.type) card.type = frenchName.type;
+      if (frenchName.text) card.text = frenchName.text;
+      if (frenchName.imageUrl) card.imageUrl = frenchName.imageUrl;
+    }
+    return enriched;
   } catch {
     return [];
   }

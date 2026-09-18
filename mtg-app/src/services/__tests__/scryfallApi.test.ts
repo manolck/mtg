@@ -104,7 +104,7 @@ describe('scryfallApi', () => {
     });
 
     it('should return null for invalid set/number', async () => {
-      fetchWithRetry.mockResolvedValueOnce({
+      fetchWithRetry.mockResolvedValue({
         ok: false,
         status: 404,
       });

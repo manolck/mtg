@@ -4,6 +4,7 @@ import { LRUCache } from '../utils/LRUCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { scryfallQueue } from '../utils/apiQueue';
 import { extractDfcBack } from '../utils/dfcFaces';
+import { scryfallPrintedName, scryfallPrintedText } from '../utils/scryfallPrinted';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
@@ -48,7 +49,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
   
   const mtgCard: MTGCard = {
     id: scryfallCard.id,
-    name: scryfallCard.name,
+    name: scryfallPrintedName(scryfallCard) || scryfallCard.name,
     layout: scryfallCard.layout,
     manaCost: frontFace.mana_cost || scryfallCard.mana_cost,
     cmc: scryfallCard.cmc,
@@ -62,7 +63,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
     rarity: scryfallCard.rarity,
     set: scryfallCard.set,
     setName: scryfallCard.set_name,
-    text: frontFace.oracle_text || scryfallCard.oracle_text,
+    text: scryfallPrintedText(frontFace) || scryfallPrintedText(scryfallCard),
     artist: scryfallCard.artist,
     number: scryfallCard.collector_number,
     power: frontFace.power || scryfallCard.power,

@@ -3,6 +3,7 @@ import type { MTGCard } from '../../types/card';
 import type { TokenBlueprint } from '../../types/play';
 import { searchPlayTokens } from '../../services/scryfallSearchService';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { useProfile } from '../../hooks/useProfile';
 
 interface TokenSearchPanelProps {
   onClose: () => void;
@@ -41,6 +42,8 @@ function toBlueprint(card: MTGCard): TokenBlueprint | null {
 }
 
 export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
+  const { profile } = useProfile();
+  const preferredLanguage = profile?.preferredLanguage === 'fr' ? 'fr' : 'en';
   const [query, setQuery] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [results, setResults] = useState<MTGCard[]>([]);
@@ -65,7 +68,7 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
     setLoading(true);
     const timer = window.setTimeout(async () => {
       try {
-        const cards = await searchPlayTokens(query, 40);
+        const cards = await searchPlayTokens(query, 40, preferredLanguage);
         if (!cancelled) setResults(cards);
       } catch {
         if (!cancelled) setResults([]);
@@ -77,7 +80,7 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, preferredLanguage]);
 
   const addCard = (card: MTGCard) => {
     const blueprint = toBlueprint(card);

@@ -29,7 +29,12 @@ export function isDfcLayout(layout?: string): boolean {
 
 export function extractDfcBack(scryfallCard: {
   layout?: string;
-  card_faces?: Array<{ name?: string; type_line?: string; image_uris?: ImageUris }>;
+  card_faces?: Array<{
+    name?: string;
+    printed_name?: string;
+    type_line?: string;
+    image_uris?: ImageUris;
+  }>;
 }): DfcBack | null {
   if (!isDfcLayout(scryfallCard.layout)) return null;
   const back = scryfallCard.card_faces?.[1];
@@ -37,7 +42,7 @@ export function extractDfcBack(scryfallCard: {
   if (!backImageUrl) return null;
   return {
     backImageUrl,
-    backName: back?.name,
+    backName: back?.printed_name || back?.name,
     ...(back?.type_line ? { backTypeLine: back.type_line } : {}),
   };
 }

@@ -195,6 +195,12 @@ describe('playTable', () => {
     expect(filterLibraryCards(cards, 'bolt')).toHaveLength(1);
     expect(filterLibraryCards(cards, 'land')).toHaveLength(1);
     expect(filterLibraryCards(cards, '')).toHaveLength(2);
+    expect(
+      filterLibraryCards(
+        [{ ...cards[1], name: 'Éclair', oracleName: 'Lightning Bolt' }],
+        'bolt',
+      ),
+    ).toHaveLength(1);
   });
 
   it('searches a card from library into hand and can shuffle the rest', () => {
@@ -269,6 +275,7 @@ describe('playTable', () => {
 
   it('splits battlefield lands, enchantments and other permanents', () => {
     expect(isPlaymatLand({ name: 'Forest', typeLine: 'Basic Land — Forest' })).toBe(true);
+    expect(isPlaymatLand({ name: 'Forêt', typeLine: 'Terrain de base — Forêt' })).toBe(true);
     expect(isPlaymatLand({ name: 'Disciple of Freyalise // Garden of Freyalise', typeLine: 'Creature — Elf Druid // Land' })).toBe(
       false
     );
@@ -1070,5 +1077,11 @@ describe('playTable', () => {
     const version = state.version;
     state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1 });
     expect(state.version).toBe(version);
+
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2, displayName: 'Siège 3' }, { random: () => 0 });
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 3, displayName: 'Siège 4' }, { random: () => 0 });
+    expect(state.players.map((player) => player.seatIndex).sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2 });
+    expect(state.players).toHaveLength(4);
   });
 });

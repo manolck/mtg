@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { counterTone, listedCounterCounts } from '../../data/mtgCounters';
 import type { TableCard } from '../../types/play';
 import { visibleCardFace } from '../../utils/playTable';
@@ -15,6 +15,8 @@ interface PlayCardProps {
   card: TableCard;
   hideFace?: boolean;
   size?: keyof typeof SIZE_CLASS;
+  widthPx?: number;
+  style?: CSSProperties;
   className?: string;
   title?: string;
   canTransform?: boolean;
@@ -33,6 +35,8 @@ export function PlayCard({
   card,
   hideFace = false,
   size = 'md',
+  widthPx,
+  style,
   className = '',
   title,
   canTransform = false,
@@ -64,10 +68,11 @@ export function PlayCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={`relative aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] shadow-md ring-1 ring-white/10 shrink-0 transition-transform duration-150 hover:z-20 hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
-        SIZE_CLASS[size]
+        widthPx ? '' : SIZE_CLASS[size]
       } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${
         chosen ? 'ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.55)]' : ''
       } ${className}`}
+      style={widthPx ? { width: widthPx, ...style } : style}
     >
       <img
         src={src}

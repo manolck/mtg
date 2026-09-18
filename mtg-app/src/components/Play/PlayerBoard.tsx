@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import type { PlayerTableState, RevealAudience, TableCard, TokenBlueprint, ZoneName } from '../../types/play';
 import { REVEAL_ALL, ZONE_LABELS } from '../../types/play';
 import {
@@ -23,6 +23,9 @@ import { LibraryLookPanel, type LibraryLookMode } from './LibraryLookPanel';
 import { TokenSearchPanel } from './TokenSearchPanel';
 import { ZoneBrowsePanel } from './ZoneBrowsePanel';
 import { useDfcFaces } from '../../hooks/useDfcFaces';
+import { useLocalizedTableFaces } from '../../hooks/useLocalizedTableFaces';
+import { useProfile } from '../../hooks/useProfile';
+import { applyLocalizedTableCard } from '../../utils/localizedTableFaces';
 
 interface PlayerBoardProps {
   player: PlayerTableState;
@@ -31,6 +34,10 @@ interface PlayerBoardProps {
   compact?: boolean;
   /** Orient the playmat like sitting at this seat (lands at the bottom). */
   seatHome?: boolean;
+  /** Replier caméra / nom / vie par défaut (tables à 4). */
+  collapseSeatHud?: boolean;
+  /** Nombre de plateaux visibles, pour la taille de la main. */
+  visibleSeats?: number;
   viewerId: string;
   opponents?: Array<{ userId: string; displayName?: string }>;
   onDraw?: () => void;
@@ -95,12 +102,26 @@ function primaryMove(from: ZoneName): ZoneName | null {
   return null;
 }
 
+const CARD_ASPECT = 88 / 63;
+
+function cardWidthForSpace(width: number, height: number, kind: 'play' | 'hand'): number {
+  if (width < 48 || height < 48) return 0;
+  const byWidth = width / (kind === 'hand' ? 5.5 : 6.8);
+  const byHeight =
+    kind === 'hand' ? (height * 0.36) / CARD_ASPECT : (height * 0.3) / CARD_ASPECT;
+  const min = kind === 'hand' ? 44 : 40;
+  const max = kind === 'hand' ? 160 : 140;
+  return Math.round(Math.max(min, Math.min(max, byWidth, byHeight)));
+}
+
 export function PlayerBoard({
   player,
   isSelf,
   isTurn,
   compact = false,
   seatHome = false,
+  collapseSeatHud = false,
+  visibleSeats = 2,
   viewerId,
   opponents = [],
   onDraw,
@@ -145,10 +166,29 @@ export function PlayerBoard({
   const [browseZone, setBrowseZone] = useState<'graveyard' | 'exile' | null>(null);
   const [counterCardId, setCounterCardId] = useState<string | null>(null);
   const [handVisible, setHandVisible] = useState(true);
+  const [seatHudOpen, setSeatHudOpen] = useState<boolean | null>(null);
   const [handDrag, setHandDrag] = useState<{ instanceId: string; toIndex: number } | null>(null);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const skipHandClickRef = useRef(false);
+  const playmatRef = useRef<HTMLDivElement | null>(null);
+  const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
   const homeMat = isSelf || seatHome;
+  const hudOpen = seatHudOpen ?? !collapseSeatHud;
+  const canUseLibrary = isSelf && isTurn;
+  const playCardPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'play') || undefined;
+  const handCardPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'hand') || undefined;
+
+  useEffect(() => {
+    const el = playmatRef.current;
+    if (!el) return;
+    const apply = () => {
+      setPlaymatBox({ width: el.clientWidth, height: el.clientHeight });
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hudOpen, visibleSeats]);
   const { lands, enchantments, other } = useMemo(() => splitBattlefield(player.battlefield), [player.battlefield]);
   const allBattlefield = useMemo(
     () => tableBattlefieldCards(tablePlayers.length ? tablePlayers : [player]),
@@ -163,6 +203,22 @@ export function PlayerBoard({
     [player, allBattlefield],
   );
   const dfcFaces = useDfcFaces(dfcIds);
+  const { profile } = useProfile();
+  const preferFrench = profile?.preferredLanguage === 'fr';
+  const localizedIds = useMemo(() => {
+    const visible = [
+      ...player.hand,
+      ...player.battlefield,
+      ...player.graveyard,
+      ...player.exile,
+      ...player.command,
+      ...player.library.slice(0, lookMode ? 20 : 1),
+    ];
+    const extra = allBattlefield.filter((card) => !visible.some((item) => item.instanceId === card.instanceId));
+    const fromLibrary = libraryOpen ? player.library : [];
+    return [...visible, ...extra, ...fromLibrary].map((card) => card.scryfallId);
+  }, [player, allBattlefield, libraryOpen, lookMode]);
+  const localizedFaces = useLocalizedTableFaces(localizedIds, preferFrench);
 
   const counterCard = useMemo(() => {
     if (!counterCardId) return null;
@@ -181,12 +237,16 @@ export function PlayerBoard({
 
   const resolveCard = (card: TableCard): TableCard => {
     const extra = dfcFaces.get(card.scryfallId);
-    return {
-      ...card,
-      backImageUrl: card.backImageUrl || extra?.backImageUrl,
-      backName: card.backName || extra?.backName,
-      backTypeLine: card.backTypeLine || extra?.backTypeLine,
-    };
+    const loc = localizedFaces.get(card.scryfallId);
+    return applyLocalizedTableCard(
+      {
+        ...card,
+        backImageUrl: card.backImageUrl || extra?.backImageUrl,
+        backName: card.backName || extra?.backName,
+        backTypeLine: card.backTypeLine || extra?.backTypeLine,
+      },
+      loc,
+    );
   };
 
   const flipCard = (card: TableCard) => {
@@ -200,6 +260,12 @@ export function PlayerBoard({
   };
 
   useEffect(() => {
+    if (isTurn) return;
+    setLibraryOpen(false);
+    setLookMode(null);
+  }, [isTurn]);
+
+  useEffect(() => {
     if (!isSelf) return;
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -207,9 +273,11 @@ export function PlayerBoard({
         return;
       }
       if (event.key === 'd' || event.key === 'D') {
+        if (!isTurn) return;
         event.preventDefault();
         onDraw?.();
       } else if (event.key === '/' || event.key === 'f' || event.key === 'F') {
+        if (!isTurn) return;
         event.preventDefault();
         setLibraryOpen(true);
       } else if (event.key === '+' || event.key === '=') {
@@ -225,7 +293,7 @@ export function PlayerBoard({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isSelf, onDraw, onLife, onPassTurn]);
+  }, [isSelf, isTurn, onDraw, onLife, onPassTurn]);
 
   const showFace = (zone: ZoneName, card: TableCard) => {
     if (zone === 'graveyard' || zone === 'exile') {
@@ -325,7 +393,14 @@ export function PlayerBoard({
     setHover({ card: { ...resolved, imageUrl: face.imageUrl, name: face.name }, rect: event.currentTarget.getBoundingClientRect() });
   };
 
-  const renderOne = (zone: ZoneName, card: TableCard, size: 'sm' | 'md' | 'lg', extraClass = '') => {
+  const renderOne = (
+    zone: ZoneName,
+    card: TableCard,
+    size: 'sm' | 'md' | 'lg',
+    extraClass = '',
+    widthPx?: number,
+    extraStyle?: CSSProperties,
+  ) => {
     const resolved = resolveCard(card);
     const pickingHost = Boolean(attachPickId && zone === 'battlefield' && isAttachHostCandidate(resolved, attachPickId));
     const chosen = zone === 'hand' && isHandCardChosen(player, resolved.instanceId);
@@ -335,6 +410,8 @@ export function PlayerBoard({
         card={resolved}
         hideFace={!showFace(zone, resolved)}
         size={size}
+        widthPx={widthPx}
+        style={extraStyle}
         chosen={chosen}
         title={
           !isSelf && zone === 'hand'
@@ -371,9 +448,19 @@ export function PlayerBoard({
   };
 
   const renderCards = (zone: ZoneName, cards: TableCard[], size: 'sm' | 'md' | 'lg', overlap = false) => {
-    const peek = size === 'sm' ? 19 : size === 'lg' ? 26 : 22;
-    const overlapClass =
-      size === 'sm'
+    const widthPx = size === 'md' ? playCardPx : undefined;
+    const peek = widthPx
+      ? Math.round(widthPx * CARD_ASPECT * 0.22)
+      : size === 'sm'
+        ? 19
+        : size === 'lg'
+          ? 26
+          : 22;
+    const overlapClass = widthPx
+      ? overlap
+        ? 'hover:ml-0'
+        : ''
+      : size === 'sm'
         ? '-ml-[2.1rem] sm:-ml-[2.4rem] hover:ml-0'
         : size === 'lg'
           ? '-ml-[3.9rem] sm:-ml-[4.8rem] md:-ml-[5.1rem] hover:ml-0'
@@ -383,8 +470,10 @@ export function PlayerBoard({
         {cards.map((card, index) => {
           const attached = zone === 'battlefield' ? attachmentsOn(card.instanceId, allBattlefield) : [];
           const extraClass = overlap && index > 0 ? overlapClass : '';
+          const extraStyle =
+            widthPx && overlap && index > 0 ? { marginLeft: -Math.round(widthPx * 0.58) } : undefined;
           if (attached.length === 0) {
-            return renderOne(zone, card, size, extraClass);
+            return renderOne(zone, card, size, extraClass, widthPx, extraStyle);
           }
           return (
             <div
@@ -398,11 +487,11 @@ export function PlayerBoard({
                   className="absolute left-1/2 -translate-x-1/2"
                   style={{ top: attachIndex * peek, zIndex: attachIndex }}
                 >
-                  {renderOne('battlefield', item, size)}
+                  {renderOne('battlefield', item, size, '', widthPx)}
                 </div>
               ))}
               <div className="relative" style={{ zIndex: attached.length + 1 }}>
-                {renderOne(zone, card, size, extraClass)}
+                {renderOne(zone, card, size, extraClass, widthPx, extraStyle)}
               </div>
             </div>
           );
@@ -420,15 +509,15 @@ export function PlayerBoard({
         ? Boolean(resolvedTop && canSeeLibraryTop(player, viewerId))
         : Boolean(resolvedTop && showFace(zone, resolvedTop));
     const topFace = resolvedTop ? visibleCardFace(resolvedTop) : undefined;
-    const size = 'w-[3.3rem] sm:w-[4.02rem]';
+    const size = 'w-[2.65rem] sm:w-[2.9rem]';
     const shortLabel =
       zone === 'command' ? 'CMD' : zone === 'library' ? 'LIB' : zone === 'graveyard' ? 'CIM' : 'EXL';
     const count = cards.length;
     const revealed = zone === 'library' && canSeeLibraryTop(player, viewerId);
     const hiddenInPile = (zone === 'graveyard' || zone === 'exile') && cards.some((card) => card.facedown);
     return (
-      <div className="flex flex-col items-center gap-0.5 min-w-0">
-        <p className="text-[8px] sm:text-[9px] font-semibold tracking-[0.14em] text-slate-700 uppercase leading-none truncate max-w-full">
+      <div className="flex flex-col items-center gap-px w-[2.65rem] sm:w-[2.9rem] min-w-0">
+        <p className="text-[7px] sm:text-[8px] font-semibold tracking-[0.06em] text-slate-700 uppercase leading-none truncate w-full text-center">
           {shortLabel}
           {revealed ? ' · 👁' : ''}
           {hiddenInPile ? ' · 🂠' : ''}
@@ -445,8 +534,9 @@ export function PlayerBoard({
             }
           }}
           onContextMenu={(event) => {
-            if (zone === 'library' && isSelf) {
-              openMenu(event, resolvedTop || null, 'libraryPile');
+            if (zone === 'library') {
+              if (canUseLibrary) openMenu(event, resolvedTop || null, 'libraryPile');
+              else event.preventDefault();
               return;
             }
             if (isSelf && top) openMenu(event, resolveCard(top), zone);
@@ -465,7 +555,9 @@ export function PlayerBoard({
           } shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70 shrink-0`}
           title={
             zone === 'library' && isSelf
-              ? `Bibliothèque · ${count} cartes · clic droit : piocher, rechercher, regard…`
+              ? canUseLibrary
+                ? `Bibliothèque · ${count} cartes · clic : piocher · clic droit : rechercher, regard…`
+                : `Bibliothèque · ${count} cartes · disponible pendant votre tour`
               : zone === 'graveyard' || zone === 'exile'
                 ? `${ZONE_LABELS[zone]} · ${count} · clic : consulter`
                 : `${ZONE_LABELS[zone]} · ${count}`
@@ -483,12 +575,12 @@ export function PlayerBoard({
           ) : (
             <span className="absolute inset-0 rounded-md bg-[#241c2c]" />
           )}
-          <span className="relative z-10 text-[10px] font-semibold bg-black/70 px-1.5 rounded">{count}</span>
-          {isSelf && resolvedTop && isDoubleFacedCard(resolvedTop) && (
+          <span className="relative z-10 text-[9px] font-semibold bg-black/70 px-1 rounded">{count}</span>
+          {(zone === 'library' ? canUseLibrary : isSelf) && resolvedTop && isDoubleFacedCard(resolvedTop) && (
             <span
               role="button"
               title={resolvedTop.transformed ? 'Revenir au recto' : 'Voir le verso'}
-              className="absolute bottom-0.5 right-0.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-[11px] text-amber-100 ring-1 ring-white/30 hover:bg-amber-500 hover:text-black"
+              className="absolute bottom-0.5 right-0.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-black/75 text-[10px] text-amber-100 ring-1 ring-white/30 hover:bg-amber-500 hover:text-black"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -607,15 +699,27 @@ export function PlayerBoard({
 
   const renderHeldHand = (anchor: 'top' | 'bottom') => {
     const cards = previewHand(player.hand);
-    const size: 'sm' | 'lg' = 'lg';
+    const size: 'sm' | 'md' | 'lg' = visibleSeats >= 4 ? 'sm' : visibleSeats >= 3 ? 'md' : 'lg';
+    const widthPx = handCardPx;
     const n = cards.length;
     const spread = Math.min(anchor === 'top' ? 5 : 6.5, 32 / Math.max(n - 1, 1));
-    const overlap = size === 'sm' ? '-1.98rem' : '-3.42rem';
+    const overlap = widthPx
+      ? `${-Math.round(widthPx * 0.52)}px`
+      : size === 'sm'
+        ? '-1.98rem'
+        : size === 'md'
+          ? '-2.88rem'
+          : '-3.42rem';
     const peek = anchor === 'bottom' ? '48%' : '-48%';
     const hidden = anchor === 'bottom' ? '108%' : '-108%';
     const showToggle = isSelf || n > 0;
     const canReorder = isSelf && n > 1;
     const chosenCount = (player.chosenHandCards || []).length;
+    const hoverLiftPx = Math.round((widthPx || (size === 'sm' ? 48 : size === 'md' ? 72 : 96)) * 0.42);
+    const hoverLift =
+      anchor === 'bottom'
+        ? 'hover:-translate-y-[var(--hand-hover-y)] hover:z-50'
+        : 'hover:translate-y-[var(--hand-hover-y)] hover:z-50';
 
     const onHandPointerDown = (event: PointerEvent<HTMLDivElement>, instanceId: string) => {
       if (!canReorder || event.button !== 0 || event.shiftKey) return;
@@ -726,11 +830,12 @@ export function PlayerBoard({
               className={`flex ${anchor === 'bottom' ? 'items-end' : 'items-start'} ${
                 handVisible ? 'pointer-events-auto' : 'pointer-events-none'
               }`}
+              style={{ ['--hand-hover-y' as string]: `${hoverLiftPx}px` }}
             >
               {cards.map((card, index) => {
                 const offset = index - (n - 1) / 2;
                 const rotate = offset * spread;
-                const lift = Math.abs(offset) * (size === 'sm' ? 3 : 5);
+                const lift = Math.abs(offset) * Math.max(3, Math.round((widthPx || 72) / 18));
                 const dragging = handDrag?.instanceId === card.instanceId;
                 return (
                   <div
@@ -760,13 +865,8 @@ export function PlayerBoard({
                           : canReorder
                             ? 'cursor-grab'
                             : ''
-                      } ${
-                        dragging
-                          ? ''
-                          : anchor === 'bottom'
-                            ? 'hover:-translate-y-[3.9rem] hover:z-50'
-                            : 'hover:translate-y-[2.88rem] hover:z-50'
-                      }`.trim(),
+                      } ${dragging ? '' : hoverLift}`.trim(),
+                      widthPx,
                     )}
                   </div>
                 );
@@ -779,11 +879,11 @@ export function PlayerBoard({
   };
 
   const enchantZone = (
-    <div className="flex-1 min-h-0 bg-[#f4b6d2] border border-rose-400/60 rounded-sm px-1 py-1 overflow-hidden flex flex-col">
-      {zoneTitle('Enchantment Zone')}
+    <div className="flex-1 min-h-0 min-w-0 bg-[#f4b6d2] border border-rose-400/60 rounded-sm px-0.5 py-0.5 overflow-hidden flex flex-col">
+      {zoneTitle('Ench.')}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {enchantments.length === 0 ? (
-          <p className="text-[10px] text-black/35 italic text-center py-3">—</p>
+          <p className="text-[10px] text-black/35 italic text-center py-2">—</p>
         ) : (
           renderCards('battlefield', enchantments, 'sm')
         )}
@@ -792,8 +892,8 @@ export function PlayerBoard({
   );
 
   const pilesRow = (
-    <div className="shrink-0 grid grid-cols-2 gap-1 py-1 px-0.5 place-items-center">
-      {pile('library', isSelf ? () => setLibraryOpen(true) : undefined)}
+    <div className="shrink-0 grid grid-cols-[2.65rem_2.65rem] sm:grid-cols-[2.9rem_2.9rem] gap-0.5 py-0.5 place-items-center">
+      {pile('library', canUseLibrary ? () => onDraw?.() : undefined)}
       {pile('graveyard', () => setBrowseZone('graveyard'))}
       {pile('exile', () => setBrowseZone('exile'))}
       {pile('command')}
@@ -807,39 +907,74 @@ export function PlayerBoard({
       }`}
     >
       <div className="relative flex-1 min-h-0 flex bg-white">
-        <aside className="relative z-10 shrink-0 w-[5.75rem] sm:w-[7.75rem] flex flex-col items-center gap-1.5 p-1.5 sm:p-2 border-r border-black/15 bg-white text-slate-900">
-          {videoSlot}
-          <p className="text-[8px] font-bold tracking-[0.2em] text-slate-500 -mt-1">CAM</p>
-          <div className="min-w-0 w-full text-center">
-            <p className="font-semibold truncate leading-tight text-xs sm:text-sm">
-              {player.displayName || 'Joueur'}
-            </p>
-            <p className="text-[10px] text-slate-500 truncate" title={commanderLabel || undefined}>
-              {commanderLabel || 'Commandant'}
-            </p>
-            {isTurn ? (
-              <p className="text-[9px] font-medium text-amber-700 uppercase tracking-[0.18em] mt-0.5">Tour</p>
-            ) : null}
-          </div>
-          <div className="w-full flex-1 min-h-[5.5rem] rounded-sm bg-[#6b1020] ring-1 ring-red-950 px-1 py-1.5 flex flex-col items-center justify-center text-white">
-            <p className="text-[8px] font-semibold tracking-[0.08em] text-red-100/80 uppercase text-center leading-tight mb-1">
-              Gestion de la vie
-            </p>
-            {lifeBlock}
-            {isSelf && (
-              <button
-                type="button"
-                className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 mt-1"
-                onClick={() => onPoison?.(1)}
-                title="Marqueur poison"
+        {hudOpen ? (
+          <aside className="relative z-10 shrink-0 w-[5.75rem] sm:w-[7.75rem] flex flex-col items-center gap-1.5 p-1.5 sm:p-2 border-r border-black/15 bg-white text-slate-900">
+            <button
+              type="button"
+              className="absolute top-1 right-0.5 z-30 h-6 w-5 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              onClick={() => setSeatHudOpen(false)}
+              title="Replier caméra et vie"
+              aria-expanded="true"
+              aria-label="Replier caméra et vie"
+            >
+              <span aria-hidden className="block text-sm leading-none">‹</span>
+            </button>
+            {videoSlot}
+            <p className="text-[8px] font-bold tracking-[0.2em] text-slate-500 -mt-1">CAM</p>
+            <div className="min-w-0 w-full text-center">
+              <p className="font-semibold truncate leading-tight text-xs sm:text-sm">
+                {player.displayName || 'Joueur'}
+              </p>
+              <p className="text-[10px] text-slate-500 truncate" title={commanderLabel || undefined}>
+                {commanderLabel || 'Commandant'}
+              </p>
+              {isTurn ? (
+                <p className="text-[9px] font-medium text-amber-700 uppercase tracking-[0.18em] mt-0.5">Tour</p>
+              ) : null}
+            </div>
+            <div className="w-full flex-1 min-h-[5.5rem] rounded-sm bg-[#6b1020] ring-1 ring-red-950 px-1 py-1.5 flex flex-col items-center justify-center text-white">
+              <p className="text-[8px] font-semibold tracking-[0.08em] text-red-100/80 uppercase text-center leading-tight mb-1">
+                Gestion de la vie
+              </p>
+              {lifeBlock}
+              {isSelf && (
+                <button
+                  type="button"
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 mt-1"
+                  onClick={() => onPoison?.(1)}
+                  title="Marqueur poison"
+                >
+                  +☠
+                </button>
+              )}
+            </div>
+          </aside>
+        ) : (
+          <div className="relative z-10 shrink-0 w-6 sm:w-7 flex flex-col border-r border-black/15 bg-white text-slate-800">
+            <button
+              type="button"
+              className="flex-1 min-h-0 w-full flex flex-col items-center justify-center gap-2 py-2 hover:bg-slate-50"
+              onClick={() => setSeatHudOpen(true)}
+              title={`Déplier caméra et vie — ${player.displayName || 'Joueur'}`}
+              aria-expanded="false"
+              aria-label={`Déplier caméra et vie de ${player.displayName || 'Joueur'}`}
+            >
+              <span aria-hidden className="text-sm leading-none text-slate-600">›</span>
+              <span
+                className={`text-[11px] font-black tabular-nums leading-none ${
+                  player.life <= 5 ? 'text-red-600' : 'text-slate-800'
+                }`}
               >
-                +☠
-              </button>
-            )}
+                {player.life}
+              </span>
+              {isTurn ? (
+                <span className="text-[8px] font-semibold uppercase tracking-wider text-amber-700">Tour</span>
+              ) : null}
+            </button>
           </div>
-        </aside>
+        )}
 
-        <div className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        <div ref={playmatRef} className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
           {homeMat ? (
             <>
               {battlefieldZone}
@@ -867,7 +1002,7 @@ export function PlayerBoard({
           )}
         </div>
 
-        <aside className="relative z-10 shrink-0 w-[9.5rem] sm:w-[12rem] lg:w-[14.5rem] flex flex-col gap-1 p-1 bg-white border-l border-black/15">
+        <aside className="relative z-10 shrink-0 w-[5.85rem] sm:w-[6.35rem] flex flex-col gap-0.5 p-0.5 bg-white border-l border-black/15">
           {homeMat ? (
             <>
               {enchantZone}
@@ -1423,9 +1558,9 @@ export function PlayerBoard({
         />
       )}
 
-      {libraryOpen && isSelf && (
+      {libraryOpen && canUseLibrary && (
         <LibrarySearchPanel
-          cards={player.library}
+          cards={player.library.map(resolveCard)}
           onClose={() => setLibraryOpen(false)}
           onTake={(card, to, options) => {
             onSearchLibrary?.(card.instanceId, to, options);
@@ -1434,7 +1569,7 @@ export function PlayerBoard({
         />
       )}
 
-      {lookMode && isSelf && (
+      {lookMode && canUseLibrary && (
         <LibraryLookPanel
           mode={lookMode}
           library={player.library.map(resolveCard)}
@@ -1456,7 +1591,7 @@ export function PlayerBoard({
       {browseZone && (
         <ZoneBrowsePanel
           zone={browseZone}
-          cards={player[browseZone]}
+          cards={player[browseZone].map(resolveCard)}
           ownerId={player.userId}
           ownerName={player.displayName}
           viewerId={viewerId}
@@ -1480,8 +1615,8 @@ export function PlayerBoard({
 
       {lightbox && (
         <CardLightbox
-          imageUrl={visibleCardFace(lightbox).imageUrl}
-          name={visibleCardFace(lightbox).name}
+          imageUrl={visibleCardFace(resolveCard(lightbox)).imageUrl}
+          name={visibleCardFace(resolveCard(lightbox)).name}
           onClose={() => setLightbox(null)}
         />
       )}

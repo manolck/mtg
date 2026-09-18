@@ -46,7 +46,7 @@ function recordToUserProfile(record: any): UserProfile {
     pseudonym: record.pseudonym,
     avatarId: record.avatarId || 'default',
     roles,
-    preferredLanguage: record.preferredLanguage || 'en',
+    preferredLanguage: record.preferredLanguage || 'fr',
     createdAt: new Date(record.created),
     updatedAt: new Date(record.updated),
   };

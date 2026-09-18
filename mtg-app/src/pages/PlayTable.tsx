@@ -381,7 +381,9 @@ export function PlayTable() {
         current: stateRef.current,
         action,
       });
+      stateRef.current = next;
       setState(next);
+      return next;
     } catch (err) {
       errorHandler.handleAndShowError(err);
       void load();
@@ -425,6 +427,7 @@ export function PlayTable() {
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
   const focusedOther = tableView === 'active' && Boolean(activePlayer && activePlayer.userId !== currentUser.uid);
+  const nextDummySeat = [0, 1, 2, 3].find((index) => !state.players.some((player) => player.seatIndex === index));
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
@@ -440,6 +443,8 @@ export function PlayTable() {
         isTurn={state.turnSeatIndex === player.seatIndex}
         compact={compact}
         seatHome={tableView === 'active'}
+        collapseSeatHud={shownCount > 3}
+        visibleSeats={shownCount}
         videoSlot={
           <VideoTile
             stream={stream}
@@ -580,15 +585,20 @@ export function PlayTable() {
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {!state.players.some((p) => p.seatIndex === 1) && (
+          {nextDummySeat != null && (
             <button
               type="button"
               className="relative z-30 text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 min-h-[36px]"
               onClick={() =>
-                send({ type: 'addSeat', userId: currentUser.uid, seatIndex: 1, displayName: 'Siège 2' })
+                void send({
+                  type: 'addSeat',
+                  userId: currentUser.uid,
+                  seatIndex: nextDummySeat,
+                  displayName: `Siège ${nextDummySeat + 1}`,
+                })
               }
             >
-              Ajouter siège 2
+              Ajouter siège {nextDummySeat + 1}
             </button>
           )}
           <RtcControls

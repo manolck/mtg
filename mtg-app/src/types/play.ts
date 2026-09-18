@@ -47,6 +47,8 @@ export interface TableCard {
   instanceId: string;
   scryfallId: string;
   name: string;
+  /** Nom oracle anglais, conservé à l’affichage si la carte est traduite. */
+  oracleName?: string;
   imageUrl?: string;
   backImageUrl?: string;
   backName?: string;
