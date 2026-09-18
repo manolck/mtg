@@ -149,7 +149,6 @@ function senderForKind(pc: RTCPeerConnection, kind: 'audio' | 'video'): RTCRtpSe
   const withTrack = pc.getSenders().find((sender) => sender.track?.kind === kind);
   if (withTrack) return withTrack;
   const transceiver = pc.getTransceivers().find((item) => {
-    if (item.stopped) return false;
     return item.sender.track?.kind === kind || item.receiver.track.kind === kind;
   });
   return transceiver?.sender;
