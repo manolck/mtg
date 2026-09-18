@@ -1,10 +1,19 @@
 import {
   applyMatchAction,
+  attachmentsOn,
+  canSeeGraveOrExileFace,
+  canSeeHandCard,
+  canSeeLibraryTop,
+  canSeePlayerHand,
   createInitialMatchState,
   filterLibraryCards,
+  filterPublicZoneCards,
+  isPlaymatAttachable,
   isPlaymatLand,
   snapshotFromDeck,
   splitBattlefield,
+  tableBattlefieldCards,
+  visibleOpponentHand,
 } from '../playTable';
 import type { DeckEntry } from '../../types/deck';
 import type { PlaySeat } from '../../types/play';
@@ -218,18 +227,35 @@ describe('playTable', () => {
     expect(state.turnSeatIndex).toBe(0);
   });
 
-  it('splits battlefield lands from other permanents', () => {
+  it('splits battlefield lands, enchantments and other permanents', () => {
     expect(isPlaymatLand({ name: 'Forest', typeLine: 'Basic Land — Forest' })).toBe(true);
     expect(isPlaymatLand({ name: 'Disciple of Freyalise // Garden of Freyalise', typeLine: 'Creature — Elf Druid // Land' })).toBe(
       false
     );
     expect(isPlaymatLand({ name: 'Kinnan, Bonder Prodigy', typeLine: 'Legendary Creature — Merfolk Druid' })).toBe(false);
-    const { lands, other } = splitBattlefield([
+    const { lands, enchantments, other } = splitBattlefield([
       { instanceId: '1', scryfallId: 'a', name: 'Forest', typeLine: 'Basic Land — Forest', tapped: false, facedown: false },
       { instanceId: '2', scryfallId: 'b', name: 'Kinnan, Bonder Prodigy', typeLine: 'Legendary Creature — Merfolk Druid', tapped: false, facedown: false },
+      { instanceId: '3', scryfallId: 'c', name: 'Rhystic Study', typeLine: 'Enchantment', tapped: false, facedown: false },
+      { instanceId: '4', scryfallId: 'd', name: 'Nylea, God of the Hunt', typeLine: 'Legendary Enchantment Creature — God', tapped: false, facedown: false },
     ]);
     expect(lands.map((c) => c.name)).toEqual(['Forest']);
-    expect(other.map((c) => c.name)).toEqual(['Kinnan, Bonder Prodigy']);
+    expect(enchantments.map((c) => c.name)).toEqual(['Rhystic Study']);
+    expect(other.map((c) => c.name)).toEqual(['Kinnan, Bonder Prodigy', 'Nylea, God of the Hunt']);
+    const attached = splitBattlefield([
+      { instanceId: 'h', scryfallId: 'h', name: 'Bear', typeLine: 'Creature — Bear', tapped: false, facedown: false },
+      {
+        instanceId: 'a',
+        scryfallId: 'a',
+        name: 'Snake Umbra',
+        typeLine: 'Enchantment — Aura',
+        tapped: false,
+        facedown: false,
+        attachedTo: 'h',
+      },
+    ]);
+    expect(attached.enchantments).toHaveLength(0);
+    expect(attached.other.map((c) => c.name)).toEqual(['Bear']);
   });
 
   it('flips only double-faced cards to their printed back', () => {
@@ -290,5 +316,491 @@ describe('playTable', () => {
 
     state = applyMatchAction(state, { type: 'flip', userId: playerId, instanceId: dfc!.instanceId });
     expect(state.players[0].battlefield.find((c) => c.instanceId === dfc!.instanceId)?.transformed).toBe(false);
+  });
+
+  it('puts a card on top, bottom, or Nth from top of the library', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Order',
+            format: 'modern',
+            mainboard: [
+              { scryfallId: 'a', name: 'Alpha', quantity: 1 },
+              { scryfallId: 'b', name: 'Bravo', quantity: 1 },
+              { scryfallId: 'c', name: 'Charlie', quantity: 1 },
+              { scryfallId: 'd', name: 'Delta', quantity: 1 },
+              { scryfallId: 'e', name: 'Echo', quantity: 1 },
+              { scryfallId: 'f', name: 'Foxtrot', quantity: 1 },
+              { scryfallId: 'g', name: 'Golf', quantity: 1 },
+              { scryfallId: 'h', name: 'Hotel', quantity: 1 },
+            ],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 }
+    );
+    const handCard = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: handCard.instanceId,
+      from: 'hand',
+      to: 'library',
+      toTop: true,
+    });
+    expect(state.players[0].library[0].instanceId).toBe(handCard.instanceId);
+
+    const nextHand = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: nextHand.instanceId,
+      from: 'hand',
+      to: 'library',
+    });
+    const lib = state.players[0].library;
+    expect(lib[lib.length - 1].instanceId).toBe(nextHand.instanceId);
+
+    const third = state.players[0].hand[0];
+    const countBefore = state.players[0].library.length;
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: third.instanceId,
+      from: 'hand',
+      to: 'library',
+      libraryPosition: 2,
+    });
+    expect(state.players[0].library[1].instanceId).toBe(third.instanceId);
+    expect(state.players[0].library).toHaveLength(countBefore + 1);
+
+    const lastHand = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: lastHand.instanceId,
+      from: 'hand',
+      to: 'library',
+      libraryPosition: 99,
+    });
+    const after = state.players[0].library;
+    expect(after[after.length - 1].instanceId).toBe(lastHand.instanceId);
+  });
+
+  it('shows and hides a hand, a card, and the library top to chosen viewers', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          displayName: 'A',
+          deckSnapshot: {
+            deckId: 'a',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          displayName: 'B',
+          deckSnapshot: {
+            deckId: 'b',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 }
+    );
+    const owner = () => state.players[0];
+    const card = owner().hand[0];
+
+    state = applyMatchAction(state, { type: 'showHand', userId: 'u1', viewerIds: ['u2'] });
+    expect(canSeePlayerHand(owner(), 'u2')).toBe(true);
+    expect(canSeePlayerHand(owner(), 'u3')).toBe(false);
+
+    state = applyMatchAction(state, { type: 'hideHand', userId: 'u1' });
+    expect(canSeePlayerHand(owner(), 'u2')).toBe(false);
+
+    state = applyMatchAction(state, {
+      type: 'showHandCard',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      viewerIds: ['*'],
+    });
+    expect(canSeeHandCard(owner(), card, 'u2')).toBe(true);
+    expect(visibleOpponentHand(owner(), 'u2')).toHaveLength(1);
+
+    state = applyMatchAction(state, { type: 'hideHandCard', userId: 'u1', instanceId: card.instanceId });
+    expect(canSeeHandCard(owner(), card, 'u2')).toBe(false);
+
+    state = applyMatchAction(state, { type: 'revealLibraryTop', userId: 'u1', viewerIds: ['u2'] });
+    expect(canSeeLibraryTop(owner(), 'u2')).toBe(true);
+    expect(canSeeLibraryTop(owner(), 'u1')).toBe(true);
+
+    state = applyMatchAction(state, { type: 'hideLibraryTop', userId: 'u1' });
+    expect(canSeeLibraryTop(owner(), 'u2')).toBe(false);
+
+    state = applyMatchAction(state, { type: 'revealLibraryTop', userId: 'u1', viewerIds: ['*'] });
+    state = applyMatchAction(state, { type: 'shuffleLibrary', userId: 'u1' }, { random: () => 0.4 });
+    expect(canSeeLibraryTop(owner(), 'u2')).toBe(false);
+  });
+
+  it('attaches several auras or equipment to a host and clears them if the host leaves', () => {
+    expect(isPlaymatAttachable({ typeLine: 'Enchantment — Aura' })).toBe(true);
+    expect(isPlaymatAttachable({ typeLine: 'Artifact — Equipment' })).toBe(true);
+    expect(isPlaymatAttachable({ typeLine: 'Enchantment' })).toBe(false);
+
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Attach',
+            format: 'modern',
+            mainboard: [
+              { scryfallId: 'bear', name: 'Grizzly Bears', quantity: 4, typeLine: 'Creature — Bear' },
+              { scryfallId: 'umbra', name: 'Snake Umbra', quantity: 4, typeLine: 'Enchantment — Aura' },
+              { scryfallId: 'sword', name: 'Sword of Fire and Ice', quantity: 4, typeLine: 'Artifact — Equipment' },
+            ],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0.35 },
+    );
+    const owned = () => [...state.players[0].hand, ...state.players[0].library];
+    const zoneOf = (instanceId: string) =>
+      state.players[0].hand.some((card) => card.instanceId === instanceId) ? 'hand' : 'library';
+    const creature = owned().find((card) => card.name === 'Grizzly Bears');
+    const aura = owned().find((card) => card.name === 'Snake Umbra');
+    const gear = owned().find((card) => card.name === 'Sword of Fire and Ice');
+    expect(creature && aura && gear).toBeTruthy();
+
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: creature!.instanceId,
+      from: zoneOf(creature!.instanceId),
+      to: 'battlefield',
+    });
+    state = applyMatchAction(state, {
+      type: 'attachCard',
+      userId: 'u1',
+      instanceId: aura!.instanceId,
+      hostInstanceId: creature!.instanceId,
+    });
+    state = applyMatchAction(state, {
+      type: 'attachCard',
+      userId: 'u1',
+      instanceId: gear!.instanceId,
+      hostInstanceId: creature!.instanceId,
+    });
+
+    const battlefield = state.players[0].battlefield;
+    expect(battlefield.find((card) => card.instanceId === aura!.instanceId)?.attachedTo).toBe(creature!.instanceId);
+    expect(battlefield.find((card) => card.instanceId === gear!.instanceId)?.attachedTo).toBe(creature!.instanceId);
+    expect(attachmentsOn(creature!.instanceId, tableBattlefieldCards(state.players)).map((card) => card.name).sort()).toEqual([
+      'Snake Umbra',
+      'Sword of Fire and Ice',
+    ]);
+    expect(splitBattlefield(battlefield).enchantments).toHaveLength(0);
+    expect(splitBattlefield(battlefield).other.map((card) => card.name)).toEqual(['Grizzly Bears']);
+
+    state = applyMatchAction(state, {
+      type: 'attachCard',
+      userId: 'u1',
+      instanceId: gear!.instanceId,
+      hostInstanceId: null,
+    });
+    expect(state.players[0].battlefield.find((card) => card.instanceId === gear!.instanceId)?.attachedTo).toBeUndefined();
+
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: creature!.instanceId,
+      from: 'battlefield',
+      to: 'graveyard',
+    });
+    expect(state.players[0].battlefield.find((card) => card.instanceId === aura!.instanceId)?.attachedTo).toBeUndefined();
+    expect(state.players[0].graveyard.some((card) => card.instanceId === creature!.instanceId)).toBe(true);
+  });
+
+  it('lets the owner see facedown graveyard and exile cards while opponents see the back', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          displayName: 'A',
+          deckSnapshot: {
+            deckId: 'a',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          displayName: 'B',
+          deckSnapshot: {
+            deckId: 'b',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const card = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      from: 'hand',
+      to: 'graveyard',
+      facedown: true,
+    });
+    const hidden = state.players[0].graveyard.find((item) => item.instanceId === card.instanceId);
+    expect(hidden?.facedown).toBe(true);
+    expect(canSeeGraveOrExileFace('u1', hidden!, 'u1')).toBe(true);
+    expect(canSeeGraveOrExileFace('u1', hidden!, 'u2')).toBe(false);
+    expect(filterPublicZoneCards(state.players[0].graveyard, 'bolt', 'u1', 'u2')).toHaveLength(0);
+    expect(filterPublicZoneCards(state.players[0].graveyard, 'bolt', 'u1', 'u1').length).toBeGreaterThan(0);
+
+    state = applyMatchAction(state, { type: 'setFacedown', userId: 'u1', instanceId: card.instanceId, facedown: false });
+    expect(state.players[0].graveyard.find((item) => item.instanceId === card.instanceId)?.facedown).toBe(false);
+    expect(canSeeGraveOrExileFace('u1', state.players[0].graveyard[0], 'u2')).toBe(true);
+
+    const exileCard = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: exileCard.instanceId,
+      from: 'hand',
+      to: 'exile',
+      facedown: true,
+    });
+    expect(state.players[0].exile[0].facedown).toBe(true);
+    expect(canSeeGraveOrExileFace('u1', state.players[0].exile[0], 'u2')).toBe(false);
+  });
+
+  it('adds, stacks, and clears counters on cards, keeping them across zones', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Counters',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const card = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      from: 'hand',
+      to: 'battlefield',
+    });
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      counterId: '+1/+1',
+      delta: 2,
+    });
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      counterId: '−1/−1',
+      delta: 1,
+    });
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      counterId: 'Charge',
+      delta: 1,
+    });
+    let onBoard = state.players[0].battlefield.find((item) => item.instanceId === card.instanceId);
+    expect(onBoard?.counters).toEqual({ '+1/+1': 2, '-1/-1': 1, Charge: 1 });
+
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      counterId: '+1/+1',
+      delta: -1,
+    });
+    onBoard = state.players[0].battlefield.find((item) => item.instanceId === card.instanceId);
+    expect(onBoard?.counters?.['+1/+1']).toBe(1);
+
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      from: 'battlefield',
+      to: 'graveyard',
+    });
+    expect(state.players[0].graveyard.find((item) => item.instanceId === card.instanceId)?.counters).toEqual({
+      '+1/+1': 1,
+      '-1/-1': 1,
+      Charge: 1,
+    });
+
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      counterId: '*',
+      delta: 0,
+    });
+    expect(state.players[0].graveyard.find((item) => item.instanceId === card.instanceId)?.counters).toBeUndefined();
+
+    const libraryCard = state.players[0].library[0];
+    const before = state.version;
+    state = applyMatchAction(state, {
+      type: 'setCounter',
+      userId: 'u1',
+      instanceId: libraryCard.instanceId,
+      counterId: '+1/+1',
+      delta: 1,
+    });
+    expect(state.version).toBe(before);
+    expect(state.players[0].library[0].counters).toBeUndefined();
+  });
+
+  it('creates searchable tokens on the battlefield and can remove them', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Tokens',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    state = applyMatchAction(state, {
+      type: 'addToken',
+      userId: 'u1',
+      quantity: 2,
+      card: {
+        scryfallId: 'saproling',
+        name: 'Saproling',
+        typeLine: 'Token Creature — Saproling',
+        imageUrl: 'https://example.com/saproling.jpg',
+      },
+    });
+    const tokens = state.players[0].battlefield.filter((card) => card.isToken);
+    expect(tokens).toHaveLength(2);
+    expect(tokens.every((card) => card.name === 'Saproling' && card.facedown === false)).toBe(true);
+    expect(new Set(tokens.map((card) => card.instanceId)).size).toBe(2);
+
+    const first = tokens[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: first.instanceId,
+      from: 'battlefield',
+      to: 'graveyard',
+    });
+    expect(state.players[0].battlefield.find((card) => card.instanceId === first.instanceId)).toBeUndefined();
+    expect(state.players[0].graveyard.some((card) => card.instanceId === first.instanceId)).toBe(false);
+    expect(state.players[0].graveyard.some((card) => card.isToken)).toBe(false);
+
+    const remaining = state.players[0].battlefield.find((card) => card.isToken);
+    expect(remaining).toBeTruthy();
+    state = applyMatchAction(state, { type: 'removeToken', userId: 'u1', instanceId: remaining!.instanceId });
+    expect(state.players[0].battlefield.filter((card) => card.isToken)).toHaveLength(0);
+
+    const creature = state.players[0].hand[0];
+    const version = state.version;
+    state = applyMatchAction(state, { type: 'removeToken', userId: 'u1', instanceId: creature.instanceId });
+    expect(state.version).toBe(version);
+  });
+
+  it('lets the owner scry cards to the top or bottom and surveil into the graveyard', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Look',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 12 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const first = state.players[0].library[0];
+    const second = state.players[0].library[1];
+    const third = state.players[0].library[2];
+    state = applyMatchAction(state, {
+      type: 'scry',
+      userId: 'u1',
+      count: 2,
+      onTop: [second.instanceId],
+      onBottom: [first.instanceId],
+    });
+    const afterScry = state.players[0].library;
+    expect(afterScry[0].instanceId).toBe(second.instanceId);
+    expect(afterScry[1].instanceId).toBe(third.instanceId);
+    expect(afterScry[afterScry.length - 1].instanceId).toBe(first.instanceId);
+
+    const top = afterScry[0];
+    const next = afterScry[1];
+    state = applyMatchAction(state, {
+      type: 'surveil',
+      userId: 'u1',
+      count: 2,
+      onTop: [next.instanceId],
+      toGraveyard: [top.instanceId],
+    });
+    expect(state.players[0].library[0].instanceId).toBe(next.instanceId);
+    expect(state.players[0].graveyard.map((card) => card.instanceId)).toContain(top.instanceId);
+    expect(state.players[0].library.some((card) => card.instanceId === top.instanceId)).toBe(false);
   });
 });

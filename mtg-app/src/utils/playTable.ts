@@ -5,9 +5,13 @@ import type {
   PlayAction,
   PlayerTableState,
   PlaySeat,
+  RevealAudience,
   TableCard,
+  TokenBlueprint,
   ZoneName,
 } from '../types/play';
+import { REVEAL_ALL, ZONE_NAMES } from '../types/play';
+import { normalizeCounterId } from '../data/mtgCounters';
 import { shuffleCards } from './sampleHand';
 
 const STARTING_HAND = 7;
@@ -98,6 +102,9 @@ export function createPlayerFromSnapshot(
     graveyard: [],
     exile: [],
     command: expandEntries(snapshot?.commanders, `${seat.userId}-cmd`),
+    shownHandTo: [],
+    shownHandCards: [],
+    libraryTopRevealedTo: [],
   };
 }
 
@@ -121,31 +128,92 @@ function drawOne(player: PlayerTableState): PlayerTableState {
   return { ...player, library: rest, hand: [...player.hand, drawn] };
 }
 
+function insertIntoLibrary(library: TableCard[], card: TableCard, toTop?: boolean, libraryPosition?: number): TableCard[] {
+  if (libraryPosition != null && Number.isFinite(libraryPosition)) {
+    const n = Math.max(1, Math.floor(libraryPosition));
+    if (n > library.length) return [...library, card];
+    const idx = n - 1;
+    return [...library.slice(0, idx), card, ...library.slice(idx)];
+  }
+  if (toTop) return [card, ...library];
+  return [...library, card];
+}
+
+function audienceIncludes(audience: RevealAudience | undefined, viewerId: string): boolean {
+  if (!audience || audience.length === 0) return false;
+  return audience.includes(REVEAL_ALL) || audience.includes(viewerId);
+}
+
+export function canSeePlayerHand(owner: PlayerTableState, viewerId: string): boolean {
+  if (owner.userId === viewerId) return true;
+  return audienceIncludes(owner.shownHandTo, viewerId);
+}
+
+export function canSeeHandCard(owner: PlayerTableState, card: TableCard, viewerId: string): boolean {
+  if (canSeePlayerHand(owner, viewerId)) return true;
+  const entry = (owner.shownHandCards || []).find((item) => item.instanceId === card.instanceId);
+  return entry ? audienceIncludes(entry.to, viewerId) : false;
+}
+
+export function canSeeLibraryTop(owner: PlayerTableState, viewerId: string): boolean {
+  const to = owner.libraryTopRevealedTo;
+  if (!to || to.length === 0) return false;
+  if (owner.userId === viewerId) return true;
+  return audienceIncludes(to, viewerId);
+}
+
+export function visibleOpponentHand(owner: PlayerTableState, viewerId: string): TableCard[] {
+  if (owner.userId === viewerId) return owner.hand;
+  if (canSeePlayerHand(owner, viewerId)) return owner.hand;
+  return owner.hand.filter((card) => canSeeHandCard(owner, card, viewerId));
+}
+
+function pruneHandReveals(player: PlayerTableState): PlayerTableState {
+  const ids = new Set(player.hand.map((card) => card.instanceId));
+  const shownHandCards = (player.shownHandCards || []).filter((item) => ids.has(item.instanceId));
+  return { ...player, shownHandCards };
+}
+
 function moveCard(
   player: PlayerTableState,
   instanceId: string,
   from: ZoneName,
   to: ZoneName,
   facedown?: boolean,
-  toTop?: boolean
+  toTop?: boolean,
+  libraryPosition?: number
 ): PlayerTableState {
   const source = cardsOf(player, from);
   const idx = source.findIndex((c) => c.instanceId === instanceId);
   if (idx < 0) return player;
+  if (source[idx].isToken && to !== 'battlefield') {
+    const nextSource = [...source.slice(0, idx), ...source.slice(idx + 1)];
+    let next = withZone(player, from, nextSource);
+    if (from === 'hand') next = pruneHandReveals(next);
+    return next;
+  }
   const card = {
     ...source[idx],
     tapped: to === 'battlefield' ? source[idx].tapped : false,
     facedown: facedown ?? (to === 'library' ? true : false),
     transformed: to === 'library' ? false : source[idx].transformed,
+    attachedTo: to === 'battlefield' ? source[idx].attachedTo : undefined,
   };
   if (to !== 'battlefield') {
     card.tapped = false;
+    card.attachedTo = undefined;
   }
   const nextSource = [...source.slice(0, idx), ...source.slice(idx + 1)];
-  const dest = to === from ? nextSource : cardsOf(player, to);
-  const nextDest = toTop ? [card, ...dest] : [...dest, card];
   let next = withZone(player, from, nextSource);
+  const dest = to === from ? cardsOf(next, to) : cardsOf(next, to);
+  const nextDest =
+    to === 'library'
+      ? insertIntoLibrary(dest, card, toTop, libraryPosition)
+      : toTop
+        ? [card, ...dest]
+        : [...dest, card];
   next = withZone(next, to, nextDest);
+  if (from === 'hand' || to === 'hand') next = pruneHandReveals(next);
   return next;
 }
 
@@ -202,7 +270,14 @@ export function visibleCardFace(card: TableCard): { imageUrl?: string; name: str
 function mulligan(player: PlayerTableState, random?: () => number): PlayerTableState {
   const combined = shuffleCards([...player.hand, ...player.library], random);
   const hand = combined.splice(0, Math.min(STARTING_HAND, combined.length));
-  return { ...player, library: combined, hand };
+  return {
+    ...player,
+    library: combined,
+    hand,
+    shownHandTo: [],
+    shownHandCards: [],
+    libraryTopRevealedTo: [],
+  };
 }
 
 export function applyMatchAction(
@@ -218,16 +293,21 @@ export function applyMatchAction(
     return { ...state, version: state.version + 1, turnSeatIndex: nextSeat };
   }
 
-  const player = findPlayer(state, action.userId);
-  if (!player) return state;
+  const rawPlayer = findPlayer(state, action.userId);
+  if (!rawPlayer) return state;
 
+  const player = pruneTokensOffBattlefield(rawPlayer);
   let nextPlayer = player;
   switch (action.type) {
     case 'draw':
       nextPlayer = drawOne(player);
       break;
     case 'shuffleLibrary':
-      nextPlayer = { ...player, library: shuffleCards(player.library, options?.random) };
+      nextPlayer = {
+        ...player,
+        library: shuffleCards(player.library, options?.random),
+        libraryTopRevealedTo: [],
+      };
       break;
     case 'moveCard':
       nextPlayer = moveCard(
@@ -236,7 +316,8 @@ export function applyMatchAction(
         action.from,
         action.to,
         action.facedown,
-        action.toTop
+        action.toTop,
+        action.libraryPosition
       );
       break;
     case 'searchLibrary': {
@@ -245,15 +326,44 @@ export function applyMatchAction(
         action.instanceId,
         'library',
         action.to,
-        action.to === 'library' ? true : false,
-        action.toTop
+        action.facedown ?? (action.to === 'library'),
+        action.toTop,
+        action.libraryPosition
       );
       nextPlayer =
         action.shuffle && action.to !== 'library'
-          ? { ...taken, library: shuffleCards(taken.library, options?.random) }
+          ? { ...taken, library: shuffleCards(taken.library, options?.random), libraryTopRevealedTo: [] }
           : taken;
       break;
     }
+    case 'showHand':
+      nextPlayer = { ...player, shownHandTo: action.viewerIds };
+      break;
+    case 'hideHand':
+      nextPlayer = { ...player, shownHandTo: [] };
+      break;
+    case 'showHandCard': {
+      if (!player.hand.some((card) => card.instanceId === action.instanceId)) return state;
+      const rest = (player.shownHandCards || []).filter((item) => item.instanceId !== action.instanceId);
+      nextPlayer = {
+        ...player,
+        shownHandCards: [...rest, { instanceId: action.instanceId, to: action.viewerIds }],
+      };
+      break;
+    }
+    case 'hideHandCard':
+      nextPlayer = {
+        ...player,
+        shownHandCards: (player.shownHandCards || []).filter((item) => item.instanceId !== action.instanceId),
+      };
+      break;
+    case 'revealLibraryTop':
+      if (player.library.length === 0) return state;
+      nextPlayer = { ...player, libraryTopRevealedTo: action.viewerIds };
+      break;
+    case 'hideLibraryTop':
+      nextPlayer = { ...player, libraryTopRevealedTo: [] };
+      break;
     case 'tap':
       nextPlayer = toggleTap(player, action.instanceId);
       break;
@@ -269,12 +379,32 @@ export function applyMatchAction(
     case 'mulligan':
       nextPlayer = mulligan(player, options?.random);
       break;
+    case 'setFacedown':
+      nextPlayer = setCardFacedown(player, action.instanceId, action.facedown);
+      break;
+    case 'attachCard':
+      return attachCardToHost(state, action);
+    case 'setCounter':
+      nextPlayer = setCardCounter(player, action.instanceId, action.counterId, action.delta);
+      break;
+    case 'addToken':
+      nextPlayer = addTokens(player, action.card, action.quantity);
+      break;
+    case 'removeToken':
+      nextPlayer = removeTokenCard(player, action.instanceId);
+      break;
+    case 'scry':
+      nextPlayer = applyLibraryLook(player, action.count, action.onTop, action.onBottom, 'bottom');
+      break;
+    case 'surveil':
+      nextPlayer = applyLibraryLook(player, action.count, action.onTop, action.toGraveyard, 'graveyard');
+      break;
     default:
       return state;
   }
 
-  if (nextPlayer === player) return state;
-  return replacePlayer(state, nextPlayer);
+  if (nextPlayer === rawPlayer) return state;
+  return pruneOrphanAttachments(replacePlayer(state, pruneTokensOffBattlefield(nextPlayer)));
 }
 
 export function zoneCount(player: PlayerTableState, zone: ZoneName): number {
@@ -293,6 +423,170 @@ export function filterLibraryCards(cards: TableCard[], query: string): TableCard
   });
 }
 
+export function canSeeGraveOrExileFace(ownerId: string, card: Pick<TableCard, 'facedown'>, viewerId: string): boolean {
+  if (!card.facedown) return true;
+  return ownerId === viewerId;
+}
+
+export function filterPublicZoneCards(
+  cards: TableCard[],
+  query: string,
+  ownerId: string,
+  viewerId: string,
+): TableCard[] {
+  if (!query.trim()) return cards;
+  return filterLibraryCards(
+    cards.filter((card) => canSeeGraveOrExileFace(ownerId, card, viewerId)),
+    query,
+  );
+}
+
+function applyLibraryLook(
+  player: PlayerTableState,
+  count: number,
+  onTopIds: string[],
+  otherIds: string[],
+  otherZone: 'bottom' | 'graveyard',
+): PlayerTableState {
+  const n = Math.min(Math.max(0, Math.floor(count)), player.library.length);
+  if (n === 0) return player;
+  const looked = player.library.slice(0, n);
+  const rest = player.library.slice(n);
+  const byId = new Map(looked.map((card) => [card.instanceId, card]));
+  const used = new Set<string>();
+  const take = (ids: string[]) => {
+    const cards: TableCard[] = [];
+    for (const id of ids) {
+      const card = byId.get(id);
+      if (!card || used.has(id)) continue;
+      used.add(id);
+      cards.push(card);
+    }
+    return cards;
+  };
+  const onTop = take(onTopIds);
+  const other = take(otherIds);
+  const leftover = looked.filter((card) => !used.has(card.instanceId));
+  const top = [...onTop, ...leftover];
+  if (otherZone === 'graveyard') {
+    return {
+      ...player,
+      library: [...top, ...rest],
+      graveyard: [...player.graveyard, ...other],
+      libraryTopRevealedTo: [],
+    };
+  }
+  return {
+    ...player,
+    library: [...top, ...rest, ...other],
+    libraryTopRevealedTo: [],
+  };
+}
+
+function addTokens(player: PlayerTableState, blueprint: TokenBlueprint, quantity?: number): PlayerTableState {
+  const name = (blueprint?.name || '').trim();
+  const scryfallId = (blueprint?.scryfallId || '').trim();
+  if (!name || !scryfallId) return player;
+  const qty = Math.min(12, Math.max(1, Math.trunc(quantity ?? 1)));
+  const used = new Set(ZONE_NAMES.flatMap((zone) => cardsOf(player, zone).map((card) => card.instanceId)));
+  const battlefield = [...player.battlefield];
+  let serial = battlefield.filter((card) => card.isToken && card.scryfallId === scryfallId).length;
+  for (let i = 0; i < qty; i++) {
+    let instanceId = `${player.userId}-tok-${scryfallId}-${serial}`;
+    while (used.has(instanceId)) {
+      serial += 1;
+      instanceId = `${player.userId}-tok-${scryfallId}-${serial}`;
+    }
+    used.add(instanceId);
+    serial += 1;
+    battlefield.push({
+      instanceId,
+      scryfallId,
+      name,
+      imageUrl: blueprint.imageUrl,
+      backImageUrl: blueprint.backImageUrl,
+      backName: blueprint.backName,
+      manaCost: blueprint.manaCost,
+      typeLine: blueprint.typeLine,
+      cmc: blueprint.cmc,
+      tapped: false,
+      facedown: false,
+      transformed: false,
+      isToken: true,
+    });
+  }
+  return { ...player, battlefield };
+}
+
+function removeTokenCard(player: PlayerTableState, instanceId: string): PlayerTableState {
+  for (const zone of ZONE_NAMES) {
+    const list = cardsOf(player, zone);
+    const idx = list.findIndex((card) => card.instanceId === instanceId && card.isToken);
+    if (idx >= 0) {
+      return withZone(player, zone, [...list.slice(0, idx), ...list.slice(idx + 1)]);
+    }
+  }
+  return player;
+}
+
+function setCardCounter(
+  player: PlayerTableState,
+  instanceId: string,
+  counterId: string,
+  delta: number,
+): PlayerTableState {
+  const zones: ZoneName[] = ['battlefield', 'hand', 'graveyard', 'exile', 'command'];
+  for (const zone of zones) {
+    const list = cardsOf(player, zone);
+    const idx = list.findIndex((card) => card.instanceId === instanceId);
+    if (idx < 0) continue;
+    const card = list[idx];
+    if (counterId.trim() === '*') {
+      if (!card.counters || Object.keys(card.counters).length === 0) return player;
+      return withZone(
+        player,
+        zone,
+        list.map((item, i) => (i === idx ? { ...item, counters: undefined } : item)),
+      );
+    }
+    const id = normalizeCounterId(counterId);
+    const step = Math.trunc(delta);
+    if (!id || !Number.isFinite(step) || step === 0) return player;
+    const current = card.counters?.[id] ?? 0;
+    const nextCount = current + step;
+    if (nextCount <= 0 && current <= 0) return player;
+    const counters = { ...(card.counters || {}) };
+    if (nextCount <= 0) delete counters[id];
+    else counters[id] = nextCount;
+    const nextCard: TableCard = {
+      ...card,
+      counters: Object.keys(counters).length > 0 ? counters : undefined,
+    };
+    return withZone(
+      player,
+      zone,
+      list.map((item, i) => (i === idx ? nextCard : item)),
+    );
+  }
+  return player;
+}
+
+function setCardFacedown(player: PlayerTableState, instanceId: string, facedown: boolean): PlayerTableState {
+  const zones: ZoneName[] = ['graveyard', 'exile'];
+  for (const zone of zones) {
+    const list = cardsOf(player, zone);
+    const idx = list.findIndex((card) => card.instanceId === instanceId);
+    if (idx >= 0) {
+      return withZone(
+        player,
+        zone,
+        list.map((card, i) => (i === idx ? { ...card, facedown } : card)),
+      );
+    }
+  }
+  return player;
+}
+
 export function isPlaymatLand(card: Pick<TableCard, 'name' | 'typeLine'>): boolean {
   const firstFace = (card.typeLine || '').split('//')[0].trim();
   if (/\bland\b/i.test(firstFace)) return true;
@@ -307,12 +601,113 @@ export function isPlaymatLand(card: Pick<TableCard, 'name' | 'typeLine'>): boole
   );
 }
 
-export function splitBattlefield(cards: TableCard[]): { lands: TableCard[]; other: TableCard[] } {
+export function isPlaymatEnchantment(card: Pick<TableCard, 'name' | 'typeLine'>): boolean {
+  if (isPlaymatLand(card)) return false;
+  const firstFace = (card.typeLine || '').split('//')[0].trim();
+  if (!/\benchantment\b/i.test(firstFace)) return false;
+  if (/\bcreature\b/i.test(firstFace)) return false;
+  return true;
+}
+
+export function isPlaymatAttachable(card: Pick<TableCard, 'typeLine'>): boolean {
+  const firstFace = (card.typeLine || '').split('//')[0].trim();
+  return /\baura\b/i.test(firstFace) || /\bequipment\b/i.test(firstFace);
+}
+
+export function tableBattlefieldCards(players: PlayerTableState[]): TableCard[] {
+  return players.flatMap((player) => player.battlefield);
+}
+
+export function attachmentsOn(hostId: string, battlefield: TableCard[]): TableCard[] {
+  return battlefield.filter((card) => card.attachedTo === hostId);
+}
+
+export function isAttachHostCandidate(card: TableCard, attachingId: string): boolean {
+  if (card.instanceId === attachingId) return false;
+  if (card.attachedTo) return false;
+  return true;
+}
+
+function findCardZone(player: PlayerTableState, instanceId: string): ZoneName | undefined {
+  return ZONE_NAMES.find((zone) => cardsOf(player, zone).some((card) => card.instanceId === instanceId));
+}
+
+function setAttachedTo(player: PlayerTableState, instanceId: string, hostInstanceId: string | undefined): PlayerTableState {
+  return {
+    ...player,
+    battlefield: player.battlefield.map((card) =>
+      card.instanceId === instanceId ? { ...card, attachedTo: hostInstanceId } : card,
+    ),
+  };
+}
+
+function pruneTokensOffBattlefield(player: PlayerTableState): PlayerTableState {
+  let next = player;
+  for (const zone of ZONE_NAMES) {
+    if (zone === 'battlefield') continue;
+    const list = cardsOf(next, zone);
+    const kept = list.filter((card) => !card.isToken);
+    if (kept.length !== list.length) next = withZone(next, zone, kept);
+  }
+  return next;
+}
+
+function pruneOrphanAttachments(state: MatchState): MatchState {
+  const ids = new Set(tableBattlefieldCards(state.players).map((card) => card.instanceId));
+  let changed = false;
+  const players = state.players.map((player) => {
+    let playerChanged = false;
+    const battlefield = player.battlefield.map((card) => {
+      if (card.attachedTo && !ids.has(card.attachedTo)) {
+        playerChanged = true;
+        changed = true;
+        return { ...card, attachedTo: undefined };
+      }
+      return card;
+    });
+    return playerChanged ? { ...player, battlefield } : player;
+  });
+  return changed ? { ...state, players } : state;
+}
+
+function attachCardToHost(
+  state: MatchState,
+  action: Extract<PlayAction, { type: 'attachCard' }>,
+): MatchState {
+  const found = findPlayer(state, action.userId);
+  if (!found) return state;
+  const player = pruneTokensOffBattlefield(found);
+  const zone = findCardZone(player, action.instanceId);
+  if (!zone) return state;
+
+  if (action.hostInstanceId) {
+    const host = tableBattlefieldCards(state.players).find((card) => card.instanceId === action.hostInstanceId);
+    if (!host || !isAttachHostCandidate(host, action.instanceId)) return state;
+  } else if (zone !== 'battlefield') {
+    return state;
+  }
+
+  let nextPlayer = player;
+  if (zone !== 'battlefield') {
+    nextPlayer = moveCard(player, action.instanceId, zone, 'battlefield');
+  }
+  nextPlayer = setAttachedTo(nextPlayer, action.instanceId, action.hostInstanceId || undefined);
+  return pruneOrphanAttachments(replacePlayer(state, pruneTokensOffBattlefield(nextPlayer)));
+}
+
+export function splitBattlefield(cards: TableCard[]): {
+  lands: TableCard[];
+  enchantments: TableCard[];
+  other: TableCard[];
+} {
   const lands: TableCard[] = [];
+  const enchantments: TableCard[] = [];
   const other: TableCard[] = [];
   for (const card of cards) {
+    if (card.attachedTo) continue;
     if (isPlaymatLand(card)) lands.push(card);
+    else if (isPlaymatEnchantment(card)) enchantments.push(card);
     else other.push(card);
   }
-  return { lands, other };
+  return { lands, enchantments, other };
 }

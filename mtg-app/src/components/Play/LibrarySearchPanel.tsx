@@ -6,21 +6,28 @@ import { CardHoverPreview } from '../Card/CardHoverPreview';
 interface LibrarySearchPanelProps {
   cards: TableCard[];
   onClose: () => void;
-  onTake: (card: TableCard, to: ZoneName, options?: { toTop?: boolean; shuffle?: boolean }) => void;
+  onTake: (
+    card: TableCard,
+    to: ZoneName,
+    options?: { toTop?: boolean; libraryPosition?: number; shuffle?: boolean; facedown?: boolean },
+  ) => void;
 }
 
-const DESTINATIONS: Array<{ to: ZoneName; toTop?: boolean; label: string; primary?: boolean }> = [
+const DESTINATIONS: Array<{ to: ZoneName; toTop?: boolean; facedown?: boolean; label: string; primary?: boolean }> = [
   { to: 'hand', label: 'Main', primary: true },
   { to: 'battlefield', label: 'Champ' },
   { to: 'library', toTop: true, label: 'Dessus' },
   { to: 'library', label: 'Dessous' },
   { to: 'graveyard', label: 'Cimetière' },
+  { to: 'graveyard', facedown: true, label: 'Cim. caché' },
   { to: 'exile', label: 'Exil' },
+  { to: 'exile', facedown: true, label: 'Exil caché' },
 ];
 
 export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPanelProps) {
   const [query, setQuery] = useState('');
   const [shuffleAfter, setShuffleAfter] = useState(true);
+  const [nth, setNth] = useState('2');
   const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const filtered = useMemo(() => filterLibraryCards(cards, query), [cards, query]);
@@ -37,9 +44,9 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const take = (card: TableCard, to: ZoneName, toTop?: boolean) => {
+  const take = (card: TableCard, to: ZoneName, toTop?: boolean, libraryPosition?: number, facedown?: boolean) => {
     const shuffle = shuffleAfter && to !== 'library';
-    onTake(card, to, { toTop, shuffle });
+    onTake(card, to, { toTop, libraryPosition, shuffle, facedown });
   };
 
   return (
@@ -62,6 +69,16 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
             placeholder="Nom, type, coût… (ex. land, counter, bolt)"
             className="px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 w-full min-w-0 sm:flex-1 sm:min-w-[180px]"
           />
+          <label className="flex items-center gap-2 text-xs text-white/80 whitespace-nowrap">
+            <span>N-ième</span>
+            <input
+              type="number"
+              min={1}
+              value={nth}
+              onChange={(e) => setNth(e.target.value)}
+              className="w-14 px-2 py-1 rounded bg-black/40 border border-white/15 text-sm"
+            />
+          </label>
           <label className="flex items-center gap-2 text-xs text-white/80 whitespace-nowrap">
             <input
               type="checkbox"
@@ -107,16 +124,27 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
                   <div className="flex flex-wrap gap-1">
                     {DESTINATIONS.map((dest) => (
                       <button
-                        key={`${dest.to}-${dest.toTop ? 'top' : 'bot'}`}
+                        key={`${dest.to}-${dest.toTop ? 'top' : 'bot'}-${dest.facedown ? 'down' : 'up'}`}
                         type="button"
                         className={`px-1.5 py-0.5 rounded text-[10px] ${
                           dest.primary ? 'bg-amber-500 text-black font-semibold' : 'bg-white/10 hover:bg-white/20'
                         }`}
-                        onClick={() => take(card, dest.to, dest.toTop)}
+                        onClick={() => take(card, dest.to, dest.toTop, undefined, dest.facedown)}
                       >
                         {dest.label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className="px-1.5 py-0.5 rounded text-[10px] bg-white/10 hover:bg-white/20"
+                      onClick={() => {
+                        const n = Number.parseInt(nth, 10);
+                        if (!Number.isFinite(n) || n < 1) return;
+                        take(card, 'library', undefined, n);
+                      }}
+                    >
+                      {nth || 'N'}e
+                    </button>
                   </div>
                 </li>
               ))}

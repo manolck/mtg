@@ -1,13 +1,14 @@
 import type { MouseEvent } from 'react';
+import { counterTone, listedCounterCounts } from '../../data/mtgCounters';
 import type { TableCard } from '../../types/play';
 import { visibleCardFace } from '../../utils/playTable';
 
 export const MTG_CARD_BACK_URL = '/play/mtg-card-back.png';
 
 const SIZE_CLASS = {
-  sm: 'w-10 sm:w-12',
-  md: 'w-14 sm:w-[4.5rem]',
-  lg: 'w-[4.25rem] sm:w-20 md:w-[5.5rem]',
+  sm: 'w-[3.75rem] sm:w-[4.5rem]',
+  md: 'w-[5.25rem] sm:w-[6.75rem]',
+  lg: 'w-[6.375rem] sm:w-[7.5rem] md:w-[8.25rem]',
 };
 
 interface PlayCardProps {
@@ -23,6 +24,8 @@ interface PlayCardProps {
   onDoubleClick?: (event: MouseEvent) => void;
   onMouseEnter?: (event: MouseEvent<HTMLButtonElement>) => void;
   onMouseLeave?: () => void;
+  onCounterDelta?: (counterId: string, delta: number) => void;
+  onOpenCounters?: () => void;
 }
 
 export function PlayCard({
@@ -38,15 +41,21 @@ export function PlayCard({
   onDoubleClick,
   onMouseEnter,
   onMouseLeave,
+  onCounterDelta,
+  onOpenCounters,
 }: PlayCardProps) {
-  const hidden = hideFace || card.facedown;
+  const hidden = hideFace;
   const face = visibleCardFace(card);
   const src = hidden ? MTG_CARD_BACK_URL : face.imageUrl || MTG_CARD_BACK_URL;
+  const counters = listedCounterCounts(card.counters);
+  const shown = counters.slice(0, 4);
+  const extra = counters.length - shown.length;
 
   return (
     <button
       type="button"
       title={title || (hidden ? 'Carte cachée' : face.name)}
+      aria-label={title || (hidden ? 'Carte cachée' : face.name)}
       onClick={onClick}
       onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
@@ -62,6 +71,11 @@ export function PlayCard({
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
+      {card.isToken && !hidden && (
+        <span className="absolute left-0.5 bottom-0.5 z-10 rounded bg-fuchsia-700/90 px-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wide text-white">
+          Jeton
+        </span>
+      )}
       {canTransform && !hidden && onTransform && (
         <span
           role="button"
@@ -83,6 +97,63 @@ export function PlayCard({
           }}
         >
           ↻
+        </span>
+      )}
+      {counters.length > 0 && (
+        <span className="absolute inset-x-0 top-0 z-10 flex flex-wrap justify-center gap-0.5 p-0.5 pointer-events-none">
+          {shown.map((item) => {
+            const tone = counterTone(item.id);
+            const toneClass =
+              tone === 'plus'
+                ? 'bg-emerald-600/90 text-white'
+                : tone === 'minus'
+                  ? 'bg-red-700/90 text-white'
+                  : tone === 'loyalty'
+                    ? 'bg-violet-700/90 text-white'
+                    : tone === 'keyword'
+                      ? 'bg-sky-700/90 text-white'
+                      : 'bg-amber-500/90 text-black';
+            return (
+              <span
+                key={item.id}
+                role={onCounterDelta ? 'button' : undefined}
+                title={`${item.name} × ${item.count}${onCounterDelta ? ' · clic +1 · Shift −1' : ''}`}
+                className={`pointer-events-auto max-w-full truncate rounded px-0.5 text-[8px] sm:text-[9px] font-bold leading-tight tabular-nums ${toneClass} ${
+                  onCounterDelta ? 'cursor-pointer hover:brightness-110' : ''
+                }`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onCounterDelta?.(item.id, event.shiftKey ? -1 : 1);
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenCounters?.();
+                }}
+              >
+                {item.count} {item.name}
+              </span>
+            );
+          })}
+          {extra > 0 && (
+            <span
+              role={onOpenCounters ? 'button' : undefined}
+              className={`pointer-events-auto rounded bg-black/75 px-0.5 text-[8px] font-semibold text-white ${
+                onOpenCounters ? 'cursor-pointer' : ''
+              }`}
+              title="Autres marqueurs"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenCounters?.();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              +{extra}
+            </span>
+          )}
         </span>
       )}
     </button>

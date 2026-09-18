@@ -42,6 +42,9 @@ export function PlayTable() {
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [attachPickId, setAttachPickId] = useState<string | null>(null);
+  const attachPickIdRef = useRef<string | null>(null);
+  attachPickIdRef.current = attachPickId;
   const meshRef = useRef<PlayRtcMesh | null>(null);
   const gateRef = useRef<MicNoiseGate | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
@@ -381,6 +384,15 @@ export function PlayTable() {
     }
   }, [matchId, currentUser, load]);
 
+  useEffect(() => {
+    if (!attachPickId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAttachPickId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [attachPickId]);
+
   const players = useMemo(() => {
     if (!state || !currentUser) return [];
     return [...state.players].sort((a, b) => {
@@ -411,6 +423,10 @@ export function PlayTable() {
       <PlayerBoard
         player={player}
         isSelf={isSelf}
+        viewerId={currentUser.uid}
+        opponents={state.players
+          .filter((p) => p.userId !== currentUser.uid)
+          .map((p) => ({ userId: p.userId, displayName: p.displayName }))}
         isTurn={state.turnSeatIndex === player.seatIndex}
         compact={compact}
         videoSlot={
@@ -426,8 +442,17 @@ export function PlayTable() {
         onPassTurn={() => send({ type: 'passTurn' })}
         onLife={(delta) => send({ type: 'setLife', userId: currentUser.uid, delta })}
         onPoison={(delta) => send({ type: 'setPoison', userId: currentUser.uid, delta })}
-        onMove={(instanceId, from, to) =>
-          send({ type: 'moveCard', userId: currentUser.uid, instanceId, from: from as ZoneName, to })
+        onMove={(instanceId, from, to, options) =>
+          send({
+            type: 'moveCard',
+            userId: currentUser.uid,
+            instanceId,
+            from: from as ZoneName,
+            to,
+            toTop: options?.toTop,
+            libraryPosition: options?.libraryPosition,
+            facedown: options?.facedown,
+          })
         }
         onSearchLibrary={(instanceId, to, options) =>
           send({
@@ -436,12 +461,57 @@ export function PlayTable() {
             instanceId,
             to,
             toTop: options?.toTop,
+            libraryPosition: options?.libraryPosition,
             shuffle: options?.shuffle,
+            facedown: options?.facedown,
           })
         }
         onTap={(instanceId) => send({ type: 'tap', userId: currentUser.uid, instanceId })}
         onFlip={(instanceId, faces) =>
           send({ type: 'flip', userId: currentUser.uid, instanceId, backImageUrl: faces?.backImageUrl, backName: faces?.backName })
+        }
+        onShowHand={(viewerIds) => send({ type: 'showHand', userId: currentUser.uid, viewerIds })}
+        onHideHand={() => send({ type: 'hideHand', userId: currentUser.uid })}
+        onShowHandCard={(instanceId, viewerIds) =>
+          send({ type: 'showHandCard', userId: currentUser.uid, instanceId, viewerIds })
+        }
+        onHideHandCard={(instanceId) => send({ type: 'hideHandCard', userId: currentUser.uid, instanceId })}
+        onRevealLibraryTop={(viewerIds) => send({ type: 'revealLibraryTop', userId: currentUser.uid, viewerIds })}
+        onHideLibraryTop={() => send({ type: 'hideLibraryTop', userId: currentUser.uid })}
+        tablePlayers={state.players}
+        attachPickId={attachPickId}
+        onStartAttach={(instanceId) => setAttachPickId(instanceId)}
+        onPickAttachHost={(hostInstanceId) => {
+          const instanceId = attachPickIdRef.current;
+          if (!instanceId) return;
+          void send({
+            type: 'attachCard',
+            userId: currentUser.uid,
+            instanceId,
+            hostInstanceId,
+          });
+          setAttachPickId(null);
+        }}
+        onDetach={(instanceId) =>
+          send({ type: 'attachCard', userId: currentUser.uid, instanceId, hostInstanceId: null })
+        }
+        onSetFacedown={(instanceId, facedown) =>
+          send({ type: 'setFacedown', userId: currentUser.uid, instanceId, facedown })
+        }
+        onSetCounter={(instanceId, counterId, delta) =>
+          send({ type: 'setCounter', userId: currentUser.uid, instanceId, counterId, delta })
+        }
+        onAddToken={(card, quantity) =>
+          send({ type: 'addToken', userId: currentUser.uid, card, quantity })
+        }
+        onRemoveToken={(instanceId) =>
+          send({ type: 'removeToken', userId: currentUser.uid, instanceId })
+        }
+        onScry={(count, onTop, onBottom) =>
+          send({ type: 'scry', userId: currentUser.uid, count, onTop, onBottom })
+        }
+        onSurveil={(count, onTop, toGraveyard) =>
+          send({ type: 'surveil', userId: currentUser.uid, count, onTop, toGraveyard })
         }
       />
     );
@@ -461,7 +531,7 @@ export function PlayTable() {
           <p className="text-sm font-semibold truncate leading-tight">{lobby?.name || 'Table'}</p>
         </div>
         <p className="hidden lg:block text-[11px] text-white/45 max-w-xl truncate">
-          Clic main → poser · Clic champ → engager · Clic droit → déplacer · D piocher · / bibliothèque · +/− PV
+          Clic main → poser · Regard/Surveil · Jeton → chercher · Aura/équipement → attacher · Clic champ → engager · Clic droit → marqueurs / déplacer · D piocher · / bibliothèque · +/− PV
         </p>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <RtcControls
@@ -501,10 +571,23 @@ export function PlayTable() {
         </div>
       </header>
 
+      {attachPickId && (
+        <div className="shrink-0 relative z-30 flex items-center justify-center gap-3 px-3 py-1.5 bg-amber-400 text-black text-sm font-medium">
+          <span>Choisissez la carte à laquelle attacher</span>
+          <button
+            type="button"
+            className="px-2 py-0.5 rounded bg-black/15 hover:bg-black/25 text-xs font-semibold"
+            onClick={() => setAttachPickId(null)}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       <div
         className={
           stacked
-            ? 'flex-1 min-h-0 flex flex-col gap-1 p-1'
+            ? 'flex-1 min-h-0 flex flex-col gap-0 p-1'
             : `flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-1 p-1`
         }
       >
@@ -512,7 +595,7 @@ export function PlayTable() {
           const isSelf = player.userId === currentUser.uid;
           const compact = stacked ? !isSelf : count >= 3 && !isSelf;
           const span = !stacked && count === 3 && index === 2 ? 'md:col-span-2' : '';
-          const stackedSize = stacked ? (isSelf ? 'flex-[1.65] min-h-0' : 'h-[34%] min-h-[140px] max-h-[42%]') : 'min-h-0';
+          const stackedSize = stacked ? 'flex-1 min-h-0' : 'min-h-0';
           return (
             <section key={player.userId} className={`${stacked ? stackedSize : `min-h-0 ${span}`}`}>
               {renderPane(player, compact)}

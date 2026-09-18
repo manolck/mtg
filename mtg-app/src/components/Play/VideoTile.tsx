@@ -88,8 +88,8 @@ export function VideoTile({ stream, muted, label, compact = true }: VideoTilePro
         className={`w-full h-full object-cover ${hasLiveVideo ? 'opacity-100' : 'opacity-0'}`}
       />
       {!hasLiveVideo && (
-        <div className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-sm font-semibold text-gray-300 text-center px-1 bg-black">
-          {label.slice(0, 1).toUpperCase()}
+        <div className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-bold tracking-[0.18em] text-gray-300 text-center px-1 bg-black">
+          CAM
         </div>
       )}
       {needsGesture && (

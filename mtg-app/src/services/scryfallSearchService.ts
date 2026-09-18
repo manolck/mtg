@@ -505,3 +505,82 @@ export async function searchPrintingsByExactName(
     return [];
   }
 }
+
+const COMMON_TOKEN_NAMES = [
+  'Treasure',
+  'Food',
+  'Clue',
+  'Blood',
+  'Saproling',
+  'Soldier',
+  'Zombie',
+  'Goblin',
+  'Spirit',
+  'Beast',
+  'Thopter',
+  'Copy',
+] as const;
+
+const COMMON_TOKEN_QUERY = `(${COMMON_TOKEN_NAMES.map((name) => `!"${name}"`).join(' OR ')})`;
+
+function tokenSearchClause(query: string): string {
+  const trimmed = query.trim();
+  const exact = COMMON_TOKEN_NAMES.find((name) => name.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return `!"${exact}"`;
+  if (isRawScryfallQuery(trimmed)) return trimmed;
+  const english = normalizeSearchQueryToEnglish(trimmed);
+  const words = english.split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) return COMMON_TOKEN_QUERY;
+  return words.map((word) => `(name:${word} OR t:${word})`).join(' ');
+}
+
+export async function searchPlayTokens(query: string, limit = 30): Promise<MTGCard[]> {
+  const trimmed = (query || '').trim();
+  const inner = trimmed.length >= 2 ? tokenSearchClause(trimmed) : COMMON_TOKEN_QUERY;
+  const scryfallQuery = `is:token ${inner}`.trim();
+  const searchUrl = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(
+    scryfallQuery,
+  )}&include_extras=true&order=name&unique=cards`;
+
+  try {
+    const response = await scryfallQueue.enqueue(
+      () =>
+        fetchWithRetry(
+          searchUrl,
+          {
+            headers: {
+              'User-Agent': 'MTGCollectionApp/1.0',
+              Accept: 'application/json',
+            },
+          },
+          {
+            maxRetries: 3,
+            initialDelay: 1000,
+            maxDelay: 16000,
+            retryableStatuses: [429, 500, 502, 503, 504],
+          },
+        ),
+      'high',
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = await response.json();
+    const cards: MTGCard[] = [];
+    const seen = new Set<string>();
+    for (const card of data.data || []) {
+      const layout = String(card.layout || '');
+      if (layout && !['token', 'double_faced_token'].includes(layout)) continue;
+      const mtgCard = convertScryfallCardToMTGCard(card);
+      const key = mtgCard.id || mtgCard.name;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      cards.push(mtgCard);
+      if (cards.length >= limit) break;
+    }
+    return cards;
+  } catch {
+    return [];
+  }
+}
+

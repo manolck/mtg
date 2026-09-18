@@ -1,0 +1,1011 @@
+{
+  "source": "https://mtg.fandom.com/wiki/Counter_(marker)/Full_List",
+  "counters": [
+    {
+      "id": "+1/+1",
+      "name": "+1/+1",
+      "common": true
+    },
+    {
+      "id": "-1/-1",
+      "name": "−1/−1",
+      "common": true
+    },
+    {
+      "id": "+0/+1",
+      "name": "+0/+1"
+    },
+    {
+      "id": "+0/+2",
+      "name": "+0/+2"
+    },
+    {
+      "id": "+1/+0",
+      "name": "+1/+0"
+    },
+    {
+      "id": "+1/+2",
+      "name": "+1/+2"
+    },
+    {
+      "id": "+2/+0",
+      "name": "+2/+0"
+    },
+    {
+      "id": "+2/+2",
+      "name": "+2/+2"
+    },
+    {
+      "id": "-0/-1",
+      "name": "-0/-1"
+    },
+    {
+      "id": "-0/-2",
+      "name": "-0/-2"
+    },
+    {
+      "id": "-1/-0",
+      "name": "-1/-0"
+    },
+    {
+      "id": "-2/-1",
+      "name": "-2/-1"
+    },
+    {
+      "id": "-2/-2",
+      "name": "-2/-2"
+    },
+    {
+      "id": "Acorn",
+      "name": "Acorn"
+    },
+    {
+      "id": "Aegis",
+      "name": "Aegis"
+    },
+    {
+      "id": "Age",
+      "name": "Age",
+      "common": true
+    },
+    {
+      "id": "Aim",
+      "name": "Aim"
+    },
+    {
+      "id": "Arrow",
+      "name": "Arrow"
+    },
+    {
+      "id": "Arrowhead",
+      "name": "Arrowhead"
+    },
+    {
+      "id": "Awakening",
+      "name": "Awakening"
+    },
+    {
+      "id": "Bait",
+      "name": "Bait"
+    },
+    {
+      "id": "Blaze",
+      "name": "Blaze"
+    },
+    {
+      "id": "Blessing",
+      "name": "Blessing"
+    },
+    {
+      "id": "Blight",
+      "name": "Blight",
+      "common": true
+    },
+    {
+      "id": "Blood",
+      "name": "Blood"
+    },
+    {
+      "id": "Bloodline",
+      "name": "Bloodline"
+    },
+    {
+      "id": "Bloodstain",
+      "name": "Bloodstain"
+    },
+    {
+      "id": "Book",
+      "name": "Book"
+    },
+    {
+      "id": "Bounty",
+      "name": "Bounty"
+    },
+    {
+      "id": "Brain",
+      "name": "Brain"
+    },
+    {
+      "id": "Bribery",
+      "name": "Bribery"
+    },
+    {
+      "id": "Brick",
+      "name": "Brick"
+    },
+    {
+      "id": "Burden",
+      "name": "Burden"
+    },
+    {
+      "id": "Cage",
+      "name": "Cage"
+    },
+    {
+      "id": "Carrion",
+      "name": "Carrion"
+    },
+    {
+      "id": "Cell",
+      "name": "Cell"
+    },
+    {
+      "id": "Charge",
+      "name": "Charge",
+      "common": true
+    },
+    {
+      "id": "Coin",
+      "name": "Coin"
+    },
+    {
+      "id": "Collection",
+      "name": "Collection"
+    },
+    {
+      "id": "Component",
+      "name": "Component"
+    },
+    {
+      "id": "Contested",
+      "name": "Contested"
+    },
+    {
+      "id": "Corruption",
+      "name": "Corruption"
+    },
+    {
+      "id": "CRANK!",
+      "name": "CRANK!"
+    },
+    {
+      "id": "Credit",
+      "name": "Credit"
+    },
+    {
+      "id": "Croak",
+      "name": "Croak"
+    },
+    {
+      "id": "Corpse",
+      "name": "Corpse"
+    },
+    {
+      "id": "Crystal",
+      "name": "Crystal"
+    },
+    {
+      "id": "Cube",
+      "name": "Cube"
+    },
+    {
+      "id": "Currency",
+      "name": "Currency"
+    },
+    {
+      "id": "Death",
+      "name": "Death"
+    },
+    {
+      "id": "Delay",
+      "name": "Delay"
+    },
+    {
+      "id": "Depletion",
+      "name": "Depletion"
+    },
+    {
+      "id": "Descent",
+      "name": "Descent"
+    },
+    {
+      "id": "Despair",
+      "name": "Despair"
+    },
+    {
+      "id": "Devotion",
+      "name": "Devotion"
+    },
+    {
+      "id": "Discovery",
+      "name": "Discovery"
+    },
+    {
+      "id": "Divinity",
+      "name": "Divinity"
+    },
+    {
+      "id": "Doom",
+      "name": "Doom"
+    },
+    {
+      "id": "Dream",
+      "name": "Dream"
+    },
+    {
+      "id": "Duty",
+      "name": "Duty"
+    },
+    {
+      "id": "Echo",
+      "name": "Echo"
+    },
+    {
+      "id": "Egg",
+      "name": "Egg"
+    },
+    {
+      "id": "Elixir",
+      "name": "Elixir"
+    },
+    {
+      "id": "Ember",
+      "name": "Ember"
+    },
+    {
+      "id": "Energy",
+      "name": "Energy"
+    },
+    {
+      "id": "Enlightened",
+      "name": "Enlightened"
+    },
+    {
+      "id": "Eon",
+      "name": "Eon"
+    },
+    {
+      "id": "Eruption",
+      "name": "Eruption"
+    },
+    {
+      "id": "Everything",
+      "name": "Everything"
+    },
+    {
+      "id": "Experience",
+      "name": "Experience"
+    },
+    {
+      "id": "Exposure",
+      "name": "Exposure"
+    },
+    {
+      "id": "Eyeball",
+      "name": "Eyeball"
+    },
+    {
+      "id": "Eyestalk",
+      "name": "Eyestalk"
+    },
+    {
+      "id": "Fade",
+      "name": "Fade"
+    },
+    {
+      "id": "Fate",
+      "name": "Fate"
+    },
+    {
+      "id": "Feather",
+      "name": "Feather"
+    },
+    {
+      "id": "Feeding",
+      "name": "Feeding"
+    },
+    {
+      "id": "Fellowship",
+      "name": "Fellowship"
+    },
+    {
+      "id": "Fetch",
+      "name": "Fetch"
+    },
+    {
+      "id": "Filibuster",
+      "name": "Filibuster"
+    },
+    {
+      "id": "Film",
+      "name": "Film"
+    },
+    {
+      "id": "Finality",
+      "name": "Finality",
+      "common": true
+    },
+    {
+      "id": "Fire",
+      "name": "Fire"
+    },
+    {
+      "id": "Flame",
+      "name": "Flame"
+    },
+    {
+      "id": "Flood",
+      "name": "Flood"
+    },
+    {
+      "id": "Foreshadow",
+      "name": "Foreshadow"
+    },
+    {
+      "id": "Fungus",
+      "name": "Fungus"
+    },
+    {
+      "id": "Fury",
+      "name": "Fury"
+    },
+    {
+      "id": "Fuse",
+      "name": "Fuse"
+    },
+    {
+      "id": "Gem",
+      "name": "Gem"
+    },
+    {
+      "id": "Ghostform",
+      "name": "Ghostform"
+    },
+    {
+      "id": "Glyph",
+      "name": "Glyph"
+    },
+    {
+      "id": "Gold",
+      "name": "Gold"
+    },
+    {
+      "id": "Growth",
+      "name": "Growth"
+    },
+    {
+      "id": "Hack",
+      "name": "Hack"
+    },
+    {
+      "id": "Harmony",
+      "name": "Harmony"
+    },
+    {
+      "id": "Hatching",
+      "name": "Hatching"
+    },
+    {
+      "id": "Hatchling",
+      "name": "Hatchling"
+    },
+    {
+      "id": "Healing",
+      "name": "Healing"
+    },
+    {
+      "id": "Hit",
+      "name": "Hit"
+    },
+    {
+      "id": "Hope",
+      "name": "Hope"
+    },
+    {
+      "id": "Hone",
+      "name": "Hone"
+    },
+    {
+      "id": "Hoofprint",
+      "name": "Hoofprint"
+    },
+    {
+      "id": "Hour",
+      "name": "Hour"
+    },
+    {
+      "id": "Hourglass",
+      "name": "Hourglass"
+    },
+    {
+      "id": "Hunger",
+      "name": "Hunger"
+    },
+    {
+      "id": "Ice",
+      "name": "Ice"
+    },
+    {
+      "id": "Impostor",
+      "name": "Impostor"
+    },
+    {
+      "id": "Incarnation",
+      "name": "Incarnation"
+    },
+    {
+      "id": "Incubation",
+      "name": "Incubation"
+    },
+    {
+      "id": "Infection",
+      "name": "Infection"
+    },
+    {
+      "id": "Influence",
+      "name": "Influence"
+    },
+    {
+      "id": "Ingenuity",
+      "name": "Ingenuity"
+    },
+    {
+      "id": "Intel",
+      "name": "Intel"
+    },
+    {
+      "id": "Intervention",
+      "name": "Intervention"
+    },
+    {
+      "id": "Invasion",
+      "name": "Invasion"
+    },
+    {
+      "id": "Invitation",
+      "name": "Invitation"
+    },
+    {
+      "id": "Isolation",
+      "name": "Isolation"
+    },
+    {
+      "id": "Javelin",
+      "name": "Javelin"
+    },
+    {
+      "id": "Judgment",
+      "name": "Judgment"
+    },
+    {
+      "id": "Ki",
+      "name": "Ki"
+    },
+    {
+      "id": "Kick",
+      "name": "Kick"
+    },
+    {
+      "id": "Knickknack",
+      "name": "Knickknack"
+    },
+    {
+      "id": "Landmark",
+      "name": "Landmark"
+    },
+    {
+      "id": "Level",
+      "name": "Level"
+    },
+    {
+      "id": "Loot",
+      "name": "Loot"
+    },
+    {
+      "id": "Lore",
+      "name": "Lore",
+      "common": true
+    },
+    {
+      "id": "Loyalty",
+      "name": "Loyalty",
+      "common": true
+    },
+    {
+      "id": "Luck",
+      "name": "Luck"
+    },
+    {
+      "id": "Magnet",
+      "name": "Magnet"
+    },
+    {
+      "id": "Manabond",
+      "name": "Manabond"
+    },
+    {
+      "id": "Manifestation",
+      "name": "Manifestation"
+    },
+    {
+      "id": "Mannequin",
+      "name": "Mannequin"
+    },
+    {
+      "id": "Mask",
+      "name": "Mask"
+    },
+    {
+      "id": "Matrix",
+      "name": "Matrix"
+    },
+    {
+      "id": "Memory",
+      "name": "Memory"
+    },
+    {
+      "id": "Midway",
+      "name": "Midway"
+    },
+    {
+      "id": "Mine",
+      "name": "Mine"
+    },
+    {
+      "id": "Mining",
+      "name": "Mining"
+    },
+    {
+      "id": "Mire",
+      "name": "Mire"
+    },
+    {
+      "id": "Music",
+      "name": "Music"
+    },
+    {
+      "id": "Muster",
+      "name": "Muster"
+    },
+    {
+      "id": "Necrodermis",
+      "name": "Necrodermis"
+    },
+    {
+      "id": "Nest",
+      "name": "Nest"
+    },
+    {
+      "id": "Net",
+      "name": "Net"
+    },
+    {
+      "id": "Night",
+      "name": "Night"
+    },
+    {
+      "id": "Odor",
+      "name": "Odor"
+    },
+    {
+      "id": "Oil",
+      "name": "Oil",
+      "common": true
+    },
+    {
+      "id": "Omen",
+      "name": "Omen"
+    },
+    {
+      "id": "Ore",
+      "name": "Ore"
+    },
+    {
+      "id": "Pain",
+      "name": "Pain"
+    },
+    {
+      "id": "Palliation",
+      "name": "Palliation"
+    },
+    {
+      "id": "Paralyzation",
+      "name": "Paralyzation"
+    },
+    {
+      "id": "Pause",
+      "name": "Pause"
+    },
+    {
+      "id": "Petal",
+      "name": "Petal"
+    },
+    {
+      "id": "Petrification",
+      "name": "Petrification"
+    },
+    {
+      "id": "Phyresis",
+      "name": "Phyresis"
+    },
+    {
+      "id": "Phylactery",
+      "name": "Phylactery"
+    },
+    {
+      "id": "Pin",
+      "name": "Pin"
+    },
+    {
+      "id": "Plague",
+      "name": "Plague"
+    },
+    {
+      "id": "Plot",
+      "name": "Plot"
+    },
+    {
+      "id": "Point",
+      "name": "Point"
+    },
+    {
+      "id": "Poison",
+      "name": "Poison"
+    },
+    {
+      "id": "Polyp",
+      "name": "Polyp"
+    },
+    {
+      "id": "Possession",
+      "name": "Possession"
+    },
+    {
+      "id": "Pressure",
+      "name": "Pressure"
+    },
+    {
+      "id": "Prey",
+      "name": "Prey"
+    },
+    {
+      "id": "Promotion",
+      "name": "Promotion"
+    },
+    {
+      "id": "Pupa",
+      "name": "Pupa"
+    },
+    {
+      "id": "Quest",
+      "name": "Quest"
+    },
+    {
+      "id": "Rad",
+      "name": "Rad"
+    },
+    {
+      "id": "Rally",
+      "name": "Rally"
+    },
+    {
+      "id": "Refine",
+      "name": "Refine"
+    },
+    {
+      "id": "Rejection",
+      "name": "Rejection"
+    },
+    {
+      "id": "Reprieve",
+      "name": "Reprieve"
+    },
+    {
+      "id": "Rev",
+      "name": "Rev"
+    },
+    {
+      "id": "Revival",
+      "name": "Revival"
+    },
+    {
+      "id": "Ribbon",
+      "name": "Ribbon"
+    },
+    {
+      "id": "Ritual",
+      "name": "Ritual"
+    },
+    {
+      "id": "Rope",
+      "name": "Rope"
+    },
+    {
+      "id": "Rust",
+      "name": "Rust"
+    },
+    {
+      "id": "Saurian",
+      "name": "Saurian"
+    },
+    {
+      "id": "Scream",
+      "name": "Scream"
+    },
+    {
+      "id": "Scroll",
+      "name": "Scroll"
+    },
+    {
+      "id": "Shell",
+      "name": "Shell"
+    },
+    {
+      "id": "Shield",
+      "name": "Shield",
+      "common": true
+    },
+    {
+      "id": "Silver",
+      "name": "Silver"
+    },
+    {
+      "id": "Shred",
+      "name": "Shred"
+    },
+    {
+      "id": "Sleep",
+      "name": "Sleep"
+    },
+    {
+      "id": "Sleight",
+      "name": "Sleight"
+    },
+    {
+      "id": "Slime",
+      "name": "Slime"
+    },
+    {
+      "id": "Slumber",
+      "name": "Slumber"
+    },
+    {
+      "id": "Soot",
+      "name": "Soot"
+    },
+    {
+      "id": "Soul",
+      "name": "Soul"
+    },
+    {
+      "id": "Spark",
+      "name": "Spark"
+    },
+    {
+      "id": "Spite",
+      "name": "Spite"
+    },
+    {
+      "id": "Spooky",
+      "name": "Spooky"
+    },
+    {
+      "id": "Spore",
+      "name": "Spore",
+      "common": true
+    },
+    {
+      "id": "Stash",
+      "name": "Stash"
+    },
+    {
+      "id": "Storage",
+      "name": "Storage"
+    },
+    {
+      "id": "Story",
+      "name": "Story"
+    },
+    {
+      "id": "Strife",
+      "name": "Strife"
+    },
+    {
+      "id": "Stun",
+      "name": "Stun",
+      "common": true
+    },
+    {
+      "id": "Supply",
+      "name": "Supply"
+    },
+    {
+      "id": "Suspect",
+      "name": "Suspect"
+    },
+    {
+      "id": "Takeover",
+      "name": "Takeover"
+    },
+    {
+      "id": "Task",
+      "name": "Task"
+    },
+    {
+      "id": "Theft",
+      "name": "Theft"
+    },
+    {
+      "id": "Ticket",
+      "name": "Ticket"
+    },
+    {
+      "id": "Tide",
+      "name": "Tide"
+    },
+    {
+      "id": "Time",
+      "name": "Time",
+      "common": true
+    },
+    {
+      "id": "Tower",
+      "name": "Tower"
+    },
+    {
+      "id": "Training",
+      "name": "Training"
+    },
+    {
+      "id": "Trap",
+      "name": "Trap"
+    },
+    {
+      "id": "Treasure",
+      "name": "Treasure"
+    },
+    {
+      "id": "Unity",
+      "name": "Unity"
+    },
+    {
+      "id": "Unlock",
+      "name": "Unlock"
+    },
+    {
+      "id": "Valor",
+      "name": "Valor"
+    },
+    {
+      "id": "Velocity",
+      "name": "Velocity"
+    },
+    {
+      "id": "Verse",
+      "name": "Verse"
+    },
+    {
+      "id": "Vitality",
+      "name": "Vitality"
+    },
+    {
+      "id": "Void",
+      "name": "Void"
+    },
+    {
+      "id": "Volatile",
+      "name": "Volatile"
+    },
+    {
+      "id": "Vortex",
+      "name": "Vortex"
+    },
+    {
+      "id": "Vow",
+      "name": "Vow"
+    },
+    {
+      "id": "Voyage",
+      "name": "Voyage"
+    },
+    {
+      "id": "Wage",
+      "name": "Wage"
+    },
+    {
+      "id": "Winch",
+      "name": "Winch"
+    },
+    {
+      "id": "Wind",
+      "name": "Wind"
+    },
+    {
+      "id": "Wish",
+      "name": "Wish"
+    },
+    {
+      "id": "Wreck",
+      "name": "Wreck"
+    },
+    {
+      "id": "deathtouch",
+      "name": "Deathtouch",
+      "common": true
+    },
+    {
+      "id": "double strike",
+      "name": "Double Strike"
+    },
+    {
+      "id": "first strike",
+      "name": "First Strike"
+    },
+    {
+      "id": "flying",
+      "name": "Flying",
+      "common": true
+    },
+    {
+      "id": "haste",
+      "name": "Haste",
+      "common": true
+    },
+    {
+      "id": "hexproof",
+      "name": "Hexproof"
+    },
+    {
+      "id": "indestructible",
+      "name": "Indestructible"
+    },
+    {
+      "id": "lifelink",
+      "name": "Lifelink",
+      "common": true
+    },
+    {
+      "id": "menace",
+      "name": "Menace"
+    },
+    {
+      "id": "reach",
+      "name": "Reach"
+    },
+    {
+      "id": "trample",
+      "name": "Trample",
+      "common": true
+    },
+    {
+      "id": "vigilance",
+      "name": "Vigilance"
+    },
+    {
+      "id": "shadow",
+      "name": "Shadow"
+    },
+    {
+      "id": "exalted",
+      "name": "Exalted"
+    },
+    {
+      "id": "decayed",
+      "name": "Decayed"
+    },
+    {
+      "id": "knowledge",
+      "name": "Knowledge"
+    }
+  ]
+}
