@@ -20,6 +20,7 @@ import { PlayerBoard } from '../components/Play/PlayerBoard';
 import { VideoTile } from '../components/Play/VideoTile';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
+import { RemoteAudioHub } from '../components/Play/RemoteAudio';
 import { Spinner } from '../components/UI/Spinner';
 import { watchWithPoll } from '../utils/playRealtime';
 
@@ -153,8 +154,8 @@ export function PlayTable() {
     const rawAudio = rawStream.getAudioTracks().find((track) => track.readyState === 'live') ?? null;
     if (!rawAudio) return null;
     if (!gateRef.current) gateRef.current = new MicNoiseGate();
+    gateRef.current.setUserEnabled(micOnRef.current);
     const outgoing = await gateRef.current.attach(rawAudio, noiseGateRef.current / 100);
-    outgoing.enabled = micOnRef.current;
     return outgoing;
   }, []);
 
@@ -166,7 +167,7 @@ export function PlayTable() {
       .filter((id) => !isDummyUserId(id));
     const mesh = new PlayRtcMesh(lobbyId, currentUser.uid, {
       onRemoteStream: (userId, stream) => {
-        setRemoteStreams((prev) => ({ ...prev, [userId]: new MediaStream(stream.getTracks()) }));
+        setRemoteStreams((prev) => ({ ...prev, [userId]: stream }));
       },
       onRemoteStreamEnded: (userId) => {
         setRemoteStreams((prev) => {
@@ -293,7 +294,10 @@ export function PlayTable() {
     (kind: 'audio' | 'video') => {
       const next = kind === 'video' ? !camOnRef.current : !micOnRef.current;
       if (kind === 'video') setCamOn(next);
-      else setMicOn(next);
+      else {
+        setMicOn(next);
+        gateRef.current?.setUserEnabled(next);
+      }
       const capture = captureStreamRef.current;
       const hasTrack = Boolean(
         (capture || meshRef.current?.stream || localStream)?.getTracks().some((track) => track.kind === kind),
@@ -302,10 +306,12 @@ export function PlayTable() {
         void enableMedia();
         return;
       }
-      meshRef.current?.setTrackEnabled(kind, next);
-      capture?.getTracks().forEach((track) => {
-        if (track.kind === kind) track.enabled = next;
-      });
+      if (kind === 'video') {
+        meshRef.current?.setTrackEnabled(kind, next);
+        capture?.getVideoTracks().forEach((track) => {
+          track.enabled = next;
+        });
+      }
       if (capture) publishLocalStream(capture);
     },
     [enableMedia, localStream, publishLocalStream],
@@ -350,11 +356,7 @@ export function PlayTable() {
 
   useEffect(() => {
     const resumeGate = () => {
-      void (async () => {
-        const outgoing = await gateRef.current?.ensureOutgoing();
-        if (!outgoing || !meshRef.current) return;
-        await meshRef.current.replaceTrack('audio', outgoing, { stopPrevious: false });
-      })();
+      void gateRef.current?.ensureOutgoing();
     };
     document.addEventListener('pointerdown', resumeGate);
     return () => document.removeEventListener('pointerdown', resumeGate);
@@ -427,7 +429,6 @@ export function PlayTable() {
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
   const focusedOther = tableView === 'active' && Boolean(activePlayer && activePlayer.userId !== currentUser.uid);
-  const nextDummySeat = [0, 1, 2, 3].find((index) => !state.players.some((player) => player.seatIndex === index));
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
@@ -448,7 +449,7 @@ export function PlayTable() {
         videoSlot={
           <VideoTile
             stream={stream}
-            muted={isSelf}
+            muted
             label={player.displayName || (isSelf ? 'Vous' : 'Joueur')}
           />
         }
@@ -552,6 +553,7 @@ export function PlayTable() {
 
   return (
     <div className="h-dvh flex flex-col bg-[#07141c] text-white overflow-hidden">
+      <RemoteAudioHub streams={remoteStreams} />
       <header className="shrink-0 relative z-30 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 bg-black/40 border-b border-white/10">
         <div className="min-w-0">
           <Link
@@ -585,22 +587,6 @@ export function PlayTable() {
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {nextDummySeat != null && (
-            <button
-              type="button"
-              className="relative z-30 text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 min-h-[36px]"
-              onClick={() =>
-                void send({
-                  type: 'addSeat',
-                  userId: currentUser.uid,
-                  seatIndex: nextDummySeat,
-                  displayName: `Siège ${nextDummySeat + 1}`,
-                })
-              }
-            >
-              Ajouter siège {nextDummySeat + 1}
-            </button>
-          )}
           <RtcControls
             camOn={camOn}
             micOn={micOn}

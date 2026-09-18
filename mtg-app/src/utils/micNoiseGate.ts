@@ -14,67 +14,89 @@ function rmsFromTimeDomain(samples: Uint8Array): number {
   return Math.sqrt(sum / samples.length);
 }
 
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+export function noiseGateThreshold(amount: number): number {
+  return clamp01(amount) * 0.085;
+}
+
+export function nextNoiseGateOpen(rms: number, amount: number, open: boolean): boolean {
+  if (amount <= 0.01) return true;
+  const threshold = noiseGateThreshold(amount);
+  if (rms >= threshold) return true;
+  if (rms <= threshold * 0.55) return false;
+  return open;
+}
+
+export function shouldSendMic(userEnabled: boolean, amount: number, open: boolean): boolean {
+  if (!userEnabled) return false;
+  if (amount <= 0.01) return true;
+  return open;
+}
+
 export class MicNoiseGate {
   private ctx: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
-  private gain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
-  private dest: MediaStreamAudioDestinationNode | null = null;
   private sourceTrack: MediaStreamTrack | null = null;
-  private outputTrack: MediaStreamTrack | null = null;
+  private analysisTrack: MediaStreamTrack | null = null;
   private samples: Uint8Array<ArrayBuffer> | null = null;
   private amount = 0;
   private open = true;
+  private userEnabled = true;
   private raf = 0;
 
   async attach(track: MediaStreamTrack, amount: number): Promise<MediaStreamTrack> {
     this.amount = clamp01(amount);
-    if (this.sourceTrack === track && this.outputTrack?.readyState === 'live' && this.ctx) {
+    if (this.sourceTrack === track && this.ctx) {
       await this.ctx.resume();
-      return this.ctx.state === 'running' ? this.outputTrack : track;
+      this.applySend();
+      return track;
     }
 
     this.teardownGraph();
     this.sourceTrack = track;
+    if ('contentHint' in track) track.contentHint = 'speech';
 
     const AudioCtx = audioContextConstructor();
-    if (!AudioCtx) return track;
+    if (!AudioCtx) {
+      this.applySend();
+      return track;
+    }
 
+    this.analysisTrack = track.clone();
+    this.analysisTrack.enabled = true;
     this.ctx = new AudioCtx();
-    this.source = this.ctx.createMediaStreamSource(new MediaStream([track]));
+    this.source = this.ctx.createMediaStreamSource(new MediaStream([this.analysisTrack]));
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 1024;
     this.analyser.smoothingTimeConstant = 0.35;
-    this.gain = this.ctx.createGain();
-    this.gain.gain.value = 1;
-    this.dest = this.ctx.createMediaStreamDestination();
     this.source.connect(this.analyser);
-    this.source.connect(this.gain);
-    this.gain.connect(this.dest);
     this.samples = new Uint8Array(this.analyser.fftSize);
-    this.outputTrack = this.dest.stream.getAudioTracks()[0] ?? null;
     this.open = true;
     this.loop();
-
     await this.ctx.resume();
-    if (this.ctx.state !== 'running' || !this.outputTrack) return track;
-    return this.outputTrack;
+    this.applySend();
+    return track;
   }
 
   setAmount(amount: number): void {
     this.amount = clamp01(amount);
-    if (this.amount <= 0.01 && this.gain && this.ctx) {
-      this.open = true;
-      this.gain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01);
-    }
+    if (this.amount <= 0.01) this.open = true;
+    this.applySend();
+  }
+
+  setUserEnabled(enabled: boolean): void {
+    this.userEnabled = enabled;
+    this.applySend();
   }
 
   async ensureOutgoing(): Promise<MediaStreamTrack | null> {
-    if (!this.sourceTrack) return this.outputTrack;
     if (this.ctx) await this.ctx.resume();
-    if (this.ctx?.state === 'running' && this.outputTrack?.readyState === 'live') {
-      return this.outputTrack;
-    }
+    this.applySend();
     return this.sourceTrack;
   }
 
@@ -83,19 +105,18 @@ export class MicNoiseGate {
     this.sourceTrack = null;
   }
 
+  private applySend(): void {
+    if (!this.sourceTrack) return;
+    this.sourceTrack.enabled = shouldSendMic(this.userEnabled, this.amount, this.open);
+  }
+
   private loop(): void {
     const tick = () => {
-      if (!this.analyser || !this.gain || !this.ctx || !this.samples) return;
+      if (!this.analyser || !this.samples) return;
       this.analyser.getByteTimeDomainData(this.samples);
       const rms = rmsFromTimeDomain(this.samples);
-      const threshold = this.amount * 0.085;
-      let target = 1;
-      if (this.amount > 0.01) {
-        if (rms >= threshold) this.open = true;
-        else if (rms <= threshold * 0.55) this.open = false;
-        target = this.open ? 1 : (1 - this.amount) * (1 - this.amount);
-      }
-      this.gain.gain.setTargetAtTime(target, this.ctx.currentTime, target >= 0.99 ? 0.012 : 0.07);
+      this.open = nextNoiseGateOpen(rms, this.amount, this.open);
+      this.applySend();
       this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);
@@ -105,21 +126,12 @@ export class MicNoiseGate {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.source?.disconnect();
-    this.gain?.disconnect();
-    this.analyser?.disconnect();
-    this.outputTrack?.stop();
+    this.analysisTrack?.stop();
     void this.ctx?.close();
     this.ctx = null;
     this.source = null;
-    this.gain = null;
     this.analyser = null;
-    this.dest = null;
-    this.outputTrack = null;
+    this.analysisTrack = null;
     this.samples = null;
   }
-}
-
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
 }

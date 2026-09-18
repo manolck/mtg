@@ -145,10 +145,21 @@ export async function getDeviceTrack(
   return track;
 }
 
+function senderForKind(pc: RTCPeerConnection, kind: 'audio' | 'video'): RTCRtpSender | undefined {
+  const withTrack = pc.getSenders().find((sender) => sender.track?.kind === kind);
+  if (withTrack) return withTrack;
+  const transceiver = pc.getTransceivers().find((item) => {
+    if (item.stopped) return false;
+    return item.sender.track?.kind === kind || item.receiver.track.kind === kind;
+  });
+  return transceiver?.sender;
+}
+
 export class PlayRtcMesh {
   private pcs = new Map<string, RTCPeerConnection>();
   private pendingIce = new Map<string, RTCIceCandidateInit[]>();
   private remoteStreams = new Map<string, MediaStream>();
+  private offererPeers = new Set<string>();
   private localStream: MediaStream | null = null;
   private unsub: (() => void) | null = null;
   private destroyed = false;
@@ -205,9 +216,7 @@ export class PlayRtcMesh {
     if (track) this.localStream.addTrack(track);
 
     for (const pc of this.pcs.values()) {
-      const sender =
-        pc.getSenders().find((s) => s.track?.kind === kind) ||
-        pc.getTransceivers().find((tr) => tr.receiver.track.kind === kind)?.sender;
+      const sender = senderForKind(pc, kind);
       if (sender) {
         try {
           await sender.replaceTrack(track);
@@ -227,9 +236,7 @@ export class PlayRtcMesh {
     for (const kind of ['audio', 'video'] as const) {
       const track = kind === 'audio' ? stream.getAudioTracks()[0] ?? null : stream.getVideoTracks()[0] ?? null;
       for (const pc of this.pcs.values()) {
-        const sender =
-          pc.getSenders().find((s) => s.track?.kind === kind) ||
-          pc.getTransceivers().find((tr) => tr.receiver.track.kind === kind)?.sender;
+        const sender = senderForKind(pc, kind);
         if (sender) {
           try {
             await sender.replaceTrack(track);
@@ -257,6 +264,7 @@ export class PlayRtcMesh {
     this.pcs.clear();
     this.pendingIce.clear();
     this.remoteStreams.clear();
+    this.offererPeers.clear();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
     try {
@@ -284,6 +292,7 @@ export class PlayRtcMesh {
 
     const pc = new RTCPeerConnection({ iceServers: getIceServers() });
     this.pcs.set(peerId, pc);
+    if (makeOffer) this.offererPeers.add(peerId);
     this.attachLocalMedia(pc);
 
     pc.onicecandidate = (event) => {
@@ -326,7 +335,30 @@ export class PlayRtcMesh {
       });
     }
 
+    pc.onnegotiationneeded = () => {
+      void this.renegotiate(peerId);
+    };
+
     return pc;
+  }
+
+  private async renegotiate(peerId: string): Promise<void> {
+    const pc = this.pcs.get(peerId);
+    if (!pc || this.destroyed || !this.offererPeers.has(peerId)) return;
+    if (pc.signalingState !== 'stable') return;
+    try {
+      const offer = await pc.createOffer();
+      if (this.destroyed || pc.signalingState !== 'stable') return;
+      await pc.setLocalDescription(offer);
+      await sendSignal({
+        lobbyId: this.lobbyId,
+        fromUserId: this.myUserId,
+        toUserId: peerId,
+        payload: { type: 'offer', sdp: offer },
+      });
+    } catch (err) {
+      console.warn('RTC renegotiation failed', err);
+    }
   }
 
   private async flushIce(peerId: string, pc: RTCPeerConnection): Promise<void> {
