@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import type { PlayerTableState, RevealAudience, TableCard, TokenBlueprint, ZoneName } from '../../types/play';
 import { REVEAL_ALL, ZONE_LABELS } from '../../types/play';
 import {
@@ -15,7 +15,6 @@ import {
   isHandCardChosen,
   groupPlaymatCards,
 } from '../../utils/playTable';
-import { isOverHandFan, playDropAt } from '../../utils/playDrop';
 import { CardLightbox } from '../Card/CardLightbox';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { PlayCard, MTG_CARD_BACK_URL } from './PlayCard';
@@ -168,13 +167,11 @@ export function PlayerBoard({
   onSetFacedown,
   onSetCounter,
   onSetPlaymatRow,
-  onSetPlaymatPos,
   onAddToken,
   onRemoveToken,
   onScry,
   onSurveil,
   onMill,
-  onReorderHand,
   onToggleHandChoice,
   onClearHandChoices,
 }: PlayerBoardProps) {
@@ -187,11 +184,7 @@ export function PlayerBoard({
   const [browseZone, setBrowseZone] = useState<'graveyard' | 'exile' | null>(null);
   const [counterCardId, setCounterCardId] = useState<string | null>(null);
   const [handVisible, setHandVisible] = useState(true);
-  const [handDrag, setHandDrag] = useState<{ instanceId: string; toIndex: number } | null>(null);
-  const [playmatDragId, setPlaymatDragId] = useState<string | null>(null);
   const handFanRef = useRef<HTMLDivElement | null>(null);
-  const skipHandClickRef = useRef(false);
-  const skipPlayClickRef = useRef(false);
   const playmatRef = useRef<HTMLDivElement | null>(null);
   const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
   const homeMat = isSelf || seatHome;
@@ -367,84 +360,12 @@ export function PlayerBoard({
     return groups.find((group) => group.members.some((item) => item.instanceId === card.instanceId))?.members || [card];
   };
 
-  const applyPlaymatDrop = (card: TableCard, from: ZoneName, clientX: number, clientY: number) => {
-    const members = from === 'battlefield' ? stackFor(card) : [card];
-    const drop = playDropAt(clientX, clientY, members.map((item) => item.instanceId));
-    if (!drop) return false;
-    const target = drop.cardId
-      ? player.battlefield.find((item) => item.instanceId === drop.cardId)
-      : undefined;
-    const stackTarget =
-      Boolean(card.isToken && target?.isToken && target.scryfallId === card.scryfallId) && target
-        ? stackFor(target)
-        : [];
-    const x = stackTarget[0]?.playmatX ?? drop.x;
-    const y = stackTarget[0]?.playmatY ?? drop.y;
-    const ids = [...new Set([...members, ...stackTarget].map((item) => item.instanceId))];
-    if (from === 'hand' || from === 'command') {
-      const played = onMove?.(card.instanceId, from, 'battlefield', {
-        playmatX: x,
-        playmatY: y,
-        playmatRow: drop.row,
-      });
-      if (stackTarget.length > 0) {
-        void Promise.resolve(played).then(() => {
-          onSetPlaymatPos?.(ids, x, y, drop.row);
-        });
-      }
-      return true;
-    }
-    if (from === 'battlefield') {
-      onSetPlaymatPos?.(ids, x, y, drop.row);
-      return true;
-    }
-    return false;
-  };
-
-  const onPlaymatPointerDown = (event: PointerEvent<HTMLDivElement>, card: TableCard) => {
-    if (!isSelf || !canActOn(card) || event.button !== 0 || event.shiftKey || attachPickId) return;
-    const target = event.currentTarget;
-    try {
-      target.setPointerCapture(event.pointerId);
-    } catch {
-      /* ignore */
-    }
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let moved = false;
-    const onMovePtr = (moveEvent: globalThis.PointerEvent) => {
-      if (moveEvent.pointerId !== event.pointerId) return;
-      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8 && !moved) return;
-      moved = true;
-      setHover(null);
-      setPlaymatDragId(card.instanceId);
-    };
-    const onUp = (upEvent: globalThis.PointerEvent) => {
-      if (upEvent.pointerId !== event.pointerId) return;
-      window.removeEventListener('pointermove', onMovePtr);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-      try {
-        if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-      } catch {
-        /* ignore */
-      }
-      setPlaymatDragId(null);
-      if (!moved) return;
-      skipPlayClickRef.current = true;
-      window.setTimeout(() => {
-        skipPlayClickRef.current = false;
-      }, 0);
-      applyPlaymatDrop(card, 'battlefield', upEvent.clientX, upEvent.clientY);
-    };
-    window.addEventListener('pointermove', onMovePtr);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+  const playFromHand = (card: TableCard) => {
+    if (!canActOn(card)) return;
+    onMove?.(card.instanceId, 'hand', 'battlefield');
   };
 
   const handleCardClick = (event: MouseEvent, card: TableCard, zone: ZoneName) => {
-    if (zone === 'hand' && skipHandClickRef.current) return;
-    if (zone === 'battlefield' && skipPlayClickRef.current) return;
     if (attachPickId && zone === 'battlefield') {
       if (isAttachHostCandidate(card, attachPickId)) onPickAttachHost?.(card.instanceId);
       return;
@@ -457,7 +378,8 @@ export function PlayerBoard({
       openMenu(event, card, zone);
       return;
     }
-    if (isPlaymatAttachable(card) && (zone === 'hand' || zone === 'command' || (zone === 'battlefield' && !card.attachedTo))) {
+    if (zone === 'hand') return;
+    if (isPlaymatAttachable(card) && (zone === 'command' || (zone === 'battlefield' && !card.attachedTo))) {
       const hosts = allBattlefield.filter((item) => isAttachHostCandidate(item, card.instanceId));
       if (hosts.length > 0) {
         onStartAttach?.(card.instanceId);
@@ -477,11 +399,15 @@ export function PlayerBoard({
     openMenu(event, card, zone);
   };
 
-  const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
-    if (handDrag) {
-      setHover(null);
+  const handleCardDoubleClick = (card: TableCard, zone: ZoneName) => {
+    if (zone === 'hand' && canActOn(card)) {
+      playFromHand(card);
       return;
     }
+    if (showFace(zone, card)) setLightbox(card);
+  };
+
+  const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
     const resolved = resolveCard(card);
     if (!showFace(zone, resolved)) {
       setHover(null);
@@ -521,7 +447,9 @@ export function PlayerBoard({
             ? chosen
               ? 'Clic droit : retirer du choix'
               : 'Clic droit : choisir cette carte'
-            : undefined
+            : isSelf && zone === 'hand'
+              ? 'Double-clic : poser'
+              : undefined
         }
         className={`${extraClass} ${pickingHost ? 'ring-2 ring-amber-300' : ''}`.trim()}
         canTransform={Boolean(canActOn(resolved) && isDoubleFacedCard(resolved))}
@@ -536,7 +464,7 @@ export function PlayerBoard({
           event.preventDefault();
           if (zone === 'hand' && !isSelf) onToggleHandChoice?.(resolved.instanceId);
         }}
-        onDoubleClick={() => showFace(zone, resolved) && setLightbox(resolved)}
+        onDoubleClick={() => handleCardDoubleClick(resolved, zone)}
         onMouseEnter={(event) => setCardHover(event, resolved, zone)}
         onMouseLeave={() => setHover(null)}
         onCounterDelta={
@@ -565,12 +493,11 @@ export function PlayerBoard({
         : size === 'lg'
           ? 26
           : 22;
-    const dragging = Boolean(playmatDragId && group.members.some((item) => item.instanceId === playmatDragId));
     const card = renderOne(
       'battlefield',
       group.lead,
       size,
-      dragging ? 'ring-2 ring-amber-300 shadow-2xl' : '',
+      '',
       widthPx,
       undefined,
       group.members.length,
@@ -579,9 +506,8 @@ export function PlayerBoard({
       <div
         key={group.lead.instanceId}
         data-play-card-id={group.lead.instanceId}
-        className={`relative shrink-0 ${isSelf ? 'touch-none' : ''} ${dragging ? 'z-30' : ''}`}
+        className="relative shrink-0"
         style={extraStyle}
-        onPointerDown={isSelf ? (event) => onPlaymatPointerDown(event, group.lead) : undefined}
       >
         {attached.length === 0 ? (
           card
@@ -634,7 +560,7 @@ export function PlayerBoard({
             left: `${group.lead.playmatX}%`,
             top: `${group.lead.playmatY}%`,
             transform: 'translate(-50%, -50%)',
-            zIndex: playmatDragId && group.members.some((item) => item.instanceId === playmatDragId) ? 40 : 10,
+            zIndex: 10,
           }),
         )}
       </div>
@@ -809,7 +735,7 @@ export function PlayerBoard({
           'battlefield',
           other,
           'md',
-          isSelf ? 'Glissez une carte de la main ici. Clic droit : jeton.' : 'Aucun permanent.',
+          isSelf ? 'Double-clic une carte en main pour la poser. Clic droit : jeton.' : 'Aucun permanent.',
           'text-xs text-[var(--gold-1)]/50',
         )}
       </div>
@@ -834,7 +760,7 @@ export function PlayerBoard({
           'lands',
           lands,
           'md',
-          isSelf ? 'Glissez vos terrains ici.' : '—',
+          isSelf ? 'Posez vos terrains ici.' : '—',
           'text-[11px] text-[var(--gold-1)]/45',
         )}
       </div>
@@ -849,18 +775,8 @@ export function PlayerBoard({
     </div>
   );
 
-  const previewHand = (cards: TableCard[]) => {
-    if (!handDrag) return cards;
-    const from = cards.findIndex((card) => card.instanceId === handDrag.instanceId);
-    if (from < 0) return cards;
-    const next = [...cards];
-    const [card] = next.splice(from, 1);
-    next.splice(Math.max(0, Math.min(handDrag.toIndex, next.length)), 0, card);
-    return next;
-  };
-
   const renderHeldHand = (anchor: 'top' | 'bottom') => {
-    const cards = previewHand(player.hand);
+    const cards = player.hand;
     const size: 'sm' | 'md' | 'lg' = visibleSeats >= 4 ? 'sm' : visibleSeats >= 3 ? 'md' : 'lg';
     const widthPx = handCardPx;
     const n = cards.length;
@@ -875,84 +791,12 @@ export function PlayerBoard({
     const peek = anchor === 'bottom' ? '48%' : '-48%';
     const hidden = anchor === 'bottom' ? '108%' : '-108%';
     const showToggle = isSelf || n > 0;
-    const canDragHand = isSelf && n > 0;
-    const canReorder = canDragHand && n > 1;
     const chosenCount = (player.chosenHandCards || []).length;
     const hoverLiftPx = Math.round((widthPx || (size === 'sm' ? 48 : size === 'md' ? 72 : 96)) * 0.42);
     const hoverLift =
       anchor === 'bottom'
         ? 'hover:-translate-y-[var(--hand-hover-y)] hover:z-50'
         : 'hover:translate-y-[var(--hand-hover-y)] hover:z-50';
-
-    const onHandPointerDown = (event: PointerEvent<HTMLDivElement>, instanceId: string) => {
-      if (!canDragHand || event.button !== 0 || event.shiftKey) return;
-      const fromIndex = player.hand.findIndex((card) => card.instanceId === instanceId);
-      if (fromIndex < 0) return;
-      const target = event.currentTarget;
-      try {
-        target.setPointerCapture(event.pointerId);
-      } catch {
-        /* synthetic or inactive pointer */
-      }
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const slots = [...(handFanRef.current?.querySelectorAll<HTMLElement>('[data-hand-card]') ?? [])]
-        .map((node) => {
-          const rect = node.getBoundingClientRect();
-          return { id: node.dataset.handCard || '', mid: rect.left + rect.width / 2 };
-        })
-        .filter((slot) => slot.id && slot.id !== instanceId);
-      let moved = false;
-      let toIndex = fromIndex;
-
-      const dropIndex = (clientX: number) => {
-        let index = 0;
-        for (const slot of slots) {
-          if (clientX < slot.mid) return index;
-          index += 1;
-        }
-        return index;
-      };
-
-      const onMove = (moveEvent: globalThis.PointerEvent) => {
-        if (moveEvent.pointerId !== event.pointerId) return;
-        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8 && !moved) return;
-        moved = true;
-        setHover(null);
-        toIndex = dropIndex(moveEvent.clientX);
-        setHandDrag({ instanceId, toIndex });
-      };
-      const onUp = (upEvent: globalThis.PointerEvent) => {
-        if (upEvent.pointerId !== event.pointerId) return;
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
-        try {
-          if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-        } catch {
-          /* ignore */
-        }
-        setHandDrag(null);
-        if (!moved) return;
-        skipHandClickRef.current = true;
-        window.setTimeout(() => {
-          skipHandClickRef.current = false;
-        }, 0);
-        const card = player.hand.find((item) => item.instanceId === instanceId);
-        if (!card) return;
-        if (!isOverHandFan(upEvent.clientX, upEvent.clientY, handFanRef.current)) {
-          applyPlaymatDrop(card, 'hand', upEvent.clientX, upEvent.clientY);
-          return;
-        }
-        if (!canReorder) return;
-        const origin = player.hand.findIndex((item) => item.instanceId === instanceId);
-        if (origin < 0 || toIndex === origin) return;
-        onReorderHand?.(instanceId, toIndex);
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-    };
 
     return (
       <>
@@ -1006,38 +850,23 @@ export function PlayerBoard({
                 const offset = index - (n - 1) / 2;
                 const rotate = offset * spread;
                 const lift = Math.abs(offset) * Math.max(3, Math.round((widthPx || 72) / 18));
-                const dragging = handDrag?.instanceId === card.instanceId;
                 return (
                   <div
                     key={card.instanceId}
                     data-hand-card={card.instanceId}
-                    className={`relative ${canDragHand ? 'touch-none' : ''}`}
+                    className="relative"
                     style={{
                       marginLeft: index === 0 ? 0 : overlap,
-                      zIndex: dragging ? 70 : index + 1,
+                      zIndex: index + 1,
                       transform:
                         anchor === 'bottom'
-                          ? `translateY(${dragging ? lift - 18 : lift}px) rotate(${rotate}deg)`
-                          : `translateY(${dragging ? -lift - 18 : -lift}px) rotate(${-rotate}deg)`,
+                          ? `translateY(${lift}px) rotate(${rotate}deg)`
+                          : `translateY(${-lift}px) rotate(${-rotate}deg)`,
                       transformOrigin: anchor === 'bottom' ? 'bottom center' : 'top center',
-                      cursor: canDragHand ? (dragging ? 'grabbing' : 'grab') : undefined,
                     }}
-                    onPointerDown={canDragHand ? (event) => onHandPointerDown(event, card.instanceId) : undefined}
                     onDragStart={(event) => event.preventDefault()}
                   >
-                    {renderOne(
-                      'hand',
-                      card,
-                      size,
-                      `${
-                        dragging
-                          ? 'cursor-grabbing shadow-2xl ring-2 ring-amber-300'
-                          : canDragHand
-                            ? 'cursor-grab'
-                            : ''
-                      } ${dragging ? '' : hoverLift}`.trim(),
-                      widthPx,
-                    )}
+                    {renderOne('hand', card, size, hoverLift, widthPx)}
                   </div>
                 );
               })}
@@ -1066,7 +895,7 @@ export function PlayerBoard({
           'enchantments',
           enchantments,
           'sm',
-          isSelf ? 'Glissez vos enchantements ici.' : '—',
+          isSelf ? 'Posez vos enchantements ici.' : '—',
           'text-[10px] text-[var(--gold-1)]/45',
         )}
       </div>
