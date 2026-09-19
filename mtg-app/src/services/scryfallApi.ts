@@ -4,7 +4,7 @@ import { LRUCache } from '../utils/LRUCache';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { scryfallQueue } from '../utils/apiQueue';
 import { extractDfcBack } from '../utils/dfcFaces';
-import { scryfallPrintedName, scryfallPrintedText } from '../utils/scryfallPrinted';
+import { scryfallPrintedName, scryfallPrintedText, scryfallPrintedType } from '../utils/scryfallPrinted';
 
 const SCRYFALL_API_BASE_URL = 'https://api.scryfall.com';
 const CACHE_DURATION = 1000 * 60 * 60; // 1 heure
@@ -55,7 +55,7 @@ function convertScryfallCardToMTGCard(scryfallCard: any): MTGCard {
     cmc: scryfallCard.cmc,
     colors: scryfallCard.colors || [],
     colorIdentity: scryfallCard.color_identity || scryfallCard.colors || [],
-    type: scryfallCard.type_line,
+    type: scryfallPrintedType(scryfallCard) || scryfallCard.type_line,
     types: scryfallCard.type_line ? scryfallCard.type_line.split(' — ')[0].trim().split(/\s+/) : [],
     subtypes: scryfallCard.type_line && scryfallCard.type_line.includes('—') 
       ? scryfallCard.type_line.split(' — ')[1].trim().split(/\s+/) 

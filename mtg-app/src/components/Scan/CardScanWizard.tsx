@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useCamera } from '../../hooks/useCamera';
+import { useUserCollections } from '../../hooks/useUserCollections';
 import { detectCardEdges, drawQuadOnContext, type Quadrilateral } from '../../utils/cardEdgeDetection';
 import { rectifyCardToCanvas } from '../../utils/rectifyCard';
 import { extractCardNameWithOCR, CARD_NAME_REGION } from '../../utils/cardOcr';
@@ -133,7 +134,9 @@ function cropCanvasToQuad(canvas: HTMLCanvasElement, quad: Quadrilateral): HTMLC
 export function CardScanWizard() {
   const { currentUser } = useAuth();
   const { decks, addCardToDeck, createDeck } = useDecks();
+  const { collections, createCollection } = useUserCollections();
   const [state, setState] = useState<WizardState>(initialState);
+  const [targetCollectionId, setTargetCollectionId] = useState<string>('');
   const [targetDeckId, setTargetDeckId] = useState<string>('');
   const [deckZone, setDeckZone] = useState<DeckZone>('mainboard');
   const [addingToDeck, setAddingToDeck] = useState(false);
@@ -160,6 +163,13 @@ export function CardScanWizard() {
   useEffect(() => {
     preloadDictionary();
   }, []);
+
+  useEffect(() => {
+    if (!collections.length) return;
+    setTargetCollectionId((prev) =>
+      prev && collections.some((c) => c.id === prev) ? prev : collections[0].id
+    );
+  }, [collections]);
 
   useEffect(() => {
     if (nameSuggestions.length === 0) return;
@@ -449,8 +459,17 @@ export function CardScanWizard() {
     if (!card || !uid) return;
     setState((s) => ({ ...s, adding: true }));
     try {
+      let collectionId = targetCollectionId || collections[0]?.id;
+      if (!collectionId) {
+        const created = await createCollection('Ma collection');
+        collectionId = created?.id;
+      }
+      if (!collectionId) {
+        throw new Error('Impossible de créer ou sélectionner une collection');
+      }
       await addCardToCollection({
         userId: uid,
+        collectionId,
         name: card.name,
         quantity: 1,
         set: card.set,
@@ -469,7 +488,13 @@ export function CardScanWizard() {
       setState((s) => ({ ...s, adding: false }));
       throw err;
     }
-  }, [state.selectedCard, currentUser?.uid]);
+  }, [
+    state.selectedCard,
+    currentUser?.uid,
+    targetCollectionId,
+    collections,
+    createCollection,
+  ]);
 
   const handleAddToDeck = useCallback(async () => {
     const card = state.selectedCard;
@@ -753,6 +778,22 @@ export function CardScanWizard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {state.selectedCard.setName || state.selectedCard.set} · {state.selectedCard.number}
                   </p>
+                  {collections.length > 1 && (
+                    <label className="mt-2 block text-sm text-gray-700 dark:text-gray-300">
+                      Collection
+                      <select
+                        className="mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1"
+                        value={targetCollectionId}
+                        onChange={(e) => setTargetCollectionId(e.target.value)}
+                      >
+                        {collections.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">

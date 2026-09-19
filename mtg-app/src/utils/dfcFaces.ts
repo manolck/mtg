@@ -33,6 +33,7 @@ export function extractDfcBack(scryfallCard: {
     name?: string;
     printed_name?: string;
     type_line?: string;
+    printed_type_line?: string;
     image_uris?: ImageUris;
   }>;
 }): DfcBack | null {
@@ -43,7 +44,9 @@ export function extractDfcBack(scryfallCard: {
   return {
     backImageUrl,
     backName: back?.printed_name || back?.name,
-    ...(back?.type_line ? { backTypeLine: back.type_line } : {}),
+    ...(back?.printed_type_line || back?.type_line
+      ? { backTypeLine: back.printed_type_line || back.type_line }
+      : {}),
   };
 }
 

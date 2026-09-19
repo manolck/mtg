@@ -63,7 +63,7 @@ export function ZoneBrowsePanel({
   return (
     <div className="fixed inset-0 z-[96] flex items-stretch justify-center bg-black/70 p-3 sm:p-6" onClick={onClose}>
       <div
-        className="w-full max-w-5xl max-h-full overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/15 flex flex-col"
+        className="w-full max-w-6xl max-h-full overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/15 flex flex-col"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/10">
@@ -95,7 +95,7 @@ export function ZoneBrowsePanel({
               {cards.length === 0 ? 'Zone vide.' : 'Aucune carte ne correspond.'}
             </p>
           ) : (
-            <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((card) => {
                 const canSee = canSeeGraveOrExileFace(ownerId, card, viewerId);
                 const face = visibleCardFace(card);
@@ -126,12 +126,12 @@ export function ZoneBrowsePanel({
                         className="h-full w-full object-cover"
                       />
                     </button>
-                    <p className="text-xs font-medium truncate" title={label}>
+                    <p className="text-sm font-medium truncate" title={label}>
                       {label}
                       {card.facedown && canSee ? ' · cachée' : ''}
                     </p>
                     {canSee && card.typeLine ? (
-                      <p className="text-[10px] text-white/45 truncate mb-1.5">{card.typeLine}</p>
+                      <p className="text-xs text-white/55 truncate mb-1.5">{card.typeLine}</p>
                     ) : (
                       <p className="text-[10px] text-white/35 truncate mb-1.5">{canSee ? '\u00a0' : 'Dos de carte'}</p>
                     )}

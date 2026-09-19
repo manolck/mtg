@@ -61,8 +61,11 @@ export interface TableCard {
   transformed?: boolean;
   /** Type de la face verso (DFC), pour classer terrains / permanents. */
   backTypeLine?: string;
-  /** Forcer l’affichage sur la rangée terrains ou champ de bataille. */
-  playmatRow?: 'lands' | 'battlefield';
+  /** Forcer l’affichage sur la rangée terrains, combat ou enchantements. */
+  playmatRow?: 'lands' | 'battlefield' | 'enchantments';
+  /** Position libre sur la zone (0–100 %). */
+  playmatX?: number;
+  playmatY?: number;
   /** Permanent auquel cette carte est attachée (aura / équipement). */
   attachedTo?: string;
   /** Marqueurs (id wiki → quantité). */
@@ -147,6 +150,9 @@ export type PlayAction =
       toTop?: boolean;
       /** 1 = dessus. Si N > nombre de cartes, dessous. */
       libraryPosition?: number;
+      playmatX?: number;
+      playmatY?: number;
+      playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
     }
   | {
       type: 'searchLibrary';
@@ -169,15 +175,17 @@ export type PlayAction =
   | { type: 'attachCard'; userId: string; instanceId: string; hostInstanceId: string | null }
   | { type: 'setFacedown'; userId: string; instanceId: string; facedown: boolean }
   | { type: 'setCounter'; userId: string; instanceId: string; counterId: string; delta: number }
-  | { type: 'addToken'; userId: string; card: TokenBlueprint; quantity?: number }
+  | { type: 'addToken'; userId: string; card: TokenBlueprint; quantity?: number; playmatX?: number; playmatY?: number; playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null }
   | { type: 'removeToken'; userId: string; instanceId: string }
+  | { type: 'mill'; userId: string; count: number }
   | { type: 'scry'; userId: string; count: number; onTop: string[]; onBottom: string[] }
   | { type: 'surveil'; userId: string; count: number; onTop: string[]; toGraveyard: string[] }
   | { type: 'addSeat'; userId: string; seatIndex?: number; displayName?: string }
   | { type: 'reorderHand'; userId: string; instanceId: string; toIndex: number }
-  | { type: 'tap'; userId: string; instanceId: string }
+  | { type: 'tap'; userId: string; instanceId: string; instanceIds?: string[] }
   | { type: 'flip'; userId: string; instanceId: string; backImageUrl?: string; backName?: string; backTypeLine?: string }
-  | { type: 'setPlaymatRow'; userId: string; instanceId: string; row: 'lands' | 'battlefield' | null }
+  | { type: 'setPlaymatRow'; userId: string; instanceId: string; row: 'lands' | 'battlefield' | 'enchantments' | null }
+  | { type: 'setPlaymatPos'; userId: string; instanceIds: string[]; x: number; y: number; row?: 'lands' | 'battlefield' | 'enchantments' | null }
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'passTurn' }

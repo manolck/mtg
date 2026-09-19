@@ -208,15 +208,91 @@ async function recognizeVariants(
   return scored;
 }
 
+async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+}
+
+/** RapidOCR local (sidecar via proxy Vite `/rapidocr`). */
+async function rapidOcrCanvas(canvas: HTMLCanvasElement): Promise<string[]> {
+  const base = (import.meta.env.VITE_RAPIDOCR_URL as string | undefined) || '/rapidocr';
+  const blob = await canvasToPngBlob(canvas);
+  if (!blob) return [];
+  const res = await fetch(`${base.replace(/\/$/, '')}/ocr`, {
+    method: 'POST',
+    body: blob,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    name_texts?: string[];
+    name_joined?: string;
+    texts?: string[];
+    joined?: string;
+  };
+  const out: string[] = [];
+  for (const t of data.name_texts ?? []) out.push(cleanOcrText(t));
+  if (data.name_joined) out.push(cleanOcrText(data.name_joined));
+  for (const t of (data.texts ?? []).slice(0, 3)) out.push(cleanOcrText(t));
+  if (data.joined) out.push(cleanOcrText(data.joined));
+  return [...new Set(out.filter((t) => t.length >= 3 && letterScore(t) >= 6))];
+}
+
+async function extractWithRapidOcr(
+  img: HTMLImageElement,
+  region: NameRegion
+): Promise<OCRNameResult | null> {
+  try {
+    const health = await fetch(
+      `${((import.meta.env.VITE_RAPIDOCR_URL as string | undefined) || '/rapidocr').replace(/\/$/, '')}/health`,
+      { signal: AbortSignal.timeout(1500) }
+    );
+    if (!health.ok) return null;
+  } catch {
+    return null;
+  }
+
+  const titleCrop = cropToRegion(img, region);
+  const texts = await rapidOcrCanvas(titleCrop);
+  if (texts.length && letterScore(texts[0]) >= 10) {
+    return {
+      text: texts[0],
+      textAuto: texts[0],
+      textInverted: texts[1] ?? texts[0],
+      candidates: texts.slice(0, 24),
+    };
+  }
+
+  // Full card fallback
+  const full = document.createElement('canvas');
+  full.width = img.naturalWidth;
+  full.height = img.naturalHeight;
+  const ctx = full.getContext('2d');
+  if (ctx) ctx.drawImage(img, 0, 0);
+  const more = await rapidOcrCanvas(full);
+  const merged = [...new Set([...texts, ...more])];
+  if (!merged.length) return null;
+  merged.sort((a, b) => letterScore(b) - letterScore(a));
+  return {
+    text: merged[0],
+    textAuto: merged[0],
+    textInverted: merged[1] ?? merged[0],
+    candidates: merged.slice(0, 24),
+  };
+}
+
 /**
  * Extract the card name from a cropped card image (data URL).
- * Pass 1 rapide ; pass 2 (deskew + régions élargies) si OCR faible (webcam).
+ * Prefer RapidOCR sidecar when available; else Tesseract (pass 1 + pass 2 if weak).
  */
 export async function extractCardNameWithOCR(
   cardImageDataUrl: string,
   region: NameRegion = CARD_NAME_REGION
 ): Promise<OCRNameResult> {
   const img = await loadImage(cardImageDataUrl);
+
+  const rapid = await extractWithRapidOcr(img, region);
+  if (rapid && letterScore(rapid.text) >= 8) return rapid;
+
   const worker = await Tesseract.createWorker('eng+fra', 1, { logger: () => {} });
   try {
     const allScored: { text: string; confidence: number }[] = [];
@@ -245,7 +321,6 @@ export async function extractCardNameWithOCR(
           );
         }
       }
-      // Cap work: recognize in chunks of 8
       for (let i = 0; i < pass2Canvases.length; i += 8) {
         const chunk = pass2Canvases.slice(i, i + 8);
         allScored.push(...(await recognizeVariants(worker, chunk)));

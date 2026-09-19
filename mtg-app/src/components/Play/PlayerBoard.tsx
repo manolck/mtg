@@ -13,10 +13,14 @@ import {
   isPlaymatLand,
   tableBattlefieldCards,
   isHandCardChosen,
+  groupPlaymatCards,
 } from '../../utils/playTable';
+import { isOverHandFan, playDropAt } from '../../utils/playDrop';
 import { CardLightbox } from '../Card/CardLightbox';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { PlayCard, MTG_CARD_BACK_URL } from './PlayCard';
+import { LifeVial } from './LifeVial';
+import './playerBar.css';
 import { CounterPicker } from './CounterPicker';
 import { LibrarySearchPanel } from './LibrarySearchPanel';
 import { LibraryLookPanel, type LibraryLookMode } from './LibraryLookPanel';
@@ -34,10 +38,12 @@ interface PlayerBoardProps {
   compact?: boolean;
   /** Orient the playmat like sitting at this seat (lands at the bottom). */
   seatHome?: boolean;
-  /** Replier nom / vie par défaut (tables à 4). */
-  collapseSeatHud?: boolean;
   /** Nombre de plateaux visibles, pour la taille de la main. */
   visibleSeats?: number;
+  /** PV de départ (20 ou 40) pour la fiole de vie. */
+  startingLife?: number;
+  /** Nom du deck choisi, affiché sur le HUD. */
+  deckName?: string;
   viewerId: string;
   opponents?: Array<{ userId: string; displayName?: string }>;
   onDraw?: () => void;
@@ -50,14 +56,21 @@ interface PlayerBoardProps {
     instanceId: string,
     from: ZoneName,
     to: ZoneName,
-    options?: { toTop?: boolean; libraryPosition?: number; facedown?: boolean },
+    options?: {
+      toTop?: boolean;
+      libraryPosition?: number;
+      facedown?: boolean;
+      playmatX?: number;
+      playmatY?: number;
+      playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
+    },
   ) => void;
   onSearchLibrary?: (
     instanceId: string,
     to: ZoneName,
     options?: { toTop?: boolean; libraryPosition?: number; shuffle?: boolean; facedown?: boolean },
   ) => void;
-  onTap?: (instanceId: string) => void;
+  onTap?: (instanceId: string, instanceIds?: string[]) => void;
   onFlip?: (instanceId: string, faces?: { backImageUrl?: string; backName?: string; backTypeLine?: string }) => void;
   onShowHand?: (viewerIds: RevealAudience) => void;
   onHideHand?: () => void;
@@ -72,17 +85,24 @@ interface PlayerBoardProps {
   onDetach?: (instanceId: string) => void;
   onSetFacedown?: (instanceId: string, facedown: boolean) => void;
   onSetCounter?: (instanceId: string, counterId: string, delta: number) => void;
-  onSetPlaymatRow?: (instanceId: string, row: 'lands' | 'battlefield' | null) => void;
+  onSetPlaymatRow?: (instanceId: string, row: 'lands' | 'battlefield' | 'enchantments' | null) => void;
+  onSetPlaymatPos?: (
+    instanceIds: string[],
+    x: number,
+    y: number,
+    row?: 'lands' | 'battlefield' | 'enchantments' | null,
+  ) => void;
   onAddToken?: (card: TokenBlueprint, quantity: number) => void;
   onRemoveToken?: (instanceId: string) => void;
   onScry?: (count: number, onTop: string[], onBottom: string[]) => void;
   onSurveil?: (count: number, onTop: string[], toGraveyard: string[]) => void;
+  onMill?: (count: number) => void;
   onReorderHand?: (instanceId: string, toIndex: number) => void;
   onToggleHandChoice?: (instanceId: string) => void;
   onClearHandChoices?: () => void;
 }
 
-type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'sendTo';
+type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'sendTo' | 'mill';
 
 interface MenuState {
   card: TableCard | null;
@@ -119,8 +139,9 @@ export function PlayerBoard({
   isTurn,
   compact = false,
   seatHome = false,
-  collapseSeatHud = false,
   visibleSeats = 2,
+  startingLife = 20,
+  deckName,
   viewerId,
   opponents = [],
   onDraw,
@@ -147,10 +168,12 @@ export function PlayerBoard({
   onSetFacedown,
   onSetCounter,
   onSetPlaymatRow,
+  onSetPlaymatPos,
   onAddToken,
   onRemoveToken,
   onScry,
   onSurveil,
+  onMill,
   onReorderHand,
   onToggleHandChoice,
   onClearHandChoices,
@@ -164,14 +187,14 @@ export function PlayerBoard({
   const [browseZone, setBrowseZone] = useState<'graveyard' | 'exile' | null>(null);
   const [counterCardId, setCounterCardId] = useState<string | null>(null);
   const [handVisible, setHandVisible] = useState(true);
-  const [seatHudOpen, setSeatHudOpen] = useState<boolean | null>(null);
   const [handDrag, setHandDrag] = useState<{ instanceId: string; toIndex: number } | null>(null);
+  const [playmatDragId, setPlaymatDragId] = useState<string | null>(null);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const skipHandClickRef = useRef(false);
+  const skipPlayClickRef = useRef(false);
   const playmatRef = useRef<HTMLDivElement | null>(null);
   const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
   const homeMat = isSelf || seatHome;
-  const hudOpen = seatHudOpen ?? !collapseSeatHud;
   const canUseLibrary = isSelf && isTurn;
   const playCardPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'play') || undefined;
   const handCardPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'hand') || undefined;
@@ -186,7 +209,7 @@ export function PlayerBoard({
     const observer = new ResizeObserver(apply);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hudOpen, visibleSeats]);
+  }, [visibleSeats]);
   const { lands, enchantments, other } = useMemo(() => splitBattlefield(player.battlefield), [player.battlefield]);
   const allBattlefield = useMemo(
     () => tableBattlefieldCards(tablePlayers.length ? tablePlayers : [player]),
@@ -210,12 +233,11 @@ export function PlayerBoard({
       ...player.graveyard,
       ...player.exile,
       ...player.command,
-      ...player.library.slice(0, lookMode ? 20 : 1),
+      ...player.library,
     ];
     const extra = allBattlefield.filter((card) => !visible.some((item) => item.instanceId === card.instanceId));
-    const fromLibrary = libraryOpen ? player.library : [];
-    return [...visible, ...extra, ...fromLibrary].map((card) => card.scryfallId);
-  }, [player, allBattlefield, libraryOpen, lookMode]);
+    return [...visible, ...extra].map((card) => card.scryfallId);
+  }, [player, allBattlefield]);
   const localizedFaces = useLocalizedTableFaces(localizedIds, preferFrench);
 
   const counterCard = useMemo(() => {
@@ -340,8 +362,89 @@ export function PlayerBoard({
   };
   const canActOn = (card: TableCard) => cardOwnerId(card) === viewerId;
 
+  const stackFor = (card: TableCard) => {
+    const groups = groupPlaymatCards(player.battlefield.filter((item) => !item.attachedTo));
+    return groups.find((group) => group.members.some((item) => item.instanceId === card.instanceId))?.members || [card];
+  };
+
+  const applyPlaymatDrop = (card: TableCard, from: ZoneName, clientX: number, clientY: number) => {
+    const members = from === 'battlefield' ? stackFor(card) : [card];
+    const drop = playDropAt(clientX, clientY, members.map((item) => item.instanceId));
+    if (!drop) return false;
+    const target = drop.cardId
+      ? player.battlefield.find((item) => item.instanceId === drop.cardId)
+      : undefined;
+    const stackTarget =
+      Boolean(card.isToken && target?.isToken && target.scryfallId === card.scryfallId) && target
+        ? stackFor(target)
+        : [];
+    const x = stackTarget[0]?.playmatX ?? drop.x;
+    const y = stackTarget[0]?.playmatY ?? drop.y;
+    const ids = [...new Set([...members, ...stackTarget].map((item) => item.instanceId))];
+    if (from === 'hand' || from === 'command') {
+      const played = onMove?.(card.instanceId, from, 'battlefield', {
+        playmatX: x,
+        playmatY: y,
+        playmatRow: drop.row,
+      });
+      if (stackTarget.length > 0) {
+        void Promise.resolve(played).then(() => {
+          onSetPlaymatPos?.(ids, x, y, drop.row);
+        });
+      }
+      return true;
+    }
+    if (from === 'battlefield') {
+      onSetPlaymatPos?.(ids, x, y, drop.row);
+      return true;
+    }
+    return false;
+  };
+
+  const onPlaymatPointerDown = (event: PointerEvent<HTMLDivElement>, card: TableCard) => {
+    if (!isSelf || !canActOn(card) || event.button !== 0 || event.shiftKey || attachPickId) return;
+    const target = event.currentTarget;
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let moved = false;
+    const onMovePtr = (moveEvent: globalThis.PointerEvent) => {
+      if (moveEvent.pointerId !== event.pointerId) return;
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8 && !moved) return;
+      moved = true;
+      setHover(null);
+      setPlaymatDragId(card.instanceId);
+    };
+    const onUp = (upEvent: globalThis.PointerEvent) => {
+      if (upEvent.pointerId !== event.pointerId) return;
+      window.removeEventListener('pointermove', onMovePtr);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      try {
+        if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+      setPlaymatDragId(null);
+      if (!moved) return;
+      skipPlayClickRef.current = true;
+      window.setTimeout(() => {
+        skipPlayClickRef.current = false;
+      }, 0);
+      applyPlaymatDrop(card, 'battlefield', upEvent.clientX, upEvent.clientY);
+    };
+    window.addEventListener('pointermove', onMovePtr);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
   const handleCardClick = (event: MouseEvent, card: TableCard, zone: ZoneName) => {
     if (zone === 'hand' && skipHandClickRef.current) return;
+    if (zone === 'battlefield' && skipPlayClickRef.current) return;
     if (attachPickId && zone === 'battlefield') {
       if (isAttachHostCandidate(card, attachPickId)) onPickAttachHost?.(card.instanceId);
       return;
@@ -362,7 +465,8 @@ export function PlayerBoard({
       }
     }
     if (zone === 'battlefield') {
-      onTap?.(card.instanceId);
+      const members = stackFor(card);
+      onTap?.(card.instanceId, members.length > 1 ? members.map((item) => item.instanceId) : undefined);
       return;
     }
     const dest = primaryMove(zone);
@@ -398,6 +502,7 @@ export function PlayerBoard({
     extraClass = '',
     widthPx?: number,
     extraStyle?: CSSProperties,
+    stackCount = 1,
   ) => {
     const resolved = resolveCard(card);
     const pickingHost = Boolean(attachPickId && zone === 'battlefield' && isAttachHostCandidate(resolved, attachPickId));
@@ -420,6 +525,7 @@ export function PlayerBoard({
         }
         className={`${extraClass} ${pickingHost ? 'ring-2 ring-amber-300' : ''}`.trim()}
         canTransform={Boolean(canActOn(resolved) && isDoubleFacedCard(resolved))}
+        stackCount={stackCount}
         onTransform={() => flipCard(resolved)}
         onClick={(event) => handleCardClick(event, resolved, zone)}
         onContextMenu={(event) => {
@@ -445,8 +551,13 @@ export function PlayerBoard({
     );
   };
 
-  const renderCards = (zone: ZoneName, cards: TableCard[], size: 'sm' | 'md' | 'lg', overlap = false) => {
-    const widthPx = size === 'md' ? playCardPx : undefined;
+  const renderPlaymatGroup = (
+    group: { lead: TableCard; members: TableCard[] },
+    size: 'sm' | 'md' | 'lg',
+    widthPx?: number,
+    extraStyle?: CSSProperties,
+  ) => {
+    const attached = attachmentsOn(group.lead.instanceId, allBattlefield);
     const peek = widthPx
       ? Math.round(widthPx * CARD_ASPECT * 0.22)
       : size === 'sm'
@@ -454,46 +565,78 @@ export function PlayerBoard({
         : size === 'lg'
           ? 26
           : 22;
-    const overlapClass = widthPx
-      ? overlap
-        ? 'hover:ml-0'
-        : ''
-      : size === 'sm'
-        ? '-ml-[2.1rem] sm:-ml-[2.4rem] hover:ml-0'
-        : size === 'lg'
-          ? '-ml-[3.9rem] sm:-ml-[4.8rem] md:-ml-[5.1rem] hover:ml-0'
-          : '-ml-[3.3rem] sm:-ml-[4.2rem] hover:ml-0';
+    const dragging = Boolean(playmatDragId && group.members.some((item) => item.instanceId === playmatDragId));
+    const card = renderOne(
+      'battlefield',
+      group.lead,
+      size,
+      dragging ? 'ring-2 ring-amber-300 shadow-2xl' : '',
+      widthPx,
+      undefined,
+      group.members.length,
+    );
     return (
-      <div className={`flex flex-wrap items-end ${overlap ? 'gap-0' : 'gap-1'}`}>
-        {cards.map((card, index) => {
-          const attached = zone === 'battlefield' ? attachmentsOn(card.instanceId, allBattlefield) : [];
-          const extraClass = overlap && index > 0 ? overlapClass : '';
-          const extraStyle =
-            widthPx && overlap && index > 0 ? { marginLeft: -Math.round(widthPx * 0.58) } : undefined;
-          if (attached.length === 0) {
-            return renderOne(zone, card, size, extraClass, widthPx, extraStyle);
-          }
-          return (
-            <div
-              key={card.instanceId}
-              className="relative shrink-0"
-              style={{ paddingTop: attached.length * peek }}
-            >
-              {attached.map((item, attachIndex) => (
-                <div
-                  key={item.instanceId}
-                  className="absolute left-1/2 -translate-x-1/2"
-                  style={{ top: attachIndex * peek, zIndex: attachIndex }}
-                >
-                  {renderOne('battlefield', item, size, '', widthPx)}
-                </div>
-              ))}
-              <div className="relative" style={{ zIndex: attached.length + 1 }}>
-                {renderOne(zone, card, size, extraClass, widthPx, extraStyle)}
+      <div
+        key={group.lead.instanceId}
+        data-play-card-id={group.lead.instanceId}
+        className={`relative shrink-0 ${isSelf ? 'touch-none' : ''} ${dragging ? 'z-30' : ''}`}
+        style={extraStyle}
+        onPointerDown={isSelf ? (event) => onPlaymatPointerDown(event, group.lead) : undefined}
+      >
+        {attached.length === 0 ? (
+          card
+        ) : (
+          <div className="relative shrink-0" style={{ paddingTop: attached.length * peek }}>
+            {attached.map((item, attachIndex) => (
+              <div
+                key={item.instanceId}
+                className="absolute left-1/2 -translate-x-1/2"
+                style={{ top: attachIndex * peek, zIndex: attachIndex }}
+              >
+                {renderOne('battlefield', item, size, '', widthPx)}
               </div>
+            ))}
+            <div className="relative" style={{ zIndex: attached.length + 1 }}>
+              {card}
             </div>
-          );
-        })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPlaymatArea = (
+    row: 'lands' | 'battlefield' | 'enchantments',
+    cards: TableCard[],
+    size: 'sm' | 'md' | 'lg',
+    empty: string,
+    emptyClass: string,
+  ) => {
+    const groups = groupPlaymatCards(cards);
+    const flow = groups.filter((group) => group.lead.playmatX == null || group.lead.playmatY == null);
+    const placed = groups.filter((group) => group.lead.playmatX != null && group.lead.playmatY != null);
+    const widthPx =
+      size === 'sm' ? (playCardPx ? Math.round(playCardPx * 0.78) : undefined) : playCardPx;
+    return (
+      <div className="relative flex-1 min-h-0 min-w-0" data-play-drop={row}>
+        <div className="absolute inset-0 overflow-auto flex items-center justify-center py-0.5">
+          {flow.length === 0 && placed.length === 0 ? (
+            <p className={`text-center italic py-2 pointer-events-none ${emptyClass}`}>{empty}</p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-1">
+              {flow.map((group) => renderPlaymatGroup(group, size, widthPx))}
+            </div>
+          )}
+        </div>
+        {placed.map((group) =>
+          renderPlaymatGroup(group, size, widthPx, {
+            position: 'absolute',
+            left: `${group.lead.playmatX}%`,
+            top: `${group.lead.playmatY}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: playmatDragId && group.members.some((item) => item.instanceId === playmatDragId) ? 40 : 10,
+          }),
+        )}
       </div>
     );
   };
@@ -515,7 +658,7 @@ export function PlayerBoard({
     const hiddenInPile = (zone === 'graveyard' || zone === 'exile') && cards.some((card) => card.facedown);
     return (
       <div className="flex flex-col items-center gap-px w-[2.65rem] sm:w-[2.9rem] min-w-0">
-        <p className="text-[7px] sm:text-[8px] font-semibold tracking-[0.06em] text-slate-700 uppercase leading-none truncate w-full text-center">
+        <p className="text-[7px] sm:text-[8px] font-semibold tracking-[0.06em] text-[var(--gold-1)] uppercase leading-none truncate w-full text-center">
           {shortLabel}
           {revealed ? ' · 👁' : ''}
           {hiddenInPile ? ' · 🂠' : ''}
@@ -593,49 +736,57 @@ export function PlayerBoard({
     );
   };
 
-  const lifeBlock = (
-    <div className="flex flex-col items-center">
-      {isSelf && (
-        <div className="flex gap-0.5 mb-0.5">
-          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-5)} title="−5 PV (Shift+−)">
-            −5
-          </button>
-          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(5)} title="+5 PV (Shift++)">
-            +5
-          </button>
-        </div>
-      )}
-      <p className={`font-black leading-none tabular-nums ${compact ? 'text-2xl' : 'text-4xl'} ${player.life <= 5 ? 'text-red-400' : 'text-amber-50'}`}>
-        {player.life}
-      </p>
-      {isSelf && (
-        <div className="flex gap-0.5 mt-0.5">
-          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(-1)} title="−1 PV (−)">
-            −1
-          </button>
-          <button type="button" className="h-7 w-8 rounded bg-black/40 text-[10px] hover:bg-white/20" onClick={() => onLife?.(1)} title="+1 PV (+)">
-            +1
-          </button>
-        </div>
-      )}
-      {player.poison > 0 && <p className="text-[11px] text-lime-300 mt-0.5">☠ {player.poison}</p>}
-    </div>
-  );
-
   const commanderLabel = player.command
     .map((card) => visibleCardFace(resolveCard(card)).name)
     .filter(Boolean)
     .join(' · ');
+  const deckLabel = deckName || commanderLabel || 'Deck';
 
-  const zoneTitle = (label: string, tone = 'text-black/70') => (
+  const zoneTitle = (label: string, tone = 'text-[var(--gold-1)]') => (
     <p className={`text-[8px] sm:text-[9px] font-semibold tracking-[0.16em] ${tone} uppercase leading-none px-1 mb-0.5`}>
       {label}
     </p>
   );
 
+  const hudCompact = compact || visibleSeats > 3;
+  const combatHud = (
+    <div className={`player-bar ${homeMat ? '' : 'player-bar--away'}`.trim()}>
+      <div className="player-bar-identity">
+        <p className="player-bar-name">{player.displayName || 'Joueur'}</p>
+        <div className="player-bar-deck">
+          <p className="player-bar-deck-name" title={deckLabel}>
+            {deckLabel}
+          </p>
+          {isTurn ? <span className="player-bar-turn">Tour</span> : null}
+        </div>
+        {isSelf && (
+          <button
+            type="button"
+            className={`player-bar-end ${isTurn ? '' : 'is-waiting'}`.trim()}
+            onClick={onPassTurn}
+          >
+            Fin de tour
+          </button>
+        )}
+      </div>
+      <div className="player-bar-life">
+        <LifeVial
+          life={player.life}
+          maxLife={startingLife}
+          compact={hudCompact}
+          isSelf={isSelf}
+          poison={player.poison}
+          controls="below"
+          onLife={onLife}
+          onPoison={onPoison}
+        />
+      </div>
+    </div>
+  );
+
   const battlefieldZone = (
     <div
-      className="flex-[3] min-h-0 flex flex-col bg-[#2b4db8] border-y border-blue-900/40 px-1.5 py-1 overflow-hidden"
+      className="zone--battlefield flex-[3] min-h-0 min-w-0 flex flex-col px-1.5 py-1"
       onContextMenu={(event) => {
         if (event.target !== event.currentTarget && (event.target as HTMLElement).closest('button')) return;
         if (!isSelf) {
@@ -645,16 +796,21 @@ export function PlayerBoard({
         openMenu(event, null, 'battlefield');
       }}
     >
-      <div className="flex items-center justify-between gap-1 mb-0.5">
-        {zoneTitle('Champ de bataille', 'text-white/85')}
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center py-0.5">
-        {other.length === 0 ? (
-          <p className="text-xs text-white/50 italic py-2 text-center pointer-events-none">
-            {isSelf ? 'Cliquez une carte en main pour la poser. Clic droit : jeton.' : 'Aucun permanent.'}
-          </p>
-        ) : (
-          renderCards('battlefield', other, 'md')
+      {combatHud}
+      <div className="zone-layer flex-1 min-h-0 flex flex-col">
+        <div
+          className={`flex items-center justify-between gap-1 mb-0.5 ${
+            homeMat ? 'pt-[5.75rem] sm:pt-[6.5rem]' : 'pb-[4.5rem] sm:pb-20'
+          }`}
+        >
+          {zoneTitle('Champ de bataille')}
+        </div>
+        {renderPlaymatArea(
+          'battlefield',
+          other,
+          'md',
+          isSelf ? 'Glissez une carte de la main ici. Clic droit : jeton.' : 'Aucun permanent.',
+          'text-xs text-[var(--gold-1)]/50',
         )}
       </div>
     </div>
@@ -662,7 +818,7 @@ export function PlayerBoard({
 
   const landZone = (
     <div
-      className="flex-[2] min-h-0 bg-[#e6b325] border-y border-yellow-700/40 px-1.5 py-1 overflow-hidden flex flex-col"
+      className="zone--terrain flex-[1] min-h-[5.75rem] flex"
       onContextMenu={(event) => {
         if (event.target !== event.currentTarget && (event.target as HTMLElement).closest('button')) return;
         if (!isSelf) {
@@ -672,15 +828,23 @@ export function PlayerBoard({
         openMenu(event, null, 'battlefield');
       }}
     >
-      {zoneTitle('Terrains')}
-      <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center">
-        {lands.length === 0 ? (
-          <p className="text-[11px] text-black/40 italic text-center py-1 pointer-events-none">
-            {isSelf ? 'Posez vos terrains ici.' : '—'}
-          </p>
-        ) : (
-          renderCards('battlefield', lands, 'md')
+      <div className="zone-layer flex-1 min-w-0 min-h-0 px-1.5 py-1 flex flex-col">
+        {zoneTitle('Terrains')}
+        {renderPlaymatArea(
+          'lands',
+          lands,
+          'md',
+          isSelf ? 'Glissez vos terrains ici.' : '—',
+          'text-[11px] text-[var(--gold-1)]/45',
         )}
+      </div>
+      <div className="zone-layer zone-piles shrink-0 w-[5.85rem] sm:w-[6.35rem] flex items-center justify-center px-0.5">
+        <div className="grid grid-cols-[2.65rem_2.65rem] sm:grid-cols-[2.9rem_2.9rem] gap-0.5 py-0.5 place-items-center">
+          {pile('library', canUseLibrary ? () => onDraw?.() : undefined)}
+          {pile('graveyard', () => setBrowseZone('graveyard'))}
+          {pile('exile', () => setBrowseZone('exile'))}
+          {pile('command')}
+        </div>
       </div>
     </div>
   );
@@ -711,7 +875,8 @@ export function PlayerBoard({
     const peek = anchor === 'bottom' ? '48%' : '-48%';
     const hidden = anchor === 'bottom' ? '108%' : '-108%';
     const showToggle = isSelf || n > 0;
-    const canReorder = isSelf && n > 1;
+    const canDragHand = isSelf && n > 0;
+    const canReorder = canDragHand && n > 1;
     const chosenCount = (player.chosenHandCards || []).length;
     const hoverLiftPx = Math.round((widthPx || (size === 'sm' ? 48 : size === 'md' ? 72 : 96)) * 0.42);
     const hoverLift =
@@ -720,7 +885,7 @@ export function PlayerBoard({
         : 'hover:translate-y-[var(--hand-hover-y)] hover:z-50';
 
     const onHandPointerDown = (event: PointerEvent<HTMLDivElement>, instanceId: string) => {
-      if (!canReorder || event.button !== 0 || event.shiftKey) return;
+      if (!canDragHand || event.button !== 0 || event.shiftKey) return;
       const fromIndex = player.hand.findIndex((card) => card.instanceId === instanceId);
       if (fromIndex < 0) return;
       const target = event.currentTarget;
@@ -773,7 +938,14 @@ export function PlayerBoard({
         window.setTimeout(() => {
           skipHandClickRef.current = false;
         }, 0);
-        const origin = player.hand.findIndex((card) => card.instanceId === instanceId);
+        const card = player.hand.find((item) => item.instanceId === instanceId);
+        if (!card) return;
+        if (!isOverHandFan(upEvent.clientX, upEvent.clientY, handFanRef.current)) {
+          applyPlaymatDrop(card, 'hand', upEvent.clientX, upEvent.clientY);
+          return;
+        }
+        if (!canReorder) return;
+        const origin = player.hand.findIndex((item) => item.instanceId === instanceId);
         if (origin < 0 || toIndex === origin) return;
         onReorderHand?.(instanceId, toIndex);
       };
@@ -839,7 +1011,7 @@ export function PlayerBoard({
                   <div
                     key={card.instanceId}
                     data-hand-card={card.instanceId}
-                    className={`relative ${canReorder ? 'touch-none' : ''}`}
+                    className={`relative ${canDragHand ? 'touch-none' : ''}`}
                     style={{
                       marginLeft: index === 0 ? 0 : overlap,
                       zIndex: dragging ? 70 : index + 1,
@@ -848,9 +1020,9 @@ export function PlayerBoard({
                           ? `translateY(${dragging ? lift - 18 : lift}px) rotate(${rotate}deg)`
                           : `translateY(${dragging ? -lift - 18 : -lift}px) rotate(${-rotate}deg)`,
                       transformOrigin: anchor === 'bottom' ? 'bottom center' : 'top center',
-                      cursor: canReorder ? (dragging ? 'grabbing' : 'grab') : undefined,
+                      cursor: canDragHand ? (dragging ? 'grabbing' : 'grab') : undefined,
                     }}
-                    onPointerDown={canReorder ? (event) => onHandPointerDown(event, card.instanceId) : undefined}
+                    onPointerDown={canDragHand ? (event) => onHandPointerDown(event, card.instanceId) : undefined}
                     onDragStart={(event) => event.preventDefault()}
                   >
                     {renderOne(
@@ -860,7 +1032,7 @@ export function PlayerBoard({
                       `${
                         dragging
                           ? 'cursor-grabbing shadow-2xl ring-2 ring-amber-300'
-                          : canReorder
+                          : canDragHand
                             ? 'cursor-grab'
                             : ''
                       } ${dragging ? '' : hoverLift}`.trim(),
@@ -877,24 +1049,34 @@ export function PlayerBoard({
   };
 
   const enchantZone = (
-    <div className="flex-1 min-h-0 min-w-0 bg-[#f4b6d2] border border-rose-400/60 rounded-sm px-0.5 py-0.5 overflow-hidden flex flex-col">
-      {zoneTitle('Ench.')}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {enchantments.length === 0 ? (
-          <p className="text-[10px] text-black/35 italic text-center py-2">—</p>
-        ) : (
-          renderCards('battlefield', enchantments, 'sm')
+    <div
+      className="zone--enchant flex-[1] min-h-0 min-w-0 px-1 py-0.5 flex flex-col"
+      onContextMenu={(event) => {
+        if (event.target !== event.currentTarget && (event.target as HTMLElement).closest('button')) return;
+        if (!isSelf) {
+          event.preventDefault();
+          return;
+        }
+        openMenu(event, null, 'battlefield');
+      }}
+    >
+      <div className="zone-layer flex-1 min-h-0 min-w-0 flex flex-col">
+        {zoneTitle('Enchantements')}
+        {renderPlaymatArea(
+          'enchantments',
+          enchantments,
+          'sm',
+          isSelf ? 'Glissez vos enchantements ici.' : '—',
+          'text-[10px] text-[var(--gold-1)]/45',
         )}
       </div>
     </div>
   );
 
-  const pilesRow = (
-    <div className="shrink-0 grid grid-cols-[2.65rem_2.65rem] sm:grid-cols-[2.9rem_2.9rem] gap-0.5 py-0.5 place-items-center">
-      {pile('library', canUseLibrary ? () => onDraw?.() : undefined)}
-      {pile('graveyard', () => setBrowseZone('graveyard'))}
-      {pile('exile', () => setBrowseZone('exile'))}
-      {pile('command')}
+  const combatStack = (
+    <div className="flex-[3] min-h-0 min-w-0 flex gap-1 overflow-hidden">
+      {battlefieldZone}
+      {enchantZone}
     </div>
   );
 
@@ -904,113 +1086,21 @@ export function PlayerBoard({
         isTurn ? 'ring-2 ring-amber-400 shadow-[0_0_24px_rgba(251,191,36,0.25)]' : 'ring-1 ring-amber-200/20'
       }`}
     >
-      <div className="relative flex-1 min-h-0 flex bg-white">
-        {hudOpen ? (
-          <aside className="relative z-10 shrink-0 w-[5.75rem] sm:w-[7.75rem] flex flex-col items-center gap-1.5 p-1.5 sm:p-2 border-r border-black/15 bg-white text-slate-900">
-            <button
-              type="button"
-              className="absolute top-1 right-0.5 z-30 h-6 w-5 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              onClick={() => setSeatHudOpen(false)}
-              title="Replier nom et vie"
-              aria-expanded="true"
-              aria-label="Replier nom et vie"
-            >
-              <span aria-hidden className="block text-sm leading-none">‹</span>
-            </button>
-            <div className="min-w-0 w-full text-center">
-              <p className="font-semibold truncate leading-tight text-xs sm:text-sm">
-                {player.displayName || 'Joueur'}
-              </p>
-              <p className="text-[10px] text-slate-500 truncate" title={commanderLabel || undefined}>
-                {commanderLabel || 'Commandant'}
-              </p>
-              {isTurn ? (
-                <p className="text-[9px] font-medium text-amber-700 uppercase tracking-[0.18em] mt-0.5">Tour</p>
-              ) : null}
-            </div>
-            <div className="w-full flex-1 min-h-[5.5rem] rounded-sm bg-[#6b1020] ring-1 ring-red-950 px-1 py-1.5 flex flex-col items-center justify-center text-white">
-              <p className="text-[8px] font-semibold tracking-[0.08em] text-red-100/80 uppercase text-center leading-tight mb-1">
-                Gestion de la vie
-              </p>
-              {lifeBlock}
-              {isSelf && (
-                <button
-                  type="button"
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 mt-1"
-                  onClick={() => onPoison?.(1)}
-                  title="Marqueur poison"
-                >
-                  +☠
-                </button>
-              )}
-            </div>
-          </aside>
-        ) : (
-          <div className="relative z-10 shrink-0 w-6 sm:w-7 flex flex-col border-r border-black/15 bg-white text-slate-800">
-            <button
-              type="button"
-              className="flex-1 min-h-0 w-full flex flex-col items-center justify-center gap-2 py-2 hover:bg-slate-50"
-              onClick={() => setSeatHudOpen(true)}
-              title={`Déplier nom et vie — ${player.displayName || 'Joueur'}`}
-              aria-expanded="false"
-              aria-label={`Déplier nom et vie de ${player.displayName || 'Joueur'}`}
-            >
-              <span aria-hidden className="text-sm leading-none text-slate-600">›</span>
-              <span
-                className={`text-[11px] font-black tabular-nums leading-none ${
-                  player.life <= 5 ? 'text-red-600' : 'text-slate-800'
-                }`}
-              >
-                {player.life}
-              </span>
-              {isTurn ? (
-                <span className="text-[8px] font-semibold uppercase tracking-wider text-amber-700">Tour</span>
-              ) : null}
-            </button>
-          </div>
-        )}
-
-        <div ref={playmatRef} className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+      <div className="relative flex-1 min-h-0 flex bg-[var(--ink)]">
+        <div ref={playmatRef} className="relative z-10 flex-1 min-w-0 min-h-0 flex flex-col gap-1 overflow-hidden p-1">
           {homeMat ? (
             <>
-              {battlefieldZone}
+              {combatStack}
               {landZone}
             </>
           ) : (
             <>
               {landZone}
-              {battlefieldZone}
+              {combatStack}
             </>
           )}
           {renderHeldHand(homeMat ? 'bottom' : 'top')}
-          {isSelf && (
-            <button
-              type="button"
-              className={`absolute bottom-3 right-3 z-40 min-h-[52px] px-4 sm:px-5 rounded-xl text-sm font-bold shadow-2xl ${
-                isTurn
-                  ? 'bg-amber-400 text-black ring-4 ring-amber-100/90 hover:bg-amber-300'
-                  : 'bg-slate-900/80 text-white ring-1 ring-white/25 hover:bg-slate-800'
-              }`}
-              onClick={onPassTurn}
-            >
-              Fin de tour
-            </button>
-          )}
         </div>
-
-        <aside className="relative z-10 shrink-0 w-[5.85rem] sm:w-[6.35rem] flex flex-col gap-0.5 p-0.5 bg-white border-l border-black/15">
-          {homeMat ? (
-            <>
-              {enchantZone}
-              {pilesRow}
-            </>
-          ) : (
-            <>
-              {pilesRow}
-              {enchantZone}
-            </>
-          )}
-        </aside>
       </div>
 
       {menu && isSelf && (
@@ -1224,6 +1314,39 @@ export function PlayerBoard({
                   Placer
                 </button>
               </form>
+            ) : menu.view === 'mill' && menu.from === 'libraryPile' ? (
+              <form
+                className="px-2 py-1 space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const n = Number.parseInt(menu.libraryN, 10);
+                  if (!Number.isFinite(n) || n < 1) return;
+                  onMill?.(n);
+                  setMenu(null);
+                }}
+              >
+                <label className="block text-xs text-white/70">
+                  Cartes du dessus vers le cimetière
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(1, player.library.length)}
+                    value={menu.libraryN}
+                    onChange={(event) => setMenu({ ...menu, libraryN: event.target.value })}
+                    className="mt-1 w-full rounded-lg bg-black/40 border border-white/15 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <p className="text-[10px] text-white/45">
+                  {player.library.length} carte{player.library.length > 1 ? 's' : ''} dans la bibliothèque.
+                </p>
+                <button
+                  type="submit"
+                  className="w-full py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold"
+                  disabled={player.library.length === 0}
+                >
+                  Meule
+                </button>
+              </form>
             ) : (
               <>
                 {menu.from === 'battlefield' && !menu.card && (
@@ -1308,6 +1431,15 @@ export function PlayerBoard({
                       <button
                         type="button"
                         className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                        onClick={() => setMenu({ ...menu, view: 'mill', libraryN: '1' })}
+                      >
+                        Meule (Mill)…
+                      </button>
+                    )}
+                    {player.library.length > 0 && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
                         onClick={() => setMenu({ ...menu, view: 'revealTop' })}
                       >
                         Révéler le dessus…
@@ -1350,11 +1482,16 @@ export function PlayerBoard({
                       type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
                       onClick={() => {
-                        onTap?.(menu.card!.instanceId);
+                        const members = stackFor(menu.card!);
+                        onTap?.(
+                          menu.card!.instanceId,
+                          members.length > 1 ? members.map((item) => item.instanceId) : undefined,
+                        );
                         setMenu(null);
                       }}
                     >
                       {menu.card.tapped ? 'Dégager' : 'Engager'}
+                      {stackFor(menu.card).length > 1 ? ` (×${stackFor(menu.card).length})` : ''}
                     </button>
                     {isPlaymatLand(resolveCard(menu.card)) ? (
                       <button
@@ -1379,6 +1516,16 @@ export function PlayerBoard({
                         Vers les terrains
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                      onClick={() => {
+                        onSetPlaymatRow?.(menu.card!.instanceId, 'enchantments');
+                        setMenu(null);
+                      }}
+                    >
+                      Vers les enchantements
+                    </button>
                     {menu.card.playmatRow && (
                       <button
                         type="button"

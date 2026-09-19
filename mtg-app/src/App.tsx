@@ -21,6 +21,7 @@ const Admin = lazy(() => import('./pages/Admin').then(module => ({ default: modu
 const Statistics = lazy(() => import('./pages/Statistics').then(module => ({ default: module.Statistics })));
 const Wishlist = lazy(() => import('./pages/Wishlist').then(module => ({ default: module.Wishlist })));
 const Scan = lazy(() => import('./pages/Scan').then(module => ({ default: module.Scan })));
+const ScanCompare = lazy(() => import('./pages/ScanCompare').then(module => ({ default: module.ScanCompare })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const PlayLobbies = lazy(() => import('./pages/PlayLobbies').then(module => ({ default: module.PlayLobbies })));
 const PlayLobby = lazy(() => import('./pages/PlayLobby').then(module => ({ default: module.PlayLobby })));
@@ -163,6 +164,18 @@ function AppShell() {
                     </ProtectedRoute>
                   ) : (
                     <Scan />
+                  )
+                }
+              />
+              <Route
+                path="/scan-compare"
+                element={
+                  import.meta.env.PROD ? (
+                    <ProtectedRoute>
+                      <ScanCompare />
+                    </ProtectedRoute>
+                  ) : (
+                    <ScanCompare />
                   )
                 }
               />

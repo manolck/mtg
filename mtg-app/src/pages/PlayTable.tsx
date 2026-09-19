@@ -345,8 +345,9 @@ export function PlayTable() {
         isTurn={state.turnSeatIndex === player.seatIndex}
         compact={compact}
         seatHome={tableView === 'active'}
-        collapseSeatHud={shownCount > 3}
         visibleSeats={shownCount}
+        startingLife={(state.format || '').toLowerCase() === 'commander' ? 40 : 20}
+        deckName={seats.find((seat) => seat.userId === player.userId)?.deckSnapshot?.name}
         onDraw={() => send({ type: 'draw', userId: currentUser.uid })}
         onShuffle={() => send({ type: 'shuffleLibrary', userId: currentUser.uid })}
         onMulligan={() => send({ type: 'mulligan', userId: currentUser.uid })}
@@ -363,6 +364,9 @@ export function PlayTable() {
             toTop: options?.toTop,
             libraryPosition: options?.libraryPosition,
             facedown: options?.facedown,
+            playmatX: options?.playmatX,
+            playmatY: options?.playmatY,
+            playmatRow: options?.playmatRow,
           })
         }
         onSearchLibrary={(instanceId, to, options) =>
@@ -377,7 +381,9 @@ export function PlayTable() {
             facedown: options?.facedown,
           })
         }
-        onTap={(instanceId) => send({ type: 'tap', userId: currentUser.uid, instanceId })}
+        onTap={(instanceId, instanceIds) =>
+          send({ type: 'tap', userId: currentUser.uid, instanceId, instanceIds })
+        }
         onFlip={(instanceId, faces) =>
           send({
             type: 'flip',
@@ -389,6 +395,9 @@ export function PlayTable() {
           })
         }
         onSetPlaymatRow={(instanceId, row) => send({ type: 'setPlaymatRow', userId: currentUser.uid, instanceId, row })}
+        onSetPlaymatPos={(instanceIds, x, y, row) =>
+          send({ type: 'setPlaymatPos', userId: currentUser.uid, instanceIds, x, y, row })
+        }
         onShowHand={(viewerIds) => send({ type: 'showHand', userId: currentUser.uid, viewerIds })}
         onHideHand={() => send({ type: 'hideHand', userId: currentUser.uid })}
         onShowHandCard={(instanceId, viewerIds) =>
@@ -432,6 +441,7 @@ export function PlayTable() {
         onSurveil={(count, onTop, toGraveyard) =>
           send({ type: 'surveil', userId: currentUser.uid, count, onTop, toGraveyard })
         }
+        onMill={(count) => send({ type: 'mill', userId: currentUser.uid, count })}
         onReorderHand={(instanceId, toIndex) =>
           send({ type: 'reorderHand', userId: currentUser.uid, instanceId, toIndex })
         }

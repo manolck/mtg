@@ -6,6 +6,7 @@ export interface LocalizedTableFace {
   imageUrl?: string;
   backImageUrl?: string;
   backName?: string;
+  typeLine?: string;
 }
 
 const cache = new Map<string, LocalizedTableFace | null>();
@@ -18,6 +19,7 @@ function fromMtg(card: MTGCard): LocalizedTableFace | null {
     imageUrl: card.imageUrl,
     backImageUrl: card.backImageUrl,
     backName: card.backName,
+    typeLine: card.type,
   };
 }
 
@@ -30,6 +32,7 @@ export function applyLocalizedTableCard(card: TableCard, loc?: LocalizedTableFac
     imageUrl: loc.imageUrl || card.imageUrl,
     backImageUrl: loc.backImageUrl || card.backImageUrl,
     backName: loc.backName || card.backName,
+    typeLine: loc.typeLine || card.typeLine,
   };
 }
 

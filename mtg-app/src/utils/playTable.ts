@@ -218,7 +218,12 @@ function moveCard(
   to: ZoneName,
   facedown?: boolean,
   toTop?: boolean,
-  libraryPosition?: number
+  libraryPosition?: number,
+  playmat?: {
+    playmatX?: number;
+    playmatY?: number;
+    playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
+  },
 ): PlayerTableState {
   const source = cardsOf(player, from);
   const idx = source.findIndex((c) => c.instanceId === instanceId);
@@ -229,17 +234,27 @@ function moveCard(
     if (from === 'hand') next = pruneHandReveals(next);
     return next;
   }
-  const card = {
+  const card: TableCard = {
     ...source[idx],
     tapped: to === 'battlefield' ? source[idx].tapped : false,
     facedown: facedown ?? (to === 'library' ? true : false),
     transformed: to === 'library' ? false : source[idx].transformed,
     attachedTo: to === 'battlefield' ? source[idx].attachedTo : undefined,
     playmatRow: to === 'battlefield' ? source[idx].playmatRow : undefined,
+    playmatX: to === 'battlefield' ? source[idx].playmatX : undefined,
+    playmatY: to === 'battlefield' ? source[idx].playmatY : undefined,
   };
+  if (to === 'battlefield' && playmat) {
+    if (playmat.playmatX != null) card.playmatX = clampPlaymat(playmat.playmatX);
+    if (playmat.playmatY != null) card.playmatY = clampPlaymat(playmat.playmatY);
+    if (playmat.playmatRow !== undefined) card.playmatRow = playmat.playmatRow || undefined;
+  }
   if (to !== 'battlefield') {
     card.tapped = false;
     card.attachedTo = undefined;
+    card.playmatRow = undefined;
+    card.playmatX = undefined;
+    card.playmatY = undefined;
   }
   const nextSource = [...source.slice(0, idx), ...source.slice(idx + 1)];
   let next = withZone(player, from, nextSource);
@@ -255,19 +270,27 @@ function moveCard(
   return next;
 }
 
-function toggleTap(player: PlayerTableState, instanceId: string): PlayerTableState {
-  const idx = player.battlefield.findIndex((c) => c.instanceId === instanceId);
-  if (idx < 0) return player;
-  const battlefield = player.battlefield.map((c, i) =>
-    i === idx ? { ...c, tapped: !c.tapped } : c
-  );
-  return { ...player, battlefield };
+function clampPlaymat(value: number): number {
+  if (!Number.isFinite(value)) return 50;
+  return Math.max(4, Math.min(96, value));
+}
+
+function toggleTap(player: PlayerTableState, instanceIds: string[]): PlayerTableState {
+  const ids = new Set(instanceIds.filter(Boolean));
+  if (ids.size === 0) return player;
+  const targets = player.battlefield.filter((card) => ids.has(card.instanceId));
+  if (targets.length === 0) return player;
+  const tap = targets.some((card) => !card.tapped);
+  return {
+    ...player,
+    battlefield: player.battlefield.map((card) => (ids.has(card.instanceId) ? { ...card, tapped: tap } : card)),
+  };
 }
 
 function setPlaymatRow(
   player: PlayerTableState,
   instanceId: string,
-  row: 'lands' | 'battlefield' | null,
+  row: 'lands' | 'battlefield' | 'enchantments' | null,
 ): PlayerTableState {
   const idx = player.battlefield.findIndex((card) => card.instanceId === instanceId);
   if (idx < 0) return player;
@@ -279,6 +302,28 @@ function setPlaymatRow(
       index === idx ? { ...card, playmatRow: nextRow } : card,
     ),
   };
+}
+
+function setPlaymatPos(
+  player: PlayerTableState,
+  instanceIds: string[],
+  x: number,
+  y: number,
+  row?: 'lands' | 'battlefield' | 'enchantments' | null,
+): PlayerTableState {
+  const ids = new Set(instanceIds.filter(Boolean));
+  if (ids.size === 0) return player;
+  const nextX = clampPlaymat(x);
+  const nextY = clampPlaymat(y);
+  let changed = false;
+  const battlefield = player.battlefield.map((card) => {
+    if (!ids.has(card.instanceId)) return card;
+    const nextRow = row === undefined ? card.playmatRow : row || undefined;
+    if (card.playmatX === nextX && card.playmatY === nextY && card.playmatRow === nextRow) return card;
+    changed = true;
+    return { ...card, playmatX: nextX, playmatY: nextY, playmatRow: nextRow };
+  });
+  return changed ? { ...player, battlefield } : player;
 }
 
 function toggleFlip(
@@ -414,7 +459,11 @@ export function applyMatchAction(
     if (seats.length === 0) return state;
     const currentIdx = seats.indexOf(state.turnSeatIndex);
     const nextSeat = seats[(currentIdx + 1) % seats.length];
-    return { ...state, version: state.version + 1, turnSeatIndex: nextSeat };
+    const incoming = state.players.find((player) => player.seatIndex === nextSeat);
+    const nextPlayers = incoming
+      ? state.players.map((player) => (player.userId === incoming.userId ? beginTurn(incoming) : player))
+      : state.players;
+    return { ...state, version: state.version + 1, turnSeatIndex: nextSeat, players: nextPlayers };
   }
 
   if (action.type === 'addSeat') {
@@ -453,7 +502,12 @@ export function applyMatchAction(
         action.to,
         action.facedown,
         action.toTop,
-        action.libraryPosition
+        action.libraryPosition,
+        {
+          playmatX: action.playmatX,
+          playmatY: action.playmatY,
+          playmatRow: action.playmatRow,
+        },
       );
       break;
     case 'searchLibrary': {
@@ -501,13 +555,16 @@ export function applyMatchAction(
       nextPlayer = { ...player, libraryTopRevealedTo: [] };
       break;
     case 'tap':
-      nextPlayer = toggleTap(player, action.instanceId);
+      nextPlayer = toggleTap(player, action.instanceIds?.length ? action.instanceIds : [action.instanceId]);
       break;
     case 'flip':
       nextPlayer = toggleFlip(player, action.instanceId, action.backImageUrl, action.backName, action.backTypeLine);
       break;
     case 'setPlaymatRow':
       nextPlayer = setPlaymatRow(player, action.instanceId, action.row);
+      break;
+    case 'setPlaymatPos':
+      nextPlayer = setPlaymatPos(player, action.instanceIds, action.x, action.y, action.row);
       break;
     case 'setLife':
       nextPlayer = { ...player, life: player.life + action.delta };
@@ -527,10 +584,17 @@ export function applyMatchAction(
       nextPlayer = setCardCounter(player, action.instanceId, action.counterId, action.delta);
       break;
     case 'addToken':
-      nextPlayer = addTokens(player, action.card, action.quantity);
+      nextPlayer = addTokens(player, action.card, action.quantity, {
+        playmatX: action.playmatX,
+        playmatY: action.playmatY,
+        playmatRow: action.playmatRow,
+      });
       break;
     case 'removeToken':
       nextPlayer = removeTokenCard(player, action.instanceId);
+      break;
+    case 'mill':
+      nextPlayer = millCards(player, action.count);
       break;
     case 'scry':
       nextPlayer = applyLibraryLook(player, action.count, action.onTop, action.onBottom, 'bottom');
@@ -625,7 +689,16 @@ function applyLibraryLook(
   };
 }
 
-function addTokens(player: PlayerTableState, blueprint: TokenBlueprint, quantity?: number): PlayerTableState {
+function addTokens(
+  player: PlayerTableState,
+  blueprint: TokenBlueprint,
+  quantity?: number,
+  playmat?: {
+    playmatX?: number;
+    playmatY?: number;
+    playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
+  },
+): PlayerTableState {
   const name = (blueprint?.name || '').trim();
   const scryfallId = (blueprint?.scryfallId || '').trim();
   if (!name || !scryfallId) return player;
@@ -655,9 +728,48 @@ function addTokens(player: PlayerTableState, blueprint: TokenBlueprint, quantity
       facedown: false,
       transformed: false,
       isToken: true,
+      playmatX: playmat?.playmatX != null ? clampPlaymat(playmat.playmatX) : undefined,
+      playmatY: playmat?.playmatY != null ? clampPlaymat(playmat.playmatY) : undefined,
+      playmatRow: playmat?.playmatRow || undefined,
     });
   }
   return { ...player, battlefield };
+}
+
+function millCards(player: PlayerTableState, count: number): PlayerTableState {
+  const n = Math.min(player.library.length, Math.max(0, Math.floor(count)));
+  if (n <= 0) return player;
+  const milled = player.library.slice(0, n).map((card) => ({
+    ...card,
+    facedown: false,
+    tapped: false,
+    attachedTo: undefined,
+    playmatRow: undefined,
+    playmatX: undefined,
+    playmatY: undefined,
+  }));
+  return {
+    ...player,
+    library: player.library.slice(n),
+    graveyard: [...player.graveyard, ...milled],
+    libraryTopRevealedTo: [],
+  };
+}
+
+function beginTurn(player: PlayerTableState): PlayerTableState {
+  const battlefield = player.battlefield.map((card) => {
+    if (!card.tapped) return card;
+    if (isPlaymatLand(card) || isPlaymatCreature(card)) return { ...card, tapped: false };
+    return card;
+  });
+  return drawOne({ ...player, battlefield });
+}
+
+export function isPlaymatCreature(
+  card: Pick<TableCard, 'typeLine' | 'transformed' | 'backTypeLine'>,
+): boolean {
+  const face = visiblePlaymatTypeLine(card);
+  return /\bcreature\b/i.test(face) || /\bcréature\b/i.test(face);
 }
 
 function removeTokenCard(player: PlayerTableState, instanceId: string): PlayerTableState {
@@ -747,7 +859,7 @@ export function isPlaymatLand(
   card: Pick<TableCard, 'name' | 'typeLine' | 'transformed' | 'backName' | 'backTypeLine' | 'playmatRow'>,
 ): boolean {
   if (card.playmatRow === 'lands') return true;
-  if (card.playmatRow === 'battlefield') return false;
+  if (card.playmatRow === 'battlefield' || card.playmatRow === 'enchantments') return false;
   const face = visiblePlaymatTypeLine(card);
   if (/\bland\b/i.test(face) || /\bterrain\b/i.test(face)) return true;
   const faceName = visiblePlaymatName(card)
@@ -773,6 +885,8 @@ export function isPlaymatLand(
 export function isPlaymatEnchantment(
   card: Pick<TableCard, 'name' | 'typeLine' | 'transformed' | 'backName' | 'backTypeLine' | 'playmatRow'>,
 ): boolean {
+  if (card.playmatRow === 'enchantments') return true;
+  if (card.playmatRow === 'lands' || card.playmatRow === 'battlefield') return false;
   if (isPlaymatLand(card)) return false;
   const face = visiblePlaymatTypeLine(card);
   if (!/\benchantment\b/i.test(face) && !/\benchantement\b/i.test(face)) return false;
@@ -881,4 +995,33 @@ export function splitBattlefield(cards: TableCard[]): {
     else other.push(card);
   }
   return { lands, enchantments, other };
+}
+
+export function tokenStackKey(card: TableCard): string {
+  if (!card.isToken || card.attachedTo) return `id:${card.instanceId}`;
+  const counters = Object.entries(card.counters || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, count]) => `${id}:${count}`)
+    .join(',');
+  const cell =
+    card.playmatX == null || card.playmatY == null
+      ? 'flow'
+      : `${Math.round(card.playmatX / 8)}_${Math.round(card.playmatY / 8)}`;
+  return `tok:${card.scryfallId}:${card.tapped ? 1 : 0}:${card.facedown ? 1 : 0}:${card.playmatRow || ''}:${counters}:${cell}`;
+}
+
+export function groupPlaymatCards(cards: TableCard[]): Array<{ lead: TableCard; members: TableCard[] }> {
+  const groups: Array<{ lead: TableCard; members: TableCard[] }> = [];
+  const index = new Map<string, number>();
+  for (const card of cards) {
+    const key = tokenStackKey(card);
+    const existing = index.get(key);
+    if (existing != null && key.startsWith('tok:')) {
+      groups[existing].members.push(card);
+    } else {
+      index.set(key, groups.length);
+      groups.push({ lead: card, members: [card] });
+    }
+  }
+  return groups;
 }

@@ -66,6 +66,7 @@ export function Navbar() {
     { to: '/play', label: 'Jouer' },
     { to: '/wishlist', label: 'Wishlist' },
     { to: '/scan', label: 'Scanner' },
+    { to: '/scan-compare', label: 'Scan A/B' },
     { to: '/statistics', label: 'Statistiques' },
   ];
 

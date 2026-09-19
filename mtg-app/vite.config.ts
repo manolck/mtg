@@ -74,6 +74,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/scryfall-icons/, ''),
         },
+        '/rapidocr': {
+          target: 'http://127.0.0.1:5201',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/rapidocr/, ''),
+        },
       },
     },
   }

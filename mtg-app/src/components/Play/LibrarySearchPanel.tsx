@@ -52,7 +52,7 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
   return (
     <div className="fixed inset-0 z-[96] flex items-stretch justify-center bg-black/70 p-3 sm:p-6" onClick={onClose}>
       <div
-        className="w-full max-w-5xl max-h-full overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/15 flex flex-col"
+        className="w-full max-w-6xl max-h-full overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/15 flex flex-col"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/10">
@@ -96,7 +96,7 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
           {filtered.length === 0 ? (
             <p className="text-sm text-white/50 text-center py-12">Aucune carte ne correspond.</p>
           ) : (
-            <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((card) => (
                 <li key={card.instanceId} className="rounded-xl bg-black/30 p-2 ring-1 ring-white/10">
                   <button
@@ -115,11 +115,11 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
                       <span className="flex h-full items-center justify-center text-xs text-white/70">{card.name}</span>
                     )}
                   </button>
-                  <p className="text-xs font-medium truncate" title={card.name}>
+                  <p className="text-sm font-medium truncate" title={card.name}>
                     {card.name}
                   </p>
                   {card.typeLine && (
-                    <p className="text-[10px] text-white/45 truncate mb-1.5">{card.typeLine}</p>
+                    <p className="text-xs text-white/55 truncate mb-1.5">{card.typeLine}</p>
                   )}
                   <div className="flex flex-wrap gap-1">
                     {DESTINATIONS.map((dest) => (

@@ -29,6 +29,7 @@ interface PlayCardProps {
   onCounterDelta?: (counterId: string, delta: number) => void;
   onOpenCounters?: () => void;
   chosen?: boolean;
+  stackCount?: number;
 }
 
 export function PlayCard({
@@ -49,6 +50,7 @@ export function PlayCard({
   onCounterDelta,
   onOpenCounters,
   chosen = false,
+  stackCount = 1,
 }: PlayCardProps) {
   const hidden = hideFace;
   const face = visibleCardFace(card);
@@ -60,6 +62,7 @@ export function PlayCard({
   return (
     <button
       type="button"
+      data-play-card-id={card.instanceId}
       title={title || (hidden ? 'Carte cachée' : face.name)}
       aria-label={title || (hidden ? 'Carte cachée' : face.name)}
       onClick={onClick}
@@ -83,6 +86,11 @@ export function PlayCard({
       {card.isToken && !hidden && (
         <span className="absolute left-0.5 bottom-0.5 z-10 rounded bg-fuchsia-700/90 px-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wide text-white">
           Jeton
+        </span>
+      )}
+      {stackCount > 1 && (
+        <span className="absolute right-0.5 top-0.5 z-20 rounded-full bg-black/80 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold tabular-nums text-amber-200 ring-1 ring-white/25">
+          ×{stackCount}
         </span>
       )}
       {chosen && (

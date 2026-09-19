@@ -86,7 +86,7 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
               <li key={id} className="flex items-center gap-2 rounded-lg bg-black/30 p-1.5">
                 <button
                   type="button"
-                  className="w-[3.6rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
+                  className="w-24 sm:w-[7.5rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
                   onMouseEnter={(event) =>
                     card.imageUrl
                       ? setHover({ card, rect: event.currentTarget.getBoundingClientRect() })
@@ -103,7 +103,7 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
                 </button>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{card.name}</p>
-                  {card.typeLine ? <p className="text-[10px] text-white/45 truncate">{card.typeLine}</p> : null}
+                  {card.typeLine ? <p className="text-xs text-white/55 truncate">{card.typeLine}</p> : null}
                   <p className="text-[10px] text-white/35">#{index + 1}</p>
                 </div>
                 <div className="flex flex-col gap-0.5">

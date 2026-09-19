@@ -1,0 +1,238 @@
+:root {
+  --gold-1: #f4dfa3;
+  --gold-2: #cfa036;
+  --gold-3: #8a5f16;
+  --gold-4: #5a3c0d;
+  --ink: #0c0906;
+
+  --battlefield-a: #16301c;
+  --battlefield-b: #0c1d10;
+  --battlefield-c: #071309;
+
+  --ench-a: #3c2568;
+  --ench-b: #21123f;
+  --ench-c: #120a26;
+
+  --terrain-a: #7a4a1e;
+  --terrain-b: #4e2f10;
+  --terrain-c: #2c1a09;
+}
+
+.zone--battlefield {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px var(--gold-4),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 40px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.05), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 5px),
+    radial-gradient(140% 100% at 50% 0%, var(--battlefield-a) 0%, var(--battlefield-b) 55%, var(--battlefield-c) 100%);
+}
+.zone--battlefield::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-shadow: inset 0 0 min(18vw, 160px) rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+.zone--enchant {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px var(--gold-4),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 40px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(70% 45% at 50% 8%, rgba(255, 255, 255, 0.08), transparent 60%),
+    repeating-radial-gradient(circle at 20% 30%, rgba(244, 223, 163, 0.05) 0 1.5px, transparent 1.5px 26px),
+    radial-gradient(160% 120% at 50% 0%, var(--ench-a) 0%, var(--ench-b) 55%, var(--ench-c) 100%);
+}
+.zone--enchant::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-shadow: inset 0 0 min(16vw, 140px) rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.zone--terrain {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px var(--gold-4),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 40px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(120% 160% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 45%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.09) 0 3px, transparent 3px 9px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 7px),
+    linear-gradient(160deg, var(--terrain-a) 0%, var(--terrain-b) 55%, var(--terrain-c) 100%);
+}
+.zone--terrain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-shadow: inset 0 0 min(14vw, 120px) rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+.zone-layer {
+  position: relative;
+  z-index: 1;
+}
+
+.zone--terrain .zone-piles {
+  border-left: 1px solid var(--gold-4);
+  background: rgba(12, 9, 6, 0.28);
+}
+
+.player-bar {
+  --panel-bg: #121a2c;
+  --panel-bg-2: #0b1220;
+  position: absolute;
+  top: clamp(6px, 1vw, 12px);
+  left: clamp(6px, 1vw, 12px);
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(8px, 1.2vw, 14px);
+  background: linear-gradient(180deg, var(--panel-bg), var(--panel-bg-2));
+  border: 1px solid var(--gold-3);
+  border-radius: 8px;
+  padding: clamp(6px, 0.9vw, 10px) clamp(10px, 1.4vw, 16px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  max-width: calc(100% - 24px);
+  pointer-events: auto;
+}
+
+.player-bar--away {
+  top: auto;
+  bottom: clamp(6px, 1vw, 12px);
+}
+
+.player-bar-identity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.player-bar-name {
+  margin: 0;
+  font-family: "Cinzel", Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+  line-height: 1.15;
+  color: #f7f1e4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-bar-deck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.player-bar-deck-name {
+  margin: 0;
+  font-family: "Cinzel", Georgia, serif;
+  font-size: clamp(0.62rem, 0.9vw, 0.78rem);
+  font-weight: 600;
+  color: var(--gold-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-bar-turn {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--gold-1), var(--gold-3));
+  color: #0e1526;
+  font-family: "Cinzel", Georgia, serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+}
+
+.player-bar-end {
+  margin-top: 8px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-family: "Cinzel", Georgia, serif;
+  font-size: clamp(0.58rem, 0.8vw, 0.7rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0e1526;
+  background: linear-gradient(180deg, var(--gold-1), var(--gold-3));
+  border: 1px solid var(--gold-3);
+  cursor: pointer;
+}
+
+.player-bar-end:hover {
+  filter: brightness(1.08);
+}
+
+.player-bar-end.is-waiting {
+  color: var(--gold-1);
+  background: linear-gradient(180deg, #1c2a44, #0e1526);
+}
+
+.player-bar-life {
+  flex-shrink: 0;
+}
+
+.life-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1vw, 12px);
+}
+
+.life-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.life-buttons button {
+  font-family: "Cinzel", Georgia, serif;
+  font-size: clamp(0.58rem, 0.8vw, 0.7rem);
+  font-weight: 600;
+  color: var(--gold-1);
+  background: linear-gradient(180deg, #1c2a44, #0e1526);
+  border: 1px solid var(--gold-3);
+  border-radius: 5px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.life-buttons button:hover {
+  color: #0e1526;
+  background: linear-gradient(180deg, var(--gold-1), var(--gold-3));
+}
+
+.life-poison {
+  margin: 0;
+  font-family: "Cinzel", Georgia, serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #b6f07a;
+}

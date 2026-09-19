@@ -16,11 +16,12 @@ describe('applyLocalizedTableCard', () => {
     const next = applyLocalizedTableCard(forest, {
       name: 'Forêt',
       imageUrl: 'https://fr.example/foret.jpg',
+      typeLine: 'Terrain de base — Forêt',
     });
     expect(next.name).toBe('Forêt');
     expect(next.oracleName).toBe('Forest');
     expect(next.imageUrl).toBe('https://fr.example/foret.jpg');
-    expect(next.typeLine).toBe('Basic Land — Forest');
+    expect(next.typeLine).toBe('Terrain de base — Forêt');
   });
 
   it('leaves the card unchanged when no translation exists', () => {

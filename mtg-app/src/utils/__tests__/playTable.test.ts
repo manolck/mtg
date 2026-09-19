@@ -1,6 +1,7 @@
 import {
   applyMatchAction,
   attachmentsOn,
+  groupPlaymatCards,
   canSeeGraveOrExileFace,
   canSeeHandCard,
   canSeeLibraryTop,
@@ -1067,5 +1068,203 @@ describe('playTable', () => {
     const next = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' }, { random: () => 0 });
     expect(next.players).toHaveLength(1);
     expect(next).toBe(state);
+  });
+
+  it('plays a card onto a free playmat slot and can reposition it', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Place',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const card = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: card.instanceId,
+      from: 'hand',
+      to: 'battlefield',
+      playmatX: 22,
+      playmatY: 70,
+      playmatRow: 'battlefield',
+    });
+    expect(state.players[0].battlefield[0]).toMatchObject({
+      instanceId: card.instanceId,
+      playmatX: 22,
+      playmatY: 70,
+      playmatRow: 'battlefield',
+    });
+    state = applyMatchAction(state, {
+      type: 'setPlaymatPos',
+      userId: 'u1',
+      instanceIds: [card.instanceId],
+      x: 80,
+      y: 12,
+      row: 'enchantments',
+    });
+    expect(state.players[0].battlefield[0]).toMatchObject({
+      playmatX: 80,
+      playmatY: 12,
+      playmatRow: 'enchantments',
+    });
+    expect(splitBattlefield(state.players[0].battlefield).enchantments.map((item) => item.instanceId)).toEqual([
+      card.instanceId,
+    ]);
+  });
+
+  it('mills the top of the library into the graveyard', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Mill',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const top = state.players[0].library.slice(0, 3).map((card) => card.instanceId);
+    expect(state.players[0].library.length).toBe(3);
+    state = applyMatchAction(state, { type: 'mill', userId: 'u1', count: 2 });
+    expect(state.players[0].library.map((card) => card.instanceId)).toEqual(top.slice(2));
+    expect(state.players[0].graveyard.map((card) => card.instanceId)).toEqual(top.slice(0, 2));
+  });
+
+  it('untaps lands and creatures then draws when the next turn starts', () => {
+    const forest: DeckEntry = {
+      scryfallId: 'forest',
+      name: 'Forest',
+      typeLine: 'Basic Land — Forest',
+      quantity: 8,
+    };
+    const bear: DeckEntry = {
+      scryfallId: 'bear',
+      name: 'Grizzly Bears',
+      typeLine: 'Creature — Bear',
+      quantity: 8,
+    };
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Turn',
+            format: 'modern',
+            mainboard: [forest, bear],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'Turn 2',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const land =
+      state.players[0].hand.find((card) => card.scryfallId === 'forest') ||
+      state.players[0].library.find((card) => card.scryfallId === 'forest')!;
+    const creature =
+      state.players[0].hand.find((card) => card.scryfallId === 'bear') ||
+      state.players[0].library.find((card) => card.scryfallId === 'bear')!;
+    const landFrom = state.players[0].hand.some((card) => card.instanceId === land.instanceId) ? 'hand' : 'library';
+    const creatureFrom = state.players[0].hand.some((card) => card.instanceId === creature.instanceId)
+      ? 'hand'
+      : 'library';
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: land.instanceId,
+      from: landFrom,
+      to: 'battlefield',
+    });
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: creature.instanceId,
+      from: creatureFrom,
+      to: 'battlefield',
+    });
+    state = applyMatchAction(state, { type: 'tap', userId: 'u1', instanceId: land.instanceId });
+    state = applyMatchAction(state, { type: 'tap', userId: 'u1', instanceId: creature.instanceId });
+    expect(state.players[0].battlefield.every((card) => card.tapped)).toBe(true);
+    const handBefore = state.players[0].hand.length;
+    const libBefore = state.players[0].library.length;
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.turnSeatIndex).toBe(1);
+    expect(state.players[0].battlefield.every((card) => card.tapped)).toBe(true);
+    expect(state.players[0].hand.length).toBe(handBefore);
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.turnSeatIndex).toBe(0);
+    expect(state.players[0].battlefield.every((card) => !card.tapped)).toBe(true);
+    expect(state.players[0].hand.length).toBe(handBefore + 1);
+    expect(state.players[0].library.length).toBe(libBefore - 1);
+  });
+
+  it('stacks identical tokens that share a playmat cell', () => {
+    const tokens = [
+      {
+        instanceId: 't1',
+        scryfallId: 'sap',
+        name: 'Saproling',
+        tapped: false,
+        facedown: false,
+        isToken: true,
+        playmatX: 40,
+        playmatY: 40,
+      },
+      {
+        instanceId: 't2',
+        scryfallId: 'sap',
+        name: 'Saproling',
+        tapped: false,
+        facedown: false,
+        isToken: true,
+        playmatX: 42,
+        playmatY: 41,
+      },
+      {
+        instanceId: 't3',
+        scryfallId: 'sap',
+        name: 'Saproling',
+        tapped: true,
+        facedown: false,
+        isToken: true,
+        playmatX: 40,
+        playmatY: 40,
+      },
+    ];
+    const groups = groupPlaymatCards(tokens);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].members.map((card) => card.instanceId)).toEqual(['t1', 't2']);
+    expect(groups[1].members.map((card) => card.instanceId)).toEqual(['t3']);
   });
 });

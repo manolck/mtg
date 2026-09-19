@@ -24,6 +24,7 @@ describe('dfcFaces', () => {
             name: 'Ormendahl, Profane Prince',
             printed_name: 'Ormendahl, Prince impie',
             type_line: 'Legendary Creature — Demon',
+            printed_type_line: 'Créature légendaire : démon',
             image_uris: { normal: 'https://back.jpg' },
           },
         ],
@@ -31,7 +32,7 @@ describe('dfcFaces', () => {
     ).toEqual({
       backImageUrl: 'https://back.jpg',
       backName: 'Ormendahl, Prince impie',
-      backTypeLine: 'Legendary Creature — Demon',
+      backTypeLine: 'Créature légendaire : démon',
     });
   });
 

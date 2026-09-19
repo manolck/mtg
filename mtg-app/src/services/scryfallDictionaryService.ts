@@ -34,10 +34,12 @@ async function loadDictionary(): Promise<ScryfallDictionaryEntry[]> {
   if (!Array.isArray(raw)) {
     throw new Error('Format dictionnaire invalide');
   }
-  dictionary = raw;
+  dictionary = raw.filter(
+    (e) => (e.lang === 'fr' || e.lang === 'en') && e.name
+  );
   englishNameByOracleId = new Map();
-  for (let i = 0; i < raw.length; i++) {
-    const e = raw[i];
+  for (let i = 0; i < dictionary.length; i++) {
+    const e = dictionary[i];
     if (e.lang === 'en' && e.name) {
       if (!englishNameByOracleId.has(e.oracle_id)) {
         englishNameByOracleId.set(e.oracle_id, e.name);
