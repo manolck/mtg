@@ -5,22 +5,18 @@ import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
 import { applyPlayAction, getMatchByLobby, subscribeMatch } from '../services/playMatchService';
 import {
-  DEFAULT_NOISE_GATE,
-  getDeviceTrack,
-  getPlayMedia,
-  listPlayMediaDevices,
+  getPlayMic,
+  listPlayMics,
   loadPlayAvDevices,
   PlayRtcMesh,
   savePlayAvDevices,
 } from '../services/playRtcService';
-import { MicNoiseGate } from '../utils/micNoiseGate';
 import type { MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
 import { isDummyUserId } from '../utils/playTable';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
-import { VideoTile } from '../components/Play/VideoTile';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
-import { RemoteAudioHub } from '../components/Play/RemoteAudio';
+import { RemoteAudioHub, unlockRemoteAudio } from '../components/Play/RemoteAudio';
 import { Spinner } from '../components/UI/Spinner';
 import { watchWithPoll } from '../utils/playRealtime';
 import type { RtcLinkStatus } from '../utils/rtcLinkStatus';
@@ -35,35 +31,27 @@ export function PlayTable() {
   const [state, setState] = useState<MatchState | null>(null);
   const [loading, setLoading] = useState(true);
   const [consentOpen, setConsentOpen] = useState(false);
-  const [camOn, setCamOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
-  const [cameraId, setCameraId] = useState(() => loadPlayAvDevices().cameraId ?? '');
   const [micId, setMicId] = useState(() => loadPlayAvDevices().micId ?? '');
-  const [noiseGate, setNoiseGate] = useState(() => loadPlayAvDevices().noiseGate ?? DEFAULT_NOISE_GATE);
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [rtcLink, setRtcLink] = useState<RtcLinkStatus>('idle');
+  const [hearBlocked, setHearBlocked] = useState(false);
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
   const [tableView, setTableView] = useState<'all' | 'active'>('all');
   const attachPickIdRef = useRef<string | null>(null);
   attachPickIdRef.current = attachPickId;
   const meshRef = useRef<PlayRtcMesh | null>(null);
-  const gateRef = useRef<MicNoiseGate | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
   const stateRef = useRef<MatchState | null>(null);
   const startGenRef = useRef(0);
-  const camOnRef = useRef(camOn);
   const micOnRef = useRef(micOn);
-  const noiseGateRef = useRef(noiseGate);
-  const devicesRef = useRef({ cameraId, micId });
+  const micIdRef = useRef(micId);
   stateRef.current = state;
-  camOnRef.current = camOn;
   micOnRef.current = micOn;
-  noiseGateRef.current = noiseGate;
-  devicesRef.current = { cameraId, micId };
+  micIdRef.current = micId;
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!lobbyId || !currentUser) return;
@@ -118,31 +106,21 @@ export function PlayTable() {
 
   const refreshDevices = useCallback(async () => {
     try {
-      const next = await listPlayMediaDevices();
-      setCameras(next.cameras);
-      setMics(next.mics);
+      setMics(await listPlayMics());
     } catch {
       /* ignore */
     }
   }, []);
 
-  const applyEnabledFlags = useCallback((stream: MediaStream) => {
-    stream.getVideoTracks().forEach((track) => {
-      track.enabled = camOnRef.current;
-    });
+  const rememberMic = useCallback((stream: MediaStream) => {
     stream.getAudioTracks().forEach((track) => {
       track.enabled = micOnRef.current;
     });
-    const nextCameraId = stream.getVideoTracks()[0]?.getSettings().deviceId;
     const nextMicId = stream.getAudioTracks()[0]?.getSettings().deviceId;
-    if (nextCameraId) setCameraId(nextCameraId);
-    if (nextMicId) setMicId(nextMicId);
-    if (nextCameraId || nextMicId) {
-      savePlayAvDevices({
-        cameraId: nextCameraId || devicesRef.current.cameraId || undefined,
-        micId: nextMicId || devicesRef.current.micId || undefined,
-        noiseGate: noiseGateRef.current,
-      });
+    if (nextMicId) {
+      setMicId(nextMicId);
+      micIdRef.current = nextMicId;
+      savePlayAvDevices({ micId: nextMicId });
     }
     return stream;
   }, []);
@@ -150,15 +128,6 @@ export function PlayTable() {
   const publishLocalStream = useCallback((stream: MediaStream | null) => {
     captureStreamRef.current = stream;
     setLocalStream(stream ? new MediaStream(stream.getTracks()) : null);
-  }, []);
-
-  const applyOutgoingAudio = useCallback(async (rawStream: MediaStream): Promise<MediaStreamTrack | null> => {
-    const rawAudio = rawStream.getAudioTracks().find((track) => track.readyState === 'live') ?? null;
-    if (!rawAudio) return null;
-    if (!gateRef.current) gateRef.current = new MicNoiseGate();
-    gateRef.current.setUserEnabled(micOnRef.current);
-    const outgoing = await gateRef.current.attach(rawAudio, noiseGateRef.current / 100);
-    return outgoing;
   }, []);
 
   const startRtc = useCallback(async (withMedia: boolean) => {
@@ -184,18 +153,11 @@ export function PlayTable() {
     let stream = new MediaStream();
     if (withMedia) {
       try {
-        stream = applyEnabledFlags(
-          await getPlayMedia({
-            cameraId: devicesRef.current.cameraId || undefined,
-            micId: devicesRef.current.micId || undefined,
-          }),
-        );
+        stream = rememberMic(await getPlayMic(micIdRef.current || undefined));
         setMediaError(null);
         void refreshDevices();
       } catch (err) {
-        setMediaError(
-          err instanceof Error ? err.message : 'Impossible d’accéder à la caméra ou au micro.',
-        );
+        setMediaError(err instanceof Error ? err.message : 'Impossible d’accéder au micro.');
         stream = new MediaStream();
       }
     }
@@ -205,131 +167,77 @@ export function PlayTable() {
     }
     publishLocalStream(stream);
     try {
-      const outgoingAudio = await applyOutgoingAudio(stream);
-      if (gen !== startGenRef.current || meshRef.current !== mesh) {
-        stream.getTracks().forEach((track) => track.stop());
-        gateRef.current?.destroy();
-        gateRef.current = null;
-        return;
-      }
-      const sendStream = new MediaStream([
-        ...stream.getVideoTracks(),
-        ...(outgoingAudio ? [outgoingAudio] : stream.getAudioTracks()),
-      ]);
-      await mesh.start(peerIds, sendStream);
+      await mesh.start(peerIds, stream);
     } catch (err) {
       console.warn('WebRTC start failed', err);
     }
-  }, [applyEnabledFlags, applyOutgoingAudio, lobbyId, currentUser, publishLocalStream, refreshDevices, seats]);
+  }, [lobbyId, currentUser, publishLocalStream, rememberMic, refreshDevices, seats]);
 
   const enableMedia = useCallback(async () => {
     try {
-      const stream = applyEnabledFlags(
-        await getPlayMedia({
-          cameraId: devicesRef.current.cameraId || undefined,
-          micId: devicesRef.current.micId || undefined,
-        }),
-      );
-      const outgoingAudio = await applyOutgoingAudio(stream);
+      const stream = rememberMic(await getPlayMic(micIdRef.current || undefined));
       if (meshRef.current) {
-        await meshRef.current.replaceTrack('video', stream.getVideoTracks()[0] ?? null);
-        await meshRef.current.replaceTrack('audio', outgoingAudio, { stopPrevious: false });
+        await meshRef.current.replaceMedia(stream);
       }
       publishLocalStream(stream);
       localStorage.setItem(PLAY_AV_CONSENT_KEY, 'yes');
-      setCamOn(true);
       setMicOn(true);
       setMediaError(null);
       void refreshDevices();
     } catch (err) {
-      setMediaError(
-        err instanceof Error ? err.message : 'Impossible d’accéder à la caméra ou au micro.',
-      );
+      setMediaError(err instanceof Error ? err.message : 'Impossible d’accéder au micro.');
     }
-  }, [applyEnabledFlags, applyOutgoingAudio, publishLocalStream, refreshDevices]);
+  }, [publishLocalStream, rememberMic, refreshDevices]);
 
-  const switchDevice = useCallback(
-    async (kind: 'audio' | 'video', deviceId: string) => {
-      if (kind === 'video') {
-        setCameraId(deviceId);
-      } else {
-        setMicId(deviceId);
-      }
-      savePlayAvDevices({
-        cameraId: (kind === 'video' ? deviceId : devicesRef.current.cameraId) || undefined,
-        micId: (kind === 'audio' ? deviceId : devicesRef.current.micId) || undefined,
-        noiseGate: noiseGateRef.current,
-      });
+  const switchMic = useCallback(
+    async (deviceId: string) => {
+      const previousId = micIdRef.current;
+      setMicId(deviceId);
+      micIdRef.current = deviceId;
+      savePlayAvDevices({ micId: deviceId || undefined });
       try {
-        const track = await getDeviceTrack(kind, deviceId || undefined);
-        track.enabled = kind === 'video' ? camOnRef.current : micOnRef.current;
-        const capture = new MediaStream(captureStreamRef.current?.getTracks() ?? []);
-        capture.getTracks().forEach((existing) => {
-          if (existing.kind === kind) {
-            capture.removeTrack(existing);
-            existing.stop();
-          }
+        const stream = await getPlayMic(deviceId || undefined, {
+          strictDevice: Boolean(deviceId),
         });
-        capture.addTrack(track);
+        const capture = rememberMic(stream);
+        await meshRef.current?.replaceMedia(capture);
         publishLocalStream(capture);
-        if (kind === 'video') {
-          await meshRef.current?.replaceTrack('video', track);
-        } else {
-          const outgoing = await applyOutgoingAudio(capture);
-          await meshRef.current?.replaceTrack('audio', outgoing, { stopPrevious: true });
-        }
         setMediaError(null);
         void refreshDevices();
       } catch (err) {
-        setMediaError(
-          err instanceof Error
-            ? err.message
-            : kind === 'video'
-              ? 'Impossible de changer de caméra.'
-              : 'Impossible de changer de micro.',
-        );
+        setMicId(previousId);
+        micIdRef.current = previousId;
+        savePlayAvDevices({ micId: previousId || undefined });
+        setMediaError(err instanceof Error ? err.message : 'Impossible de changer de micro.');
       }
     },
-    [applyOutgoingAudio, publishLocalStream, refreshDevices],
+    [publishLocalStream, rememberMic, refreshDevices],
   );
 
-  const toggleTrack = useCallback(
-    (kind: 'audio' | 'video') => {
-      const next = kind === 'video' ? !camOnRef.current : !micOnRef.current;
-      if (kind === 'video') setCamOn(next);
-      else {
-        setMicOn(next);
-        gateRef.current?.setUserEnabled(next);
-      }
-      const capture = captureStreamRef.current;
-      const hasTrack = Boolean(
-        (capture || meshRef.current?.stream || localStream)?.getTracks().some((track) => track.kind === kind),
-      );
-      if (next && !hasTrack) {
-        void enableMedia();
-        return;
-      }
-      if (kind === 'video') {
-        meshRef.current?.setTrackEnabled(kind, next);
-        capture?.getVideoTracks().forEach((track) => {
-          track.enabled = next;
-        });
-      }
-      if (capture) publishLocalStream(capture);
-    },
-    [enableMedia, localStream, publishLocalStream],
+  const getAudioStats = useCallback(
+    () =>
+      meshRef.current?.getAudioStats() ??
+      Promise.resolve({ packetsSent: 0, packetsReceived: 0, packetsLost: 0 }),
+    [],
   );
 
-  const changeNoiseGate = useCallback((value: number) => {
-    setNoiseGate(value);
-    noiseGateRef.current = value;
-    savePlayAvDevices({
-      cameraId: devicesRef.current.cameraId || undefined,
-      micId: devicesRef.current.micId || undefined,
-      noiseGate: value,
+  const toggleMic = useCallback(() => {
+    const next = !micOnRef.current;
+    setMicOn(next);
+    const capture = captureStreamRef.current;
+    const hasTrack = Boolean(
+      (capture || meshRef.current?.stream || localStream)?.getAudioTracks().some((track) => track.readyState === 'live'),
+    );
+    if (next && !hasTrack) {
+      void enableMedia();
+      return;
+    }
+    meshRef.current?.setTrackEnabled('audio', next);
+    capture?.getAudioTracks().forEach((track) => {
+      track.enabled = next;
     });
-    gateRef.current?.setAmount(value / 100);
-  }, []);
+    if (capture) publishLocalStream(capture);
+  }, [enableMedia, localStream, publishLocalStream]);
 
   useEffect(() => {
     if (!matchId || !currentUser || !lobbyId) return;
@@ -358,20 +266,10 @@ export function PlayTable() {
   }, [refreshDevices]);
 
   useEffect(() => {
-    const resumeGate = () => {
-      void gateRef.current?.ensureOutgoing();
-    };
-    document.addEventListener('pointerdown', resumeGate);
-    return () => document.removeEventListener('pointerdown', resumeGate);
-  }, []);
-
-  useEffect(() => {
     return () => {
       startGenRef.current += 1;
       captureStreamRef.current?.getTracks().forEach((track) => track.stop());
       captureStreamRef.current = null;
-      gateRef.current?.destroy();
-      gateRef.current = null;
       setRtcLink('idle');
       void meshRef.current?.destroy();
       meshRef.current = null;
@@ -436,7 +334,6 @@ export function PlayTable() {
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
-    const stream = isSelf ? localStream : remoteStreams[player.userId];
     return (
       <PlayerBoard
         player={player}
@@ -450,13 +347,6 @@ export function PlayTable() {
         seatHome={tableView === 'active'}
         collapseSeatHud={shownCount > 3}
         visibleSeats={shownCount}
-        videoSlot={
-          <VideoTile
-            stream={stream}
-            muted
-            label={player.displayName || (isSelf ? 'Vous' : 'Joueur')}
-          />
-        }
         onDraw={() => send({ type: 'draw', userId: currentUser.uid })}
         onShuffle={() => send({ type: 'shuffleLibrary', userId: currentUser.uid })}
         onMulligan={() => send({ type: 'mulligan', userId: currentUser.uid })}
@@ -557,7 +447,7 @@ export function PlayTable() {
 
   return (
     <div className="h-dvh flex flex-col bg-[#07141c] text-white overflow-hidden">
-      <RemoteAudioHub streams={remoteStreams} />
+      <RemoteAudioHub streams={remoteStreams} onBlockedChange={setHearBlocked} />
       <header className="shrink-0 relative z-30 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 bg-black/40 border-b border-white/10">
         <div className="min-w-0">
           <Link
@@ -592,23 +482,22 @@ export function PlayTable() {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <RtcControls
-            camOn={camOn}
             micOn={micOn}
             linkStatus={rtcLink}
-            cameras={cameras}
             mics={mics}
-            cameraId={cameraId}
             micId={micId}
-            noiseGate={noiseGate}
             previewStream={localStream}
             error={mediaError}
-            onToggleCam={() => toggleTrack('video')}
-            onToggleMic={() => toggleTrack('audio')}
-            onCameraChange={(id) => void switchDevice('video', id)}
-            onMicChange={(id) => void switchDevice('audio', id)}
-            onNoiseGateChange={changeNoiseGate}
+            hearBlocked={hearBlocked}
+            getAudioStats={getAudioStats}
+            onToggleMic={toggleMic}
+            onMicChange={(id) => void switchMic(id)}
+            onUnlockHear={() => {
+              unlockRemoteAudio();
+              setHearBlocked(false);
+            }}
             onEnableMedia={
-              localStream?.getTracks().length ? undefined : () => void enableMedia()
+              localStream?.getAudioTracks().length ? undefined : () => void enableMedia()
             }
           />
           <button
@@ -617,8 +506,6 @@ export function PlayTable() {
             onClick={() => {
               captureStreamRef.current?.getTracks().forEach((track) => track.stop());
               captureStreamRef.current = null;
-              gateRef.current?.destroy();
-              gateRef.current = null;
               void meshRef.current?.destroy();
               meshRef.current = null;
               navigate('/play');

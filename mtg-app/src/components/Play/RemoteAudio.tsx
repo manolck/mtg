@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 
 interface RemoteAudioProps {
   stream: MediaStream;
+  onBlockedChange?: (blocked: boolean) => void;
 }
 
-export function RemoteAudio({ stream }: RemoteAudioProps) {
+export function RemoteAudio({ stream, onBlockedChange }: RemoteAudioProps) {
   const ref = useRef<HTMLAudioElement>(null);
-  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -17,8 +17,8 @@ export function RemoteAudio({ stream }: RemoteAudioProps) {
       el.volume = 1;
       void el
         .play()
-        .then(() => setBlocked(false))
-        .catch(() => setBlocked(true));
+        .then(() => onBlockedChange?.(false))
+        .catch(() => onBlockedChange?.(true));
     };
 
     const attach = () => {
@@ -38,24 +38,33 @@ export function RemoteAudio({ stream }: RemoteAudioProps) {
       stream.removeEventListener('removetrack', attach);
       document.removeEventListener('pointerdown', unlock);
     };
-  }, [stream]);
+  }, [stream, onBlockedChange]);
 
-  return (
-    <>
-      <audio ref={ref} autoPlay playsInline />
-      {blocked ? <span className="sr-only">Cliquez pour entendre les autres joueurs</span> : null}
-    </>
-  );
+  return <audio ref={ref} autoPlay playsInline />;
 }
 
-export function RemoteAudioHub({ streams }: { streams: Record<string, MediaStream> }) {
+export function RemoteAudioHub({
+  streams,
+  onBlockedChange,
+}: {
+  streams: Record<string, MediaStream>;
+  onBlockedChange?: (blocked: boolean) => void;
+}) {
   const entries = Object.entries(streams);
   if (entries.length === 0) return null;
   return (
-    <div className="sr-only" aria-hidden>
+    <div className="sr-only">
       {entries.map(([userId, stream]) => (
-        <RemoteAudio key={userId} stream={stream} />
+        <RemoteAudio key={userId} stream={stream} onBlockedChange={onBlockedChange} />
       ))}
     </div>
   );
+}
+
+export function unlockRemoteAudio(): void {
+  document.querySelectorAll('audio').forEach((el) => {
+    el.muted = false;
+    el.volume = 1;
+    void el.play().catch(() => {});
+  });
 }

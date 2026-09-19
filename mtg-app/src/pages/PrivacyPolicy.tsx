@@ -75,10 +75,10 @@ export function PrivacyPolicy() {
                   (pour la sécurité et le support technique)
                 </li>
                 <li>
-                  <strong>Playtest (optionnel)</strong> : flux caméra et micro échangés en pair-à-pair
+                  <strong>Playtest (optionnel)</strong> : flux micro échangé en pair-à-pair
                   (WebRTC) avec les autres joueurs du lobby. Un consentement spécifique est demandé
                   à l’entrée de la table. PocketBase ne stocke que des signaux de connexion éphémères,
-                  pas les flux audio/vidéo.
+                  pas le flux audio.
                 </li>
               </ul>
             </section>

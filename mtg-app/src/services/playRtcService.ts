@@ -2,9 +2,11 @@ import { pb } from './pocketbase';
 import { pbEqual } from '../utils/pocketbaseFilter';
 import { isRealtimeUnavailable, swallowRealtimeError } from '../utils/playRealtime';
 import { aggregateRtcLinkStatus, type RtcLinkStatus } from '../utils/rtcLinkStatus';
+import { EMPTY_AUDIO_STATS, sumAudioRtcStats, type RtcAudioStats } from '../utils/rtcAudioStats';
+import { playMicConstraintAttempts } from '../utils/playMicConstraints';
 import type { RtcSignalPayload } from '../types/play';
 
-export type { RtcLinkStatus };
+export type { RtcLinkStatus, RtcAudioStats };
 
 function relationId(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -57,19 +59,10 @@ export interface PlayRtcHandlers {
 }
 
 export interface PlayMediaChoice {
-  cameraId?: string;
   micId?: string;
-  noiseGate?: number;
 }
 
 export const PLAY_AV_DEVICES_KEY = 'mtg-play-av-devices';
-export const DEFAULT_NOISE_GATE = 45;
-
-function parseNoiseGate(value: unknown): number | undefined {
-  const next = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(next)) return undefined;
-  return Math.min(100, Math.max(0, Math.round(next)));
-}
 
 export function loadPlayAvDevices(): PlayMediaChoice {
   try {
@@ -77,9 +70,7 @@ export function loadPlayAvDevices(): PlayMediaChoice {
     if (!raw) return {};
     const parsed = JSON.parse(raw) as PlayMediaChoice;
     return {
-      cameraId: typeof parsed.cameraId === 'string' && parsed.cameraId ? parsed.cameraId : undefined,
       micId: typeof parsed.micId === 'string' && parsed.micId ? parsed.micId : undefined,
-      noiseGate: parseNoiseGate(parsed.noiseGate),
     };
   } catch {
     return {};
@@ -87,88 +78,7 @@ export function loadPlayAvDevices(): PlayMediaChoice {
 }
 
 export function savePlayAvDevices(choice: PlayMediaChoice): void {
-  localStorage.setItem(PLAY_AV_DEVICES_KEY, JSON.stringify(choice));
-}
-
-function videoConstraints(cameraId?: string): MediaTrackConstraints {
-  const constraints: MediaTrackConstraints = {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-  };
-  if (cameraId) constraints.deviceId = { ideal: cameraId };
-  return constraints;
-}
-
-function audioConstraints(micId?: string): MediaTrackConstraints {
-  const constraints: MediaTrackConstraints = {
-    echoCancellation: true,
-    noiseSuppression: true,
-  };
-  if (micId) constraints.deviceId = { ideal: micId };
-  return constraints;
-}
-
-export async function listPlayMediaDevices(): Promise<{ cameras: MediaDeviceInfo[]; mics: MediaDeviceInfo[] }> {
-  if (!navigator.mediaDevices?.enumerateDevices) return { cameras: [], mics: [] };
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  return {
-    cameras: devices.filter((d) => d.kind === 'videoinput'),
-    mics: devices.filter((d) => d.kind === 'audioinput'),
-  };
-}
-
-export async function getPlayMedia(choice: PlayMediaChoice = {}): Promise<MediaStream> {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('Caméra et micro non disponibles dans ce navigateur.');
-  }
-
-  const attempts: MediaStreamConstraints[] = [
-    { audio: audioConstraints(choice.micId), video: videoConstraints(choice.cameraId) },
-    { audio: true, video: true },
-    { audio: audioConstraints(choice.micId), video: false },
-    { audio: false, video: videoConstraints(choice.cameraId) },
-    { audio: true, video: false },
-    { audio: false, video: true },
-  ];
-
-  let lastError: unknown;
-  for (const constraints of attempts) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      stream.getTracks().forEach(hintOutgoingTrack);
-      return stream;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('Impossible d’accéder à la caméra ou au micro.');
-}
-
-export async function getDeviceTrack(
-  kind: 'audio' | 'video',
-  deviceId?: string,
-): Promise<MediaStreamTrack> {
-  const constraints: MediaStreamConstraints =
-    kind === 'video'
-      ? { audio: false, video: videoConstraints(deviceId) }
-      : { video: false, audio: audioConstraints(deviceId) };
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  const track = kind === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
-  if (!track) {
-    stream.getTracks().forEach((t) => t.stop());
-    throw new Error(kind === 'video' ? 'Aucune caméra disponible.' : 'Aucun micro disponible.');
-  }
-  hintOutgoingTrack(track);
-  return track;
-}
-
-function senderForKind(pc: RTCPeerConnection, kind: 'audio' | 'video'): RTCRtpSender | undefined {
-  const withTrack = pc.getSenders().find((sender) => sender.track?.kind === kind);
-  if (withTrack) return withTrack;
-  const transceiver = pc.getTransceivers().find((item) => {
-    return item.sender.track?.kind === kind || item.receiver.track.kind === kind;
-  });
-  return transceiver?.sender;
+  localStorage.setItem(PLAY_AV_DEVICES_KEY, JSON.stringify({ micId: choice.micId || undefined }));
 }
 
 function hintOutgoingTrack(track: MediaStreamTrack): void {
@@ -179,6 +89,73 @@ function hintOutgoingTrack(track: MediaStreamTrack): void {
       /* Safari */
     }
   }
+}
+
+export async function listPlayMics(): Promise<MediaDeviceInfo[]> {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.filter(
+    (d) =>
+      d.kind === 'audioinput' &&
+      d.deviceId &&
+      d.deviceId !== 'default' &&
+      d.deviceId !== 'communications',
+  );
+}
+
+export async function getPlayMic(
+  micId?: string,
+  options?: { strictDevice?: boolean },
+): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Micro non disponible dans ce navigateur.');
+  }
+
+  let lastError: unknown;
+  for (const constraints of playMicConstraintAttempts(micId, options)) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream.getVideoTracks().forEach((track) => {
+        stream.removeTrack(track);
+        track.stop();
+      });
+      const audio = stream.getAudioTracks()[0];
+      if (!audio) {
+        stream.getTracks().forEach((track) => track.stop());
+        continue;
+      }
+      hintOutgoingTrack(audio);
+      return stream;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Impossible d’accéder au micro.');
+}
+
+export async function getMicTrack(
+  deviceId?: string,
+  options?: { strictDevice?: boolean },
+): Promise<MediaStreamTrack> {
+  const stream = await getPlayMic(deviceId, options);
+  const track = stream.getAudioTracks()[0];
+  if (!track) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error('Aucun micro disponible.');
+  }
+  stream.getTracks().forEach((item) => {
+    if (item !== track) item.stop();
+  });
+  return track;
+}
+
+function senderForKind(pc: RTCPeerConnection, kind: 'audio'): RTCRtpSender | undefined {
+  const withTrack = pc.getSenders().find((sender) => sender.track?.kind === kind);
+  if (withTrack) return withTrack;
+  const transceiver = pc.getTransceivers().find((item) => {
+    return item.sender.track?.kind === kind || item.receiver.track.kind === kind;
+  });
+  return transceiver?.sender;
 }
 
 const SIGNAL_POLL_CONNECTING_MS = 300;
@@ -227,6 +204,27 @@ export class PlayRtcMesh {
     this.emitLinkStatus();
   }
 
+  async getAudioStats(): Promise<RtcAudioStats> {
+    const rows: Array<{ type: string; kind?: string; packetsSent?: number; packetsReceived?: number; packetsLost?: number }> = [];
+    for (const pc of this.pcs.values()) {
+      try {
+        const report = await pc.getStats();
+        report.forEach((stat) => {
+          rows.push({
+            type: stat.type,
+            kind: (stat as { kind?: string }).kind,
+            packetsSent: (stat as { packetsSent?: number }).packetsSent,
+            packetsReceived: (stat as { packetsReceived?: number }).packetsReceived,
+            packetsLost: (stat as { packetsLost?: number }).packetsLost,
+          });
+        });
+      } catch {
+        /* closed */
+      }
+    }
+    return rows.length ? sumAudioRtcStats(rows) : { ...EMPTY_AUDIO_STATS };
+  }
+
   async updatePeers(peerIds: string[]): Promise<void> {
     if (this.destroyed) return;
     const others = [...new Set(peerIds.filter((id) => id && id !== this.myUserId))];
@@ -240,14 +238,14 @@ export class PlayRtcMesh {
     this.emitLinkStatus();
   }
 
-  setTrackEnabled(kind: 'audio' | 'video', enabled: boolean): void {
+  setTrackEnabled(kind: 'audio', enabled: boolean): void {
     this.localStream?.getTracks().forEach((track) => {
       if (track.kind === kind) track.enabled = enabled;
     });
   }
 
   async replaceTrack(
-    kind: 'audio' | 'video',
+    kind: 'audio',
     track: MediaStreamTrack | null,
     options?: { stopPrevious?: boolean },
   ): Promise<void> {
@@ -283,23 +281,21 @@ export class PlayRtcMesh {
     if (this.destroyed) return;
     const previous = this.localStream;
     this.localStream = stream;
-    for (const kind of ['audio', 'video'] as const) {
-      const track = kind === 'audio' ? stream.getAudioTracks()[0] ?? null : stream.getVideoTracks()[0] ?? null;
-      for (const pc of this.pcs.values()) {
-        const sender = senderForKind(pc, kind);
-        if (sender) {
-          try {
-            await sender.replaceTrack(track);
-          } catch (err) {
-            console.warn('replaceTrack failed', err);
-          }
-        } else if (track) {
-          pc.addTrack(track, stream);
+    const track = stream.getAudioTracks()[0] ?? null;
+    for (const pc of this.pcs.values()) {
+      const sender = senderForKind(pc, 'audio');
+      if (sender) {
+        try {
+          await sender.replaceTrack(track);
+        } catch (err) {
+          console.warn('replaceTrack failed', err);
         }
+      } else if (track) {
+        pc.addTrack(track, stream);
       }
     }
-    previous?.getTracks().forEach((track) => {
-      if (!stream.getTracks().includes(track)) track.stop();
+    previous?.getTracks().forEach((item) => {
+      if (!stream.getTracks().includes(item)) item.stop();
     });
   }
 
@@ -333,14 +329,12 @@ export class PlayRtcMesh {
 
   private attachLocalMedia(pc: RTCPeerConnection): void {
     const stream = this.localStream;
-    for (const kind of ['audio', 'video'] as const) {
-      const track = stream?.getTracks().find((t) => t.kind === kind) ?? null;
-      if (track && stream) {
-        hintOutgoingTrack(track);
-        pc.addTrack(track, stream);
-      } else {
-        pc.addTransceiver(kind, { direction: 'sendrecv' });
-      }
+    const track = stream?.getAudioTracks()[0] ?? null;
+    if (track && stream) {
+      hintOutgoingTrack(track);
+      pc.addTrack(track, stream);
+    } else {
+      pc.addTransceiver('audio', { direction: 'sendrecv' });
     }
   }
 
@@ -377,6 +371,10 @@ export class PlayRtcMesh {
     };
 
     pc.ontrack = (event) => {
+      if (event.track.kind !== 'audio') {
+        event.track.stop();
+        return;
+      }
       let stream = event.streams[0] || this.remoteStreams.get(peerId);
       if (!stream) {
         stream = new MediaStream();

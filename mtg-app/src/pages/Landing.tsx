@@ -93,8 +93,8 @@ const playTools = [
     text: 'Cherchez une carte dans votre bibliothèque, mettez-la en jeu ou sur le dessus, puis mélangez si besoin.',
   },
   {
-    title: 'Vidéo optionnelle',
-    text: 'Caméra et micro si vous voulez. Vous pouvez refuser : la partie continue sans audio ni vidéo.',
+    title: 'Micro optionnel',
+    text: 'Autorisez le micro si vous voulez parler aux autres joueurs. Vous pouvez refuser : la partie continue sans audio.',
   },
 ];
 
@@ -543,7 +543,7 @@ export function Landing() {
                 <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Lobbies et parties</p>
                 <h2 className="text-3xl font-bold tracking-tight">Créez un salon, asseyez-vous, jouez.</h2>
                 <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed">
-                  Un playtest en ligne avec vos vrais decks. Ouvrez un lobby, invitez des adversaires, choisissez une liste — la vôtre ou une liste communautaire — puis lancez la table : piocher, poser, engager, PV. La vidéo est facultative. Les règles restent entre vous.
+                  Un playtest en ligne avec vos vrais decks. Ouvrez un lobby, invitez des adversaires, choisissez une liste — la vôtre ou une liste communautaire — puis lancez la table : piocher, poser, engager, PV. Le micro est facultatif. Les règles restent entre vous.
                 </p>
                 <Link to={playHref} className={`${primaryCtaClass} mt-8`}>
                   {currentUser ? 'Ouvrir les lobbies' : joinLabel}

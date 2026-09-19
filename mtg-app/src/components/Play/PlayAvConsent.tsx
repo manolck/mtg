@@ -9,20 +9,19 @@ interface PlayAvConsentProps {
 
 export function PlayAvConsent({ isOpen, onAccept, onDecline }: PlayAvConsentProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onDecline} title="Caméra et micro" size="md">
+    <Modal isOpen={isOpen} onClose={onDecline} title="Micro" size="md">
       <div className="space-y-4 text-gray-700 dark:text-gray-300">
         <p>
-          La table de playtest peut diffuser votre caméra et votre micro aux autres joueurs du lobby
-          (pair-à-pair WebRTC). Les flux ne transitent pas par nos serveurs ; PocketBase ne sert
-          qu’au signaling (offres/ICE).
+          La table de playtest peut diffuser votre micro aux autres joueurs du lobby (pair-à-pair
+          WebRTC). Le flux ne transite pas par nos serveurs ; PocketBase ne sert qu’au signaling.
         </p>
         <p>
-          Vous pouvez refuser : la partie continue sans vidéo ni audio. Ensuite, l’icône ⚙ permet
-          de choisir la caméra et le micro, ou de couper le flux à tout moment.
+          Vous pouvez refuser : la partie continue sans audio. Ensuite, l’icône ⚙ permet de choisir
+          le micro, ou de le couper à tout moment.
         </p>
         <div className="flex flex-col sm:flex-row gap-2 pt-2">
           <Button onClick={onAccept} className="flex-1">
-            Autoriser caméra et micro
+            Autoriser le micro
           </Button>
           <Button variant="secondary" onClick={onDecline} className="flex-1">
             Continuer sans

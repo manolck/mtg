@@ -1,30 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { rtcLinkLabel, rtcLinkRingClass, type RtcLinkStatus } from '../../utils/rtcLinkStatus';
-import { VideoTile } from './VideoTile';
+import {
+  EMPTY_AUDIO_STATS,
+  formatAudioStats,
+  type RtcAudioStats,
+} from '../../utils/rtcAudioStats';
 
 interface RtcControlsProps {
-  camOn: boolean;
   micOn: boolean;
   linkStatus?: RtcLinkStatus;
-  onToggleCam: () => void;
   onToggleMic: () => void;
-  cameras: MediaDeviceInfo[];
   mics: MediaDeviceInfo[];
-  cameraId: string;
   micId: string;
-  onCameraChange: (deviceId: string) => void;
   onMicChange: (deviceId: string) => void;
-  noiseGate: number;
-  onNoiseGateChange: (value: number) => void;
   onEnableMedia?: () => void;
   previewStream?: MediaStream | null;
+  getAudioStats?: () => Promise<RtcAudioStats>;
   error?: string | null;
   disabled?: boolean;
+  hearBlocked?: boolean;
+  onUnlockHear?: () => void;
 }
 
-function deviceLabel(device: MediaDeviceInfo, index: number, kind: 'cam' | 'mic'): string {
+function deviceLabel(device: MediaDeviceInfo, index: number): string {
   if (device.label) return device.label;
-  return kind === 'cam' ? `Caméra ${index + 1}` : `Micro ${index + 1}`;
+  return `Micro ${index + 1}`;
 }
 
 function MicLevelMeter({ stream, micOn }: { stream?: MediaStream | null; micOn: boolean }) {
@@ -52,8 +52,10 @@ function MicLevelMeter({ stream, micOn }: { stream?: MediaStream | null; micOn: 
       return;
     }
 
+    const probe = track.clone();
+    probe.enabled = true;
     const ctx = new AudioCtx();
-    const source = ctx.createMediaStreamSource(new MediaStream([track]));
+    const source = ctx.createMediaStreamSource(new MediaStream([probe]));
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
     analyser.smoothingTimeConstant = 0.65;
@@ -91,6 +93,7 @@ function MicLevelMeter({ stream, micOn }: { stream?: MediaStream | null; micOn: 
     return () => {
       stopped = true;
       cancelAnimationFrame(raf);
+      probe.stop();
       source.disconnect();
       void ctx.close();
     };
@@ -128,25 +131,23 @@ function MicLevelMeter({ stream, micOn }: { stream?: MediaStream | null; micOn: 
 }
 
 export function RtcControls({
-  camOn,
   micOn,
   linkStatus = 'idle',
-  onToggleCam,
   onToggleMic,
-  cameras,
   mics,
-  cameraId,
   micId,
-  onCameraChange,
   onMicChange,
-  noiseGate,
-  onNoiseGateChange,
   onEnableMedia,
   previewStream,
+  getAudioStats,
   error,
   disabled,
+  hearBlocked,
+  onUnlockHear,
 }: RtcControlsProps) {
   const [open, setOpen] = useState(false);
+  const [hoverMic, setHoverMic] = useState(false);
+  const [stats, setStats] = useState<RtcAudioStats>(EMPTY_AUDIO_STATS);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -165,45 +166,72 @@ export function RtcControls({
     };
   }, [open]);
 
+  useEffect(() => {
+    if ((!hoverMic && !open) || !getAudioStats) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const next = await getAudioStats();
+        if (!cancelled) setStats(next);
+      } catch {
+        /* ignore */
+      }
+    };
+    void tick();
+    const timer = window.setInterval(() => void tick(), 500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [hoverMic, open, getAudioStats]);
+
   const selectClass =
     'w-full rounded-lg bg-black/40 border border-white/15 text-xs text-white px-2 py-1.5 outline-none focus:ring-1 focus:ring-sky-400';
   const ring = rtcLinkRingClass(linkStatus);
   const linkHint = rtcLinkLabel(linkStatus);
+  const statsHint = formatAudioStats(stats);
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1.5">
       <span className="sr-only" aria-live="polite">
         {linkHint}
       </span>
-      <button
-        type="button"
-        onClick={onToggleMic}
-        disabled={disabled}
-        title={`${micOn ? 'Couper le micro' : 'Activer le micro'} — ${linkHint}`}
-        aria-label={`${micOn ? 'Couper le micro' : 'Activer le micro'}. ${linkHint}`}
-        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
-          micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-600 hover:bg-red-500'
-        }`}
+      <div
+        className="relative"
+        onMouseEnter={() => setHoverMic(true)}
+        onMouseLeave={() => setHoverMic(false)}
+        onFocus={() => setHoverMic(true)}
+        onBlur={() => setHoverMic(false)}
       >
-        {micOn ? '🎤' : '🔇'}
-      </button>
-      <button
-        type="button"
-        onClick={onToggleCam}
-        disabled={disabled}
-        title={`${camOn ? 'Couper la caméra' : 'Activer la caméra'} — ${linkHint}`}
-        aria-label={`${camOn ? 'Couper la caméra' : 'Activer la caméra'}. ${linkHint}`}
-        className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
-          camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-600 hover:bg-red-500'
-        }`}
-      >
-        {camOn ? '📷' : '🚫'}
-      </button>
+        <button
+          type="button"
+          onClick={onToggleMic}
+          disabled={disabled}
+          title={`${micOn ? 'Couper le micro' : 'Activer le micro'} — ${linkHint}. ${statsHint}`}
+          aria-label={`${micOn ? 'Couper le micro' : 'Activer le micro'}. ${linkHint}. ${statsHint}`}
+          className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
+            micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-600 hover:bg-red-500'
+          }`}
+        >
+          {micOn ? '🎤' : '🔇'}
+        </button>
+        {hoverMic && (
+          <div
+            role="status"
+            className="absolute right-0 top-full mt-2 z-50 w-52 rounded-lg border border-white/15 bg-[#0c1b24] px-2.5 py-2 text-[11px] text-white/85 shadow-xl"
+          >
+            <p className="font-semibold text-white/90 mb-1">{linkHint}</p>
+            <p>Paquets envoyés : {stats.packetsSent}</p>
+            <p>Paquets reçus : {stats.packetsReceived}</p>
+            {stats.packetsLost > 0 ? <p>Paquets perdus : {stats.packetsLost}</p> : null}
+          </div>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         disabled={disabled}
-        title={`Choisir caméra et micro — ${linkHint}`}
+        title={`Choisir le micro — ${linkHint}`}
         className={`h-9 w-9 rounded-full flex items-center justify-center text-sm disabled:opacity-50 ${ring} ${
           open ? 'bg-sky-600 hover:bg-sky-500' : error ? 'bg-red-600 hover:bg-red-500' : 'bg-white/10 hover:bg-white/20'
         }`}
@@ -212,14 +240,23 @@ export function RtcControls({
       >
         ⚙
       </button>
+      {hearBlocked && onUnlockHear && (
+        <button
+          type="button"
+          onClick={onUnlockHear}
+          className="h-9 px-2 rounded-lg text-[11px] font-semibold bg-amber-400 text-black hover:bg-amber-300"
+        >
+          Écouter
+        </button>
+      )}
 
       {open && (
         <div
           role="dialog"
-          aria-label="Sources audio et vidéo"
+          aria-label="Source audio"
           className="absolute right-0 top-full mt-2 z-50 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-white/15 bg-[#0c1b24] shadow-xl p-3 space-y-3"
         >
-          <p className="text-xs font-semibold text-white/80">Sources</p>
+          <p className="text-xs font-semibold text-white/80">Micro</p>
           <p
             className={`text-[11px] leading-snug ${
               linkStatus === 'connected'
@@ -233,79 +270,39 @@ export function RtcControls({
           >
             {linkHint}
           </p>
-          {previewStream && previewStream.getTracks().length > 0 && (
-            <VideoTile stream={previewStream} muted label="Aperçu" compact={false} />
-          )}
+          <p className="text-[11px] text-white/55 tabular-nums">{statsHint}</p>
           <label className="block space-y-1">
-            <span className="text-[11px] text-white/60">Caméra</span>
-            <select
-              className={selectClass}
-              value={cameraId}
-              onChange={(event) => onCameraChange(event.target.value)}
-            >
-              <option value="">Caméra par défaut</option>
-              {cameras.map((device, index) => (
-                <option key={device.deviceId || `cam-${index}`} value={device.deviceId}>
-                  {deviceLabel(device, index, 'cam')}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1">
-            <span className="text-[11px] text-white/60">Micro</span>
+            <span className="text-[11px] text-white/60">Périphérique</span>
             <select
               className={selectClass}
               value={micId}
               onChange={(event) => onMicChange(event.target.value)}
             >
               <option value="">Micro par défaut</option>
+              {micId && !mics.some((device) => device.deviceId === micId) ? (
+                <option value={micId}>Micro actuel</option>
+              ) : null}
               {mics.map((device, index) => (
                 <option key={device.deviceId || `mic-${index}`} value={device.deviceId}>
-                  {deviceLabel(device, index, 'mic')}
+                  {deviceLabel(device, index)}
                 </option>
               ))}
             </select>
           </label>
           <MicLevelMeter stream={previewStream} micOn={micOn} />
-          <label className="block space-y-1">
-            <span className="flex items-center justify-between gap-2 text-[11px] text-white/60">
-              <span>Réduction du bruit</span>
-              <span className="tabular-nums text-white/80">{noiseGate}%</span>
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={noiseGate}
-              disabled={disabled}
-              onChange={(event) => onNoiseGateChange(Number(event.target.value))}
-              className="w-full accent-emerald-400"
-              aria-label="Réduction du bruit du micro"
-            />
-            <span className="flex justify-between text-[10px] text-white/40">
-              <span>Aucun</span>
-              <span>Max</span>
-            </span>
-            <p className="text-[11px] text-white/50 leading-snug">
-              {noiseGate <= 0
-                ? 'Le micro est envoyé tel quel, ambiance comprise.'
-                : 'Le fond sonore sous le seuil est coupé. Parlez pour vérifier que la voix passe.'}
-            </p>
-          </label>
           {onEnableMedia && (
             <button
               type="button"
               onClick={onEnableMedia}
               className="w-full text-xs rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-2"
             >
-              Autoriser caméra et micro
+              Autoriser le micro
             </button>
           )}
           {error && <p className="text-[11px] text-red-300 leading-snug">{error}</p>}
-          {cameras.length === 0 && mics.length === 0 && !error && (
+          {mics.length === 0 && !error && (
             <p className="text-[11px] text-white/50 leading-snug">
-              Autorisez l’accès pour lister les périphériques, puis choisissez la caméra et le micro.
+              Autorisez l’accès au micro pour lister les périphériques, puis choisissez-en un.
             </p>
           )}
         </div>

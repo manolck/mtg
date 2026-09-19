@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import type { PlayerTableState, RevealAudience, TableCard, TokenBlueprint, ZoneName } from '../../types/play';
 import { REVEAL_ALL, ZONE_LABELS } from '../../types/play';
 import {
@@ -34,7 +34,7 @@ interface PlayerBoardProps {
   compact?: boolean;
   /** Orient the playmat like sitting at this seat (lands at the bottom). */
   seatHome?: boolean;
-  /** Replier caméra / nom / vie par défaut (tables à 4). */
+  /** Replier nom / vie par défaut (tables à 4). */
   collapseSeatHud?: boolean;
   /** Nombre de plateaux visibles, pour la taille de la main. */
   visibleSeats?: number;
@@ -80,7 +80,6 @@ interface PlayerBoardProps {
   onReorderHand?: (instanceId: string, toIndex: number) => void;
   onToggleHandChoice?: (instanceId: string) => void;
   onClearHandChoices?: () => void;
-  videoSlot?: ReactNode;
 }
 
 type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'sendTo';
@@ -155,7 +154,6 @@ export function PlayerBoard({
   onReorderHand,
   onToggleHandChoice,
   onClearHandChoices,
-  videoSlot,
 }: PlayerBoardProps) {
   const [lightbox, setLightbox] = useState<TableCard | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -913,14 +911,12 @@ export function PlayerBoard({
               type="button"
               className="absolute top-1 right-0.5 z-30 h-6 w-5 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               onClick={() => setSeatHudOpen(false)}
-              title="Replier caméra et vie"
+              title="Replier nom et vie"
               aria-expanded="true"
-              aria-label="Replier caméra et vie"
+              aria-label="Replier nom et vie"
             >
               <span aria-hidden className="block text-sm leading-none">‹</span>
             </button>
-            {videoSlot}
-            <p className="text-[8px] font-bold tracking-[0.2em] text-slate-500 -mt-1">CAM</p>
             <div className="min-w-0 w-full text-center">
               <p className="font-semibold truncate leading-tight text-xs sm:text-sm">
                 {player.displayName || 'Joueur'}
@@ -955,9 +951,9 @@ export function PlayerBoard({
               type="button"
               className="flex-1 min-h-0 w-full flex flex-col items-center justify-center gap-2 py-2 hover:bg-slate-50"
               onClick={() => setSeatHudOpen(true)}
-              title={`Déplier caméra et vie — ${player.displayName || 'Joueur'}`}
+              title={`Déplier nom et vie — ${player.displayName || 'Joueur'}`}
               aria-expanded="false"
-              aria-label={`Déplier caméra et vie de ${player.displayName || 'Joueur'}`}
+              aria-label={`Déplier nom et vie de ${player.displayName || 'Joueur'}`}
             >
               <span aria-hidden className="text-sm leading-none text-slate-600">›</span>
               <span

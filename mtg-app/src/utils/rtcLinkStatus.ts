@@ -26,11 +26,11 @@ export function rtcLinkRingClass(status: RtcLinkStatus): string {
 export function rtcLinkLabel(status: RtcLinkStatus): string {
   switch (status) {
     case 'connected':
-      return 'Connexion audio/vidéo établie';
+      return 'Connexion audio établie';
     case 'connecting':
-      return 'Connexion audio/vidéo en cours';
+      return 'Connexion audio en cours';
     case 'disconnected':
-      return 'Hors connexion audio/vidéo';
+      return 'Hors connexion audio';
     default:
       return 'En attente d’un autre joueur';
   }

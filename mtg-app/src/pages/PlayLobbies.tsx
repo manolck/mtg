@@ -127,7 +127,7 @@ export function PlayLobbies() {
           <h1 className="page-title">Playtest</h1>
           <p className="page-subtitle max-w-2xl">
             Créez un salon, envoyez le lien, choisissez un deck, puis jouez sur une table digitale
-            (piocher, poser, engager, PV). La vidéo est optionnelle. Les règles Magic restent à votre charge.
+            (piocher, poser, engager, PV). Le micro est optionnel. Les règles Magic restent à votre charge.
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="shrink-0">Créer un lobby</Button>
