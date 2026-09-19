@@ -459,7 +459,7 @@ export function CardScanWizard() {
     if (!card || !uid) return;
     setState((s) => ({ ...s, adding: true }));
     try {
-      let collectionId = targetCollectionId || collections[0]?.id;
+      let collectionId: string | undefined = targetCollectionId || collections[0]?.id;
       if (!collectionId) {
         const created = await createCollection('Ma collection');
         collectionId = created?.id;

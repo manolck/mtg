@@ -281,7 +281,7 @@ export function ScanCompare() {
                 ...quad,
                 points: quad.points.map(([x, y]) => [x / scale, y / scale]) as Quadrilateral['points'],
               };
-              drawQuadOnContext(ctx, scaled, '#22c55e');
+              drawQuadOnContext(ctx, scaled, { strokeStyle: '#22c55e' });
             } catch {
               /* no contour */
             }
