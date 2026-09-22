@@ -2,6 +2,8 @@ import {
   applyMatchAction,
   attachmentsOn,
   groupPlaymatCards,
+  offsetOffTokenStack,
+  tokenStackCell,
   canSeeGraveOrExileFace,
   canSeeHandCard,
   canSeeLibraryTop,
@@ -146,6 +148,101 @@ describe('playTable', () => {
     const last = ids[6];
     state = applyMatchAction(state, { type: 'reorderHand', userId: 'u1', instanceId: last, toIndex: 0 });
     expect(state.players[0].hand[0].instanceId).toBe(last);
+  });
+
+  it('places a card onto another player board where they can act on it, and owner can retrieve it', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const card = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'transferCard',
+      userId: 'u1',
+      fromUserId: 'u1',
+      toUserId: 'u2',
+      instanceId: card.instanceId,
+      from: 'hand',
+      to: 'battlefield',
+      playmatX: 40,
+      playmatY: 55,
+      playmatRow: 'battlefield',
+    });
+    expect(state.players[0].hand.some((item) => item.instanceId === card.instanceId)).toBe(false);
+    expect(state.players[1].battlefield).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          instanceId: card.instanceId,
+          playmatX: 40,
+          playmatY: 55,
+          ownerUserId: 'u1',
+        }),
+      ]),
+    );
+
+    // Opponent treats it as their board card: tap / reposition.
+    state = applyMatchAction(state, { type: 'tap', userId: 'u2', instanceId: card.instanceId });
+    expect(state.players[1].battlefield.find((item) => item.instanceId === card.instanceId)?.tapped).toBe(true);
+    state = applyMatchAction(state, {
+      type: 'setPlaymatPos',
+      userId: 'u2',
+      instanceIds: [card.instanceId],
+      x: 70,
+      y: 25,
+      row: 'battlefield',
+    });
+    expect(state.players[1].battlefield.find((item) => item.instanceId === card.instanceId)).toMatchObject({
+      playmatX: 70,
+      playmatY: 25,
+    });
+
+    // Owner can retrieve it back.
+    state = applyMatchAction(state, {
+      type: 'transferCard',
+      userId: 'u1',
+      fromUserId: 'u2',
+      toUserId: 'u1',
+      instanceId: card.instanceId,
+      from: 'battlefield',
+      to: 'battlefield',
+      playmatX: 20,
+      playmatY: 30,
+      playmatRow: 'battlefield',
+    });
+    expect(state.players[1].battlefield.some((item) => item.instanceId === card.instanceId)).toBe(false);
+    expect(state.players[0].battlefield).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          instanceId: card.instanceId,
+          playmatX: 20,
+          playmatY: 30,
+        }),
+      ]),
+    );
   });
 
   it('draws, taps, moves, and increments version', () => {
@@ -1045,8 +1142,8 @@ describe('playTable', () => {
     expect(state.players[0].library.some((card) => card.instanceId === top.instanceId)).toBe(false);
   });
 
-  it('ignores addSeat so dummy boards cannot be added', () => {
-    const state = createInitialMatchState(
+  it('adds a dummy player on the next free seat with a mirrored library', () => {
+    let state = createInitialMatchState(
       [
         seat({
           userId: 'u1',
@@ -1065,9 +1162,26 @@ describe('playTable', () => {
       { random: () => 0 },
     );
     expect(state.players).toHaveLength(1);
-    const next = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' }, { random: () => 0 });
-    expect(next.players).toHaveLength(1);
-    expect(next).toBe(state);
+    state = applyMatchAction(
+      state,
+      { type: 'addSeat', userId: 'u1', seatIndex: 1, displayName: 'Siège 2' },
+      { random: () => 0 },
+    );
+    expect(state.players).toHaveLength(2);
+    expect(state.players[1]).toMatchObject({
+      userId: 'dummy:1',
+      seatIndex: 1,
+      displayName: 'Siège 2',
+      life: 40,
+    });
+    expect(state.players[1].hand).toHaveLength(7);
+    expect(state.players[1].command).toHaveLength(1);
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2, displayName: 'Siège 3' }, { random: () => 0 });
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 3, displayName: 'Siège 4' }, { random: () => 0 });
+    expect(state.players.map((player) => player.seatIndex).sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+    const before = state.players.length;
+    state = applyMatchAction(state, { type: 'addSeat', userId: 'u1', seatIndex: 2 });
+    expect(state.players).toHaveLength(before);
   });
 
   it('plays a card onto a free playmat slot and can reposition it', () => {
@@ -1266,5 +1380,13 @@ describe('playTable', () => {
     expect(groups).toHaveLength(2);
     expect(groups[0].members.map((card) => card.instanceId)).toEqual(['t1', 't2']);
     expect(groups[1].members.map((card) => card.instanceId)).toEqual(['t3']);
+  });
+
+  it('offsets a token far enough to leave its stack cell', () => {
+    const origin = { x: 40, y: 40 };
+    const split = offsetOffTokenStack(origin.x, origin.y);
+    expect(tokenStackCell(split.x, split.y)).not.toBe(tokenStackCell(origin.x, origin.y));
+    const nudged = offsetOffTokenStack(origin.x, origin.y, 42, 41);
+    expect(tokenStackCell(nudged.x, nudged.y)).not.toBe(tokenStackCell(origin.x, origin.y));
   });
 });

@@ -42,6 +42,7 @@ export function PlayTable() {
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
   const [tableView, setTableView] = useState<'all' | 'active'>('all');
   const attachPickIdRef = useRef<string | null>(null);
+  const attachOwnerRef = useRef<string | null>(null);
   attachPickIdRef.current = attachPickId;
   const meshRef = useRef<PlayRtcMesh | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
@@ -305,13 +306,11 @@ export function PlayTable() {
 
   const players = useMemo(() => {
     if (!state || !currentUser) return [];
-    return [...state.players]
-      .filter((player) => !isDummyUserId(player.userId))
-      .sort((a, b) => {
-        if (a.userId === currentUser.uid) return 1;
-        if (b.userId === currentUser.uid) return -1;
-        return a.seatIndex - b.seatIndex;
-      });
+    return [...state.players].sort((a, b) => {
+      if (a.userId === currentUser.uid) return 1;
+      if (b.userId === currentUser.uid) return -1;
+      return a.seatIndex - b.seatIndex;
+    });
   }, [state, currentUser]);
 
   if (loading || !state || !currentUser) {
@@ -330,10 +329,12 @@ export function PlayTable() {
   const count = players.length;
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
-  const focusedOther = tableView === 'active' && Boolean(activePlayer && activePlayer.userId !== currentUser.uid);
+  const nextDummySeat = [0, 1, 2, 3].find((index) => !state.players.some((player) => player.seatIndex === index));
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
+    const boardUserId = player.userId;
+    const homeLayout = isSelf || tableView === 'active';
     return (
       <PlayerBoard
         player={player}
@@ -343,21 +344,21 @@ export function PlayTable() {
           .filter((p) => p.userId !== currentUser.uid)
           .map((p) => ({ userId: p.userId, displayName: p.displayName }))}
         isTurn={state.turnSeatIndex === player.seatIndex}
-        compact={compact}
-        seatHome={tableView === 'active'}
-        visibleSeats={shownCount}
+        compact={homeLayout ? false : compact}
+        seatHome={homeLayout}
+        visibleSeats={homeLayout ? 1 : shownCount}
         startingLife={(state.format || '').toLowerCase() === 'commander' ? 40 : 20}
         deckName={seats.find((seat) => seat.userId === player.userId)?.deckSnapshot?.name}
-        onDraw={() => send({ type: 'draw', userId: currentUser.uid })}
-        onShuffle={() => send({ type: 'shuffleLibrary', userId: currentUser.uid })}
-        onMulligan={() => send({ type: 'mulligan', userId: currentUser.uid })}
+        onDraw={() => send({ type: 'draw', userId: boardUserId })}
+        onShuffle={() => send({ type: 'shuffleLibrary', userId: boardUserId })}
+        onMulligan={() => send({ type: 'mulligan', userId: boardUserId })}
         onPassTurn={() => send({ type: 'passTurn' })}
-        onLife={(delta) => send({ type: 'setLife', userId: currentUser.uid, delta })}
-        onPoison={(delta) => send({ type: 'setPoison', userId: currentUser.uid, delta })}
+        onLife={(delta) => send({ type: 'setLife', userId: boardUserId, delta })}
+        onPoison={(delta) => send({ type: 'setPoison', userId: boardUserId, delta })}
         onMove={(instanceId, from, to, options) =>
           send({
             type: 'moveCard',
-            userId: currentUser.uid,
+            userId: boardUserId,
             instanceId,
             from: from as ZoneName,
             to,
@@ -372,7 +373,7 @@ export function PlayTable() {
         onSearchLibrary={(instanceId, to, options) =>
           send({
             type: 'searchLibrary',
-            userId: currentUser.uid,
+            userId: boardUserId,
             instanceId,
             to,
             toTop: options?.toTop,
@@ -382,68 +383,86 @@ export function PlayTable() {
           })
         }
         onTap={(instanceId, instanceIds) =>
-          send({ type: 'tap', userId: currentUser.uid, instanceId, instanceIds })
+          send({ type: 'tap', userId: boardUserId, instanceId, instanceIds })
         }
         onFlip={(instanceId, faces) =>
           send({
             type: 'flip',
-            userId: currentUser.uid,
+            userId: boardUserId,
             instanceId,
             backImageUrl: faces?.backImageUrl,
             backName: faces?.backName,
             backTypeLine: faces?.backTypeLine,
           })
         }
-        onSetPlaymatRow={(instanceId, row) => send({ type: 'setPlaymatRow', userId: currentUser.uid, instanceId, row })}
+        onSetPlaymatRow={(instanceId, row) => send({ type: 'setPlaymatRow', userId: boardUserId, instanceId, row })}
         onSetPlaymatPos={(instanceIds, x, y, row) =>
-          send({ type: 'setPlaymatPos', userId: currentUser.uid, instanceIds, x, y, row })
+          send({ type: 'setPlaymatPos', userId: boardUserId, instanceIds, x, y, row })
         }
-        onShowHand={(viewerIds) => send({ type: 'showHand', userId: currentUser.uid, viewerIds })}
-        onHideHand={() => send({ type: 'hideHand', userId: currentUser.uid })}
+        onShowHand={(viewerIds) => send({ type: 'showHand', userId: boardUserId, viewerIds })}
+        onHideHand={() => send({ type: 'hideHand', userId: boardUserId })}
         onShowHandCard={(instanceId, viewerIds) =>
-          send({ type: 'showHandCard', userId: currentUser.uid, instanceId, viewerIds })
+          send({ type: 'showHandCard', userId: boardUserId, instanceId, viewerIds })
         }
-        onHideHandCard={(instanceId) => send({ type: 'hideHandCard', userId: currentUser.uid, instanceId })}
-        onRevealLibraryTop={(viewerIds) => send({ type: 'revealLibraryTop', userId: currentUser.uid, viewerIds })}
-        onHideLibraryTop={() => send({ type: 'hideLibraryTop', userId: currentUser.uid })}
+        onHideHandCard={(instanceId) => send({ type: 'hideHandCard', userId: boardUserId, instanceId })}
+        onRevealLibraryTop={(viewerIds) => send({ type: 'revealLibraryTop', userId: boardUserId, viewerIds })}
+        onHideLibraryTop={() => send({ type: 'hideLibraryTop', userId: boardUserId })}
         tablePlayers={players}
         attachPickId={attachPickId}
-        onStartAttach={(instanceId) => setAttachPickId(instanceId)}
+        onStartAttach={(instanceId) => {
+          attachOwnerRef.current = boardUserId;
+          setAttachPickId(instanceId);
+        }}
         onPickAttachHost={(hostInstanceId) => {
           const instanceId = attachPickIdRef.current;
           if (!instanceId) return;
           void send({
             type: 'attachCard',
-            userId: currentUser.uid,
+            userId: attachOwnerRef.current || boardUserId,
             instanceId,
             hostInstanceId,
           });
           setAttachPickId(null);
+          attachOwnerRef.current = null;
         }}
         onDetach={(instanceId) =>
-          send({ type: 'attachCard', userId: currentUser.uid, instanceId, hostInstanceId: null })
+          send({ type: 'attachCard', userId: boardUserId, instanceId, hostInstanceId: null })
         }
         onSetFacedown={(instanceId, facedown) =>
-          send({ type: 'setFacedown', userId: currentUser.uid, instanceId, facedown })
+          send({ type: 'setFacedown', userId: boardUserId, instanceId, facedown })
         }
         onSetCounter={(instanceId, counterId, delta) =>
-          send({ type: 'setCounter', userId: currentUser.uid, instanceId, counterId, delta })
+          send({ type: 'setCounter', userId: boardUserId, instanceId, counterId, delta })
         }
         onAddToken={(card, quantity) =>
-          send({ type: 'addToken', userId: currentUser.uid, card, quantity })
+          send({ type: 'addToken', userId: boardUserId, card, quantity })
         }
         onRemoveToken={(instanceId) =>
-          send({ type: 'removeToken', userId: currentUser.uid, instanceId })
+          send({ type: 'removeToken', userId: boardUserId, instanceId })
         }
         onScry={(count, onTop, onBottom) =>
-          send({ type: 'scry', userId: currentUser.uid, count, onTop, onBottom })
+          send({ type: 'scry', userId: boardUserId, count, onTop, onBottom })
         }
         onSurveil={(count, onTop, toGraveyard) =>
-          send({ type: 'surveil', userId: currentUser.uid, count, onTop, toGraveyard })
+          send({ type: 'surveil', userId: boardUserId, count, onTop, toGraveyard })
         }
-        onMill={(count) => send({ type: 'mill', userId: currentUser.uid, count })}
+        onMill={(count) => send({ type: 'mill', userId: boardUserId, count })}
         onReorderHand={(instanceId, toIndex) =>
-          send({ type: 'reorderHand', userId: currentUser.uid, instanceId, toIndex })
+          send({ type: 'reorderHand', userId: boardUserId, instanceId, toIndex })
+        }
+        onTransferCard={(instanceId, from, toUserId, to, options) =>
+          send({
+            type: 'transferCard',
+            userId: currentUser.uid,
+            fromUserId: boardUserId,
+            toUserId,
+            instanceId,
+            from: from as ZoneName,
+            to,
+            playmatX: options?.playmatX,
+            playmatY: options?.playmatY,
+            playmatRow: options?.playmatRow,
+          })
         }
         onToggleHandChoice={(instanceId) =>
           send({ type: 'chooseHandCard', userId: currentUser.uid, ownerId: player.userId, instanceId })
@@ -491,6 +510,22 @@ export function PlayTable() {
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {nextDummySeat != null && (
+            <button
+              type="button"
+              className="relative z-30 text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 min-h-[36px]"
+              onClick={() =>
+                void send({
+                  type: 'addSeat',
+                  userId: currentUser.uid,
+                  seatIndex: nextDummySeat,
+                  displayName: `Siège ${nextDummySeat + 1}`,
+                })
+              }
+            >
+              Ajouter siège {nextDummySeat + 1}
+            </button>
+          )}
           <RtcControls
             micOn={micOn}
             linkStatus={rtcLink}
@@ -540,33 +575,47 @@ export function PlayTable() {
       )}
 
       <div className="flex-1 min-h-0 relative">
-        <div
-          className={
-            stacked
-              ? 'h-full min-h-0 flex flex-col gap-0 p-1'
-              : 'h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-1 p-1'
-          }
-        >
-          {shownPlayers.map((player, index) => {
-            const isSelf = player.userId === currentUser.uid;
-            const compact = shownCount > 1 && (stacked ? !isSelf : count >= 3 && !isSelf);
-            const span = !stacked && shownCount === 3 && index === 2 ? 'md:col-span-2' : '';
-            const stackedSize = stacked ? 'flex-1 min-h-0' : 'min-h-0';
-            return (
-              <section key={player.userId} className={`${stacked ? stackedSize : `min-h-0 ${span}`}`}>
-                {renderPane(player, compact)}
-              </section>
-            );
-          })}
-        </div>
-        {focusedOther && (
-          <button
-            type="button"
-            className="absolute bottom-4 right-4 z-40 min-h-[52px] px-4 sm:px-5 rounded-xl text-sm font-bold shadow-2xl bg-amber-400 text-black ring-4 ring-amber-100/90 hover:bg-amber-300"
-            onClick={() => send({ type: 'passTurn' })}
-          >
-            Fin de tour
-          </button>
+        {stacked ? (
+          <div className="h-full min-h-0 flex flex-col gap-0 p-1">
+            {shownPlayers.map((player) => {
+              const isSelf = player.userId === currentUser.uid;
+              const homeLayout = isSelf || tableView === 'active';
+              const compact = shownCount > 1 && !homeLayout;
+              return (
+                <section
+                  key={player.userId}
+                  className={homeLayout ? 'flex-[1.75] min-h-0 basis-0' : 'flex-[1] min-h-0 basis-0'}
+                >
+                  {renderPane(player, compact)}
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="h-full min-h-0 flex flex-col gap-1 p-1">
+            <div
+              className={`min-h-0 flex-[0.68] grid gap-1 ${
+                shownPlayers.filter((p) => p.userId !== currentUser.uid).length >= 3
+                  ? 'grid-cols-1 sm:grid-cols-3'
+                  : 'grid-cols-1 md:grid-cols-2'
+              }`}
+            >
+              {shownPlayers
+                .filter((player) => player.userId !== currentUser.uid)
+                .map((player) => (
+                  <section key={player.userId} className="min-h-0">
+                    {renderPane(player, true)}
+                  </section>
+                ))}
+            </div>
+            {shownPlayers
+              .filter((player) => player.userId === currentUser.uid)
+              .map((player) => (
+                <section key={player.userId} className="min-h-0 flex-[1.32]">
+                  {renderPane(player, false)}
+                </section>
+              ))}
+          </div>
         )}
       </div>
 

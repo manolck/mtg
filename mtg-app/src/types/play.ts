@@ -72,6 +72,8 @@ export interface TableCard {
   counters?: Record<string, number>;
   /** Jeton créé en jeu (n’appartient pas au deck). */
   isToken?: boolean;
+  /** Joueur propriétaire (deck) — conservé si la carte est sur un autre plateau. */
+  ownerUserId?: string;
 }
 
 export interface TokenBlueprint {
@@ -181,6 +183,18 @@ export type PlayAction =
   | { type: 'scry'; userId: string; count: number; onTop: string[]; onBottom: string[] }
   | { type: 'surveil'; userId: string; count: number; onTop: string[]; toGraveyard: string[] }
   | { type: 'addSeat'; userId: string; seatIndex?: number; displayName?: string }
+  | {
+      type: 'transferCard';
+      userId: string;
+      fromUserId: string;
+      toUserId: string;
+      instanceId: string;
+      from: ZoneName;
+      to: ZoneName;
+      playmatX?: number;
+      playmatY?: number;
+      playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
+    }
   | { type: 'reorderHand'; userId: string; instanceId: string; toIndex: number }
   | { type: 'tap'; userId: string; instanceId: string; instanceIds?: string[] }
   | { type: 'flip'; userId: string; instanceId: string; backImageUrl?: string; backName?: string; backTypeLine?: string }

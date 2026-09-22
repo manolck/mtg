@@ -20,7 +20,18 @@ function isCommanderFormat(format: string | undefined): boolean {
   return (format || '').toLowerCase() === 'commander';
 }
 
-function expandEntries(entries: DeckEntry[] | undefined, prefix: string): TableCard[] {
+/** Deck owner for a card (explicit field, or inferred from instanceId). */
+export function deckOwnerId(card: TableCard): string | undefined {
+  if (card.ownerUserId) return card.ownerUserId;
+  const id = card.instanceId;
+  for (const marker of ['-lib-', '-cmd-', '-tok-'] as const) {
+    const idx = id.indexOf(marker);
+    if (idx > 0) return id.slice(0, idx);
+  }
+  return undefined;
+}
+
+function expandEntries(entries: DeckEntry[] | undefined, prefix: string, ownerUserId?: string): TableCard[] {
   const cards: TableCard[] = [];
   let i = 0;
   for (const entry of entries || []) {
@@ -39,6 +50,7 @@ function expandEntries(entries: DeckEntry[] | undefined, prefix: string): TableC
         tapped: false,
         facedown: false,
         transformed: false,
+        ownerUserId,
       });
     }
   }
@@ -65,6 +77,16 @@ function replacePlayer(state: MatchState, nextPlayer: PlayerTableState): MatchSt
   };
 }
 
+function replacePlayers(state: MatchState, nextPlayers: PlayerTableState[]): MatchState {
+  if (nextPlayers.length === 0) return state;
+  const byId = new Map(nextPlayers.map((player) => [player.userId, player]));
+  return {
+    ...state,
+    version: state.version + 1,
+    players: state.players.map((player) => byId.get(player.userId) || player),
+  };
+}
+
 export function snapshotFromDeck(input: {
   id: string;
   name: string;
@@ -88,7 +110,10 @@ export function createPlayerFromSnapshot(
   const snapshot = seat.deckSnapshot;
   const format = snapshot?.format || 'commander';
   const commander = isCommanderFormat(format);
-  const libraryPool = shuffleCards(expandEntries(snapshot?.mainboard, `${seat.userId}-lib`), options?.random);
+  const libraryPool = shuffleCards(
+    expandEntries(snapshot?.mainboard, `${seat.userId}-lib`, seat.userId),
+    options?.random,
+  );
   const hand = libraryPool.splice(0, Math.min(STARTING_HAND, libraryPool.length));
   return {
     userId: seat.userId,
@@ -101,7 +126,7 @@ export function createPlayerFromSnapshot(
     battlefield: [],
     graveyard: [],
     exile: [],
-    command: expandEntries(snapshot?.commanders, `${seat.userId}-cmd`),
+    command: expandEntries(snapshot?.commanders, `${seat.userId}-cmd`, seat.userId),
     shownHandTo: [],
     shownHandCards: [],
     chosenHandCards: [],
@@ -211,6 +236,111 @@ function reorderHandCards(player: PlayerTableState, instanceId: string, toIndex:
   return { ...player, hand: next };
 }
 
+function transferCardBetweenPlayers(
+  state: MatchState,
+  action: {
+    fromUserId: string;
+    toUserId: string;
+    instanceId: string;
+    from: ZoneName;
+    to: ZoneName;
+    playmatX?: number;
+    playmatY?: number;
+    playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null;
+  },
+): MatchState {
+  if (action.fromUserId === action.toUserId) {
+    const player = findPlayer(state, action.fromUserId);
+    if (!player) return state;
+    const next = moveCard(player, action.instanceId, action.from, action.to, undefined, undefined, undefined, {
+      playmatX: action.playmatX,
+      playmatY: action.playmatY,
+      playmatRow: action.playmatRow,
+    });
+    if (next === player) return state;
+    return pruneOrphanAttachments(replacePlayer(state, pruneTokensOffBattlefield(next)));
+  }
+
+  const fromPlayer = findPlayer(state, action.fromUserId);
+  const toPlayer = findPlayer(state, action.toUserId);
+  if (!fromPlayer || !toPlayer) return state;
+
+  const source = cardsOf(fromPlayer, action.from);
+  const idx = source.findIndex((card) => card.instanceId === action.instanceId);
+  if (idx < 0) return state;
+  const moving = source[idx];
+  const attachments =
+    action.from === 'battlefield'
+      ? fromPlayer.battlefield.filter((card) => card.attachedTo === moving.instanceId)
+      : [];
+  const removeIds = new Set([moving.instanceId, ...attachments.map((card) => card.instanceId)]);
+
+  if (moving.isToken && action.to !== 'battlefield') {
+    let nextFrom = fromPlayer;
+    if (action.from === 'battlefield') {
+      nextFrom = {
+        ...fromPlayer,
+        battlefield: fromPlayer.battlefield.filter((card) => !removeIds.has(card.instanceId)),
+      };
+    } else {
+      nextFrom = withZone(fromPlayer, action.from, source.filter((_, i) => i !== idx));
+      if (action.from === 'hand') nextFrom = pruneHandReveals(nextFrom);
+    }
+    return pruneOrphanAttachments(replacePlayers(state, [pruneTokensOffBattlefield(nextFrom)]));
+  }
+
+  const prepareCard = (card: TableCard, isHost: boolean): TableCard | null => {
+    if (card.isToken && action.to !== 'battlefield') return null;
+    const next: TableCard = {
+      ...card,
+      ownerUserId: card.ownerUserId || deckOwnerId(card) || action.fromUserId,
+    };
+    if (action.to === 'battlefield') {
+      if (isHost) {
+        next.attachedTo = undefined;
+        if (action.playmatX != null) next.playmatX = clampPlaymat(action.playmatX);
+        if (action.playmatY != null) next.playmatY = clampPlaymat(action.playmatY);
+        if (action.playmatRow !== undefined) next.playmatRow = action.playmatRow || undefined;
+      } else {
+        next.playmatX = undefined;
+        next.playmatY = undefined;
+        next.playmatRow = undefined;
+      }
+    } else {
+      next.tapped = false;
+      next.attachedTo = undefined;
+      next.playmatX = undefined;
+      next.playmatY = undefined;
+      next.playmatRow = undefined;
+      next.facedown = action.to === 'library';
+      if (action.to === 'library') next.transformed = false;
+    }
+    return next;
+  };
+
+  const prepared = [prepareCard(moving, true), ...attachments.map((card) => prepareCard(card, false))].filter(
+    (card): card is TableCard => Boolean(card),
+  );
+
+  let nextFrom: PlayerTableState;
+  if (action.from === 'battlefield') {
+    nextFrom = {
+      ...fromPlayer,
+      battlefield: fromPlayer.battlefield.filter((card) => !removeIds.has(card.instanceId)),
+    };
+  } else {
+    nextFrom = withZone(fromPlayer, action.from, source.filter((_, i) => i !== idx));
+    if (action.from === 'hand') nextFrom = pruneHandReveals(nextFrom);
+  }
+
+  let nextTo = withZone(toPlayer, action.to, [...cardsOf(toPlayer, action.to), ...prepared]);
+  if (action.from === 'hand' || action.to === 'hand') nextTo = pruneHandReveals(nextTo);
+
+  return pruneOrphanAttachments(
+    replacePlayers(state, [pruneTokensOffBattlefield(nextFrom), pruneTokensOffBattlefield(nextTo)]),
+  );
+}
+
 function moveCard(
   player: PlayerTableState,
   instanceId: string,
@@ -273,6 +403,36 @@ function moveCard(
 function clampPlaymat(value: number): number {
   if (!Number.isFinite(value)) return 50;
   return Math.max(4, Math.min(96, value));
+}
+
+const TOKEN_STACK_CELL = 8;
+
+export function tokenStackCell(x?: number | null, y?: number | null): string {
+  if (x == null || y == null) return 'flow';
+  return `${Math.round(x / TOKEN_STACK_CELL)}_${Math.round(y / TOKEN_STACK_CELL)}`;
+}
+
+export function offsetOffTokenStack(
+  fromX: number,
+  fromY: number,
+  preferX?: number,
+  preferY?: number,
+): { x: number; y: number } {
+  const origin = tokenStackCell(fromX, fromY);
+  const candidates: Array<[number, number]> = [
+    [preferX ?? fromX + 12, preferY ?? fromY],
+    [fromX + 12, fromY],
+    [fromX - 12, fromY],
+    [fromX + 12, fromY + 8],
+    [fromX - 12, fromY + 8],
+    [fromX, fromY + 12],
+  ];
+  for (const [rawX, rawY] of candidates) {
+    const x = clampPlaymat(rawX);
+    const y = clampPlaymat(rawY);
+    if (tokenStackCell(x, y) !== origin) return { x, y };
+  }
+  return { x: clampPlaymat(fromX + 16), y: clampPlaymat(fromY + 16) };
 }
 
 function toggleTap(player: PlayerTableState, instanceIds: string[]): PlayerTableState {
@@ -393,12 +553,13 @@ export function dummyUserIdForSeat(seatIndex: number): string {
   return `${DUMMY_USER_PREFIX}${seatIndex}`;
 }
 
-function cloneCardsForDummy(cards: TableCard[], prefix: string): TableCard[] {
+function cloneCardsForDummy(cards: TableCard[], prefix: string, ownerUserId: string): TableCard[] {
   return cards
     .filter((card) => !card.isToken)
     .map((card, index) => ({
       ...card,
       instanceId: `${prefix}-${index}`,
+      ownerUserId,
       tapped: false,
       facedown: false,
       attachedTo: undefined,
@@ -412,9 +573,13 @@ export function addDummyPlayer(
 ): MatchState {
   const actor = findPlayer(state, actorUserId);
   if (!actor) return state;
-  const seatIndex = options?.seatIndex ?? 1;
-  if (state.players.some((player) => player.seatIndex === seatIndex)) return state;
   if (state.players.length >= 4) return state;
+  const taken = new Set(state.players.map((player) => player.seatIndex));
+  const seatIndex =
+    options?.seatIndex != null && !taken.has(options.seatIndex)
+      ? options.seatIndex
+      : [0, 1, 2, 3].find((index) => !taken.has(index));
+  if (seatIndex == null) return state;
   const userId = dummyUserIdForSeat(seatIndex);
   if (state.players.some((player) => player.userId === userId)) return state;
 
@@ -422,6 +587,7 @@ export function addDummyPlayer(
   const pool = cloneCardsForDummy(
     [...actor.library, ...actor.hand, ...actor.battlefield, ...actor.graveyard, ...actor.exile],
     `${userId}-lib`,
+    userId,
   );
   const shuffled = shuffleCards(pool, options?.random);
   const hand = shuffled.splice(0, Math.min(STARTING_HAND, shuffled.length));
@@ -436,7 +602,7 @@ export function addDummyPlayer(
     battlefield: [],
     graveyard: [],
     exile: [],
-    command: cloneCardsForDummy(actor.command, `${userId}-cmd`),
+    command: cloneCardsForDummy(actor.command, `${userId}-cmd`, userId),
     shownHandTo: [],
     shownHandCards: [],
     chosenHandCards: [],
@@ -467,7 +633,11 @@ export function applyMatchAction(
   }
 
   if (action.type === 'addSeat') {
-    return state;
+    return addDummyPlayer(state, action.userId, {
+      seatIndex: action.seatIndex,
+      displayName: action.displayName,
+      random: options?.random,
+    });
   }
 
   if (action.type === 'chooseHandCard') {
@@ -476,6 +646,10 @@ export function applyMatchAction(
 
   if (action.type === 'clearHandChoices') {
     return clearHandChoices(state, action);
+  }
+
+  if (action.type === 'transferCard') {
+    return transferCardBetweenPlayers(state, action);
   }
 
   const rawPlayer = findPlayer(state, action.userId);
@@ -728,6 +902,7 @@ function addTokens(
       facedown: false,
       transformed: false,
       isToken: true,
+      ownerUserId: player.userId,
       playmatX: playmat?.playmatX != null ? clampPlaymat(playmat.playmatX) : undefined,
       playmatY: playmat?.playmatY != null ? clampPlaymat(playmat.playmatY) : undefined,
       playmatRow: playmat?.playmatRow || undefined,
@@ -1003,10 +1178,7 @@ export function tokenStackKey(card: TableCard): string {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, count]) => `${id}:${count}`)
     .join(',');
-  const cell =
-    card.playmatX == null || card.playmatY == null
-      ? 'flow'
-      : `${Math.round(card.playmatX / 8)}_${Math.round(card.playmatY / 8)}`;
+  const cell = tokenStackCell(card.playmatX, card.playmatY);
   return `tok:${card.scryfallId}:${card.tapped ? 1 : 0}:${card.facedown ? 1 : 0}:${card.playmatRow || ''}:${counters}:${cell}`;
 }
 
