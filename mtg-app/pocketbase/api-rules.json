@@ -85,7 +85,15 @@
     "createRule": "@request.auth.id != \"\" && lobbyId.hostId = @request.auth.id",
     "updateRule": "@request.auth.id != \"\" && (@request.auth.id = updatedBy || playerIds.id ?= @request.auth.id)",
     "deleteRule": "@request.auth.id != \"\" && @request.auth.id = lobbyId.hostId",
-    "notes": "Seated players can read/write match JSON via playerIds (0.22: playerIds.id ?= @request.auth.id). Last-write-wins with incremental state.version."
+    "notes": "Snapshot state + actionSeq for bootstrap. Live truth is play_match_actions (append-only)."
+  },
+  "play_match_actions": {
+    "listRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id",
+    "viewRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id",
+    "createRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id && userId = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": null,
+    "notes": "Append-only action journal. One row per play action; clients apply by actionId idempotently."
   },
   "play_rtc_signals": {
     "listRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)",

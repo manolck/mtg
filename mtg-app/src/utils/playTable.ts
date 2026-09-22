@@ -142,6 +142,7 @@ export function createInitialMatchState(
   const ordered = [...seats].sort((a, b) => a.seatIndex - b.seatIndex);
   return {
     version: 1,
+    actionSeq: 0,
     turnSeatIndex: ordered[0]?.seatIndex ?? 0,
     format,
     players: ordered.map((seat) => createPlayerFromSnapshot(seat, options)),

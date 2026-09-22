@@ -336,6 +336,102 @@
     "deleteRule": "@request.auth.id != \"\" && @request.auth.id = lobbyId.hostId"
   },
   {
+    "id": "play_match_actions_id",
+    "name": "play_match_actions",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "pma_matchid",
+        "name": "matchId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "play_matches_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "pma_actionid",
+        "name": "actionId",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "min": 8,
+        "max": 64
+      },
+      {
+        "id": "pma_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
+      },
+      {
+        "id": "pma_action",
+        "name": "action",
+        "type": "json",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 200000
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_play_match_actions_match` ON `play_match_actions` (`matchId`, `created`)",
+      "CREATE UNIQUE INDEX `idx_play_match_actions_action` ON `play_match_actions` (`matchId`, `actionId`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id",
+    "viewRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id",
+    "createRule": "@request.auth.id != \"\" && matchId.playerIds.id ?= @request.auth.id && userId = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": null
+  },
+  {
     "id": "play_rtc_signals_id",
     "name": "play_rtc_signals",
     "type": "base",

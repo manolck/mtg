@@ -57,7 +57,8 @@ PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... npm run ensure-play-collections
 
 - `play_lobbies` : liste des lobbies non fermés ; writes hôte uniquement
 - `play_seats` : join seulement si `waiting` ; siège = soi ou hôte
-- `play_matches` : `state` JSON lisible/modifiable seulement par `playerIds`
+- `play_matches` : snapshot `state` + `actionSeq` (bootstrap) ; joueurs via `playerIds`
+- `play_match_actions` : journal append-only des coups (anti-rollback concurrent)
 - `play_rtc_signals` : signaling WebRTC éphémère (from/to)
 
 TURN (NAT difficiles) : `VITE_ICE_SERVERS` dans `.env.example`.

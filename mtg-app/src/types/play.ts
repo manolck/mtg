@@ -126,6 +126,8 @@ export interface PlayerTableState {
 
 export interface MatchState {
   version: number;
+  /** Number of journal actions already folded into this snapshot (bootstrap skip). */
+  actionSeq?: number;
   turnSeatIndex: number;
   format: DeckFormat | string;
   players: PlayerTableState[];
@@ -204,6 +206,15 @@ export type PlayAction =
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'passTurn' }
   | { type: 'mulligan'; userId: string };
+
+export interface MatchActionRecord {
+  id: string;
+  matchId: string;
+  actionId: string;
+  userId: string;
+  action: PlayAction;
+  created: string;
+}
 
 export interface RtcSignalPayload {
   type: 'offer' | 'answer' | 'ice';

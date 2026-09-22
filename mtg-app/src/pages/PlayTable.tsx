@@ -3,7 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
-import { applyPlayAction, getMatchByLobby, subscribeMatch } from '../services/playMatchService';
+import {
+  applyPlayAction,
+  compactMatchSnapshot,
+  listMatchActions,
+  loadMatchWithActions,
+  newMatchActionId,
+  subscribeMatchActions,
+} from '../services/playMatchService';
 import {
   getPlayMic,
   listPlayMics,
@@ -11,8 +18,8 @@ import {
   PlayRtcMesh,
   savePlayAvDevices,
 } from '../services/playRtcService';
-import type { MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
-import { isDummyUserId } from '../utils/playTable';
+import type { MatchActionRecord, MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
+import { applyMatchAction, isDummyUserId } from '../utils/playTable';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
@@ -47,6 +54,7 @@ export function PlayTable() {
   const meshRef = useRef<PlayRtcMesh | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
   const stateRef = useRef<MatchState | null>(null);
+  const appliedIdsRef = useRef<Set<string>>(new Set());
   const startGenRef = useRef(0);
   const micOnRef = useRef(micOn);
   const micIdRef = useRef(micId);
@@ -54,13 +62,31 @@ export function PlayTable() {
   micOnRef.current = micOn;
   micIdRef.current = micId;
 
+  const applyRemoteAction = useCallback((entry: MatchActionRecord) => {
+    if (appliedIdsRef.current.has(entry.actionId)) return;
+    const current = stateRef.current;
+    if (!current) return;
+    appliedIdsRef.current.add(entry.actionId);
+    const next = applyMatchAction(current, entry.action);
+    if (next.version === current.version) return;
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  const syncActions = useCallback(async (id: string) => {
+    const actions = await listMatchActions(id);
+    for (const entry of actions) {
+      applyRemoteAction(entry);
+    }
+  }, [applyRemoteAction]);
+
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!lobbyId || !currentUser) return;
     try {
-      const [nextLobby, nextSeats, match] = await Promise.all([
+      const [nextLobby, nextSeats, loaded] = await Promise.all([
         playLobbyService.getLobby(lobbyId),
         playLobbyService.listSeats(lobbyId),
-        getMatchByLobby(lobbyId),
+        loadMatchWithActions(lobbyId),
       ]);
       setLobby(nextLobby);
       setSeats(nextSeats);
@@ -77,18 +103,24 @@ export function PlayTable() {
         navigate(`/play/${lobbyId}`, { replace: true, state: { fromTable: true } });
         return;
       }
-      if (!match) {
+      if (!loaded) {
         return;
       }
-      setMatchId(match.id);
-      setState(match.state);
+      setMatchId(loaded.match.id);
+      if (opts?.silent && stateRef.current) {
+        await syncActions(loaded.match.id);
+      } else {
+        appliedIdsRef.current = loaded.appliedIds;
+        stateRef.current = loaded.state;
+        setState(loaded.state);
+      }
     } catch (err) {
       errorHandler.handleAndShowError(err);
       navigate('/play', { replace: true });
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [lobbyId, currentUser, navigate]);
+  }, [lobbyId, currentUser, navigate, syncActions]);
 
   useEffect(() => {
     void load();
@@ -100,10 +132,13 @@ export function PlayTable() {
 
   useEffect(() => {
     if (!matchId) return;
-    return subscribeMatch(matchId, (match) => {
-      setState(match.state);
-    });
-  }, [matchId]);
+    return watchWithPoll(
+      () => {
+        void syncActions(matchId);
+      },
+      () => subscribeMatchActions(matchId, applyRemoteAction),
+    );
+  }, [matchId, syncActions, applyRemoteAction]);
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -279,17 +314,43 @@ export function PlayTable() {
 
   const send = useCallback(async (action: PlayAction) => {
     if (!matchId || !currentUser || !stateRef.current) return;
+    const actionId = newMatchActionId();
+    appliedIdsRef.current.add(actionId);
     try {
-      const next = await applyPlayAction({
+      const result = await applyPlayAction({
         matchId,
         userId: currentUser.uid,
         current: stateRef.current,
         action,
+        actionId,
+        onApplied: (next) => {
+          stateRef.current = next;
+          setState(next);
+        },
       });
-      stateRef.current = next;
-      setState(next);
-      return next;
+      if (!result.changed) {
+        appliedIdsRef.current.delete(actionId);
+        return;
+      }
+      stateRef.current = result.state;
+      setState(result.state);
+      void compactMatchSnapshot({
+        matchId,
+        userId: currentUser.uid,
+        state: result.state,
+        actionCount: appliedIdsRef.current.size,
+      }).then((compacted) => {
+        if (!compacted || !stateRef.current) return;
+        // Keep live version; only fold actionSeq from compaction.
+        if ((stateRef.current.actionSeq ?? 0) < (compacted.actionSeq ?? 0)) {
+          const merged = { ...stateRef.current, actionSeq: compacted.actionSeq };
+          stateRef.current = merged;
+          setState(merged);
+        }
+      });
+      return result.state;
     } catch (err) {
+      appliedIdsRef.current.delete(actionId);
       errorHandler.handleAndShowError(err);
       void load();
     }
