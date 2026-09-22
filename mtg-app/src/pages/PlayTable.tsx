@@ -390,7 +390,6 @@ export function PlayTable() {
   const count = players.length;
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
-  const nextDummySeat = [0, 1, 2, 3].find((index) => !state.players.some((player) => player.seatIndex === index));
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
@@ -571,22 +570,6 @@ export function PlayTable() {
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {nextDummySeat != null && (
-            <button
-              type="button"
-              className="relative z-30 text-xs px-3 py-2 rounded-lg bg-amber-500 text-black font-semibold hover:bg-amber-400 min-h-[36px]"
-              onClick={() =>
-                void send({
-                  type: 'addSeat',
-                  userId: currentUser.uid,
-                  seatIndex: nextDummySeat,
-                  displayName: `Siège ${nextDummySeat + 1}`,
-                })
-              }
-            >
-              Ajouter siège {nextDummySeat + 1}
-            </button>
-          )}
           <RtcControls
             micOn={micOn}
             linkStatus={rtcLink}

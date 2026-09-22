@@ -612,6 +612,14 @@ export function PlayerBoard({
     }
   };
 
+  const handleCardDoubleClick = (event: MouseEvent, card: TableCard, zone: ZoneName) => {
+    if (skipClickRef.current || !canActOn(card) || zone !== 'battlefield') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const members = stackFor(card);
+    onTap?.(card.instanceId, members.length > 1 ? members.map((item) => item.instanceId) : undefined);
+  };
+
   const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
     if (dragId) {
       setHover(null);
@@ -659,10 +667,12 @@ export function PlayerBoard({
             : canControl && zone === 'hand'
               ? 'Glisser pour trier · déposer sur le plateau pour jouer'
               : canControl && zone === 'battlefield' && stackCount > 1
-              ? 'Glisser : déplacer la pile · Alt : séparer un jeton'
-              : canControl && (zone === 'battlefield' || zone === 'command')
-                ? 'Glisser pour déplacer'
-                : undefined
+              ? 'Glisser : déplacer · double-clic : engager · Alt : séparer un jeton'
+              : canControl && zone === 'battlefield'
+                ? 'Glisser pour déplacer · double-clic : engager / dégager'
+                : canControl && zone === 'command'
+                  ? 'Glisser pour déplacer'
+                  : undefined
         }
         className={`${extraClass} ${pickingHost ? 'ring-2 ring-amber-300' : ''} ${
           dragId === card.instanceId ? 'opacity-60 ring-2 ring-amber-300' : ''
@@ -671,6 +681,7 @@ export function PlayerBoard({
         stackCount={stackCount}
         onTransform={() => flipCard(resolved)}
         onClick={(event) => handleCardClick(event, resolved, zone)}
+        onDoubleClick={(event) => handleCardDoubleClick(event, resolved, zone)}
         onContextMenu={(event) => {
           if (canActOn(resolved)) {
             openMenu(event, resolved, zone);
