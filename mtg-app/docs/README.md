@@ -35,6 +35,7 @@ Index de la documentation du projet. **Stack actuelle : PocketBase + React/Vite.
 | Document | Description |
 |----------|-------------|
 | [../NGINX_CONFIG.md](../NGINX_CONFIG.md) | Nginx pour le frontend Vite |
+| [WEBRTC_TURN_SETUP.md](./WEBRTC_TURN_SETUP.md) | Coturn / TURN pour audio playtest |
 | [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md) | RGPD en production |
 | [SENTRY_SETUP.md](./SENTRY_SETUP.md) | Monitoring Sentry |
 

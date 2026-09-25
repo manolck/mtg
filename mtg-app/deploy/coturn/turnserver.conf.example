@@ -1,0 +1,36 @@
+# Coturn — example config for MTG playtest WebRTC TURN
+# Copy to /etc/turnserver.conf (or /etc/coturn/turnserver.conf) and edit placeholders.
+# Full runbook: docs/WEBRTC_TURN_SETUP.md
+
+listening-port=3478
+tls-listening-port=5349
+listening-ip=0.0.0.0
+relay-ip=0.0.0.0
+
+# REQUIRED behind a home/box NAT: public IP / private (LAN) IP of this machine
+# Example: external-ip=203.0.113.10/192.168.1.62
+external-ip=PUBLIC_IP/LAN_IP
+
+min-port=49152
+max-port=49200
+
+fingerprint
+lt-cred-mech
+realm=mtg-app.duckdns.org
+
+# Static credentials (visible in the Vite client via VITE_ICE_SERVERS — use a dedicated weak-scope user)
+# Replace CHANGE_ME with a strong password; rotate if leaked.
+user=mtgturn:CHANGE_ME
+
+# Optional TLS for turns: (Let's Encrypt certs for turn.mtg-app.duckdns.org)
+# cert=/etc/letsencrypt/live/turn.mtg-app.duckdns.org/fullchain.pem
+# pkey=/etc/letsencrypt/live/turn.mtg-app.duckdns.org/privkey.pem
+
+no-multicast-peers
+no-cli
+no-tlsv1
+no-tlsv1_1
+
+# Logging (adjust as needed)
+verbose
+# log-file=/var/log/turnserver.log

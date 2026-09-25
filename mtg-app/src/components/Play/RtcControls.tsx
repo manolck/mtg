@@ -3,8 +3,11 @@ import { rtcLinkLabel, rtcLinkRingClass, type RtcLinkStatus } from '../../utils/
 import {
   EMPTY_AUDIO_STATS,
   formatAudioStats,
+  isOutboundAudioBlocked,
   type RtcAudioStats,
 } from '../../utils/rtcAudioStats';
+
+const ONE_WAY_GRACE_MS = 6000;
 
 interface RtcControlsProps {
   micOn: boolean;
@@ -16,6 +19,8 @@ interface RtcControlsProps {
   onEnableMedia?: () => void;
   previewStream?: MediaStream | null;
   getAudioStats?: () => Promise<RtcAudioStats>;
+  /** False when build has no TURN — hint text is more explicit. */
+  hasTurnConfigured?: boolean;
   error?: string | null;
   disabled?: boolean;
   hearBlocked?: boolean;
@@ -140,6 +145,7 @@ export function RtcControls({
   onEnableMedia,
   previewStream,
   getAudioStats,
+  hasTurnConfigured = false,
   error,
   disabled,
   hearBlocked,
@@ -148,6 +154,8 @@ export function RtcControls({
   const [open, setOpen] = useState(false);
   const [hoverMic, setHoverMic] = useState(false);
   const [stats, setStats] = useState<RtcAudioStats>(EMPTY_AUDIO_STATS);
+  const [oneWayHint, setOneWayHint] = useState(false);
+  const oneWaySinceRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -166,13 +174,33 @@ export function RtcControls({
     };
   }, [open]);
 
+  const watchStats = Boolean(getAudioStats && (hoverMic || open || linkStatus === 'connected'));
+
   useEffect(() => {
-    if ((!hoverMic && !open) || !getAudioStats) return;
+    if (!watchStats || !getAudioStats) return;
     let cancelled = false;
     const tick = async () => {
       try {
         const next = await getAudioStats();
-        if (!cancelled) setStats(next);
+        if (cancelled) return;
+        setStats(next);
+
+        const liveTrack = previewStream?.getAudioTracks().some((t) => t.readyState === 'live');
+        const blocked =
+          linkStatus === 'connected' &&
+          micOn &&
+          Boolean(liveTrack) &&
+          isOutboundAudioBlocked(next);
+
+        if (blocked) {
+          if (oneWaySinceRef.current == null) oneWaySinceRef.current = performance.now();
+          if (performance.now() - (oneWaySinceRef.current ?? 0) >= ONE_WAY_GRACE_MS) {
+            setOneWayHint(true);
+          }
+        } else {
+          oneWaySinceRef.current = null;
+          setOneWayHint(false);
+        }
       } catch {
         /* ignore */
       }
@@ -183,19 +211,33 @@ export function RtcControls({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [hoverMic, open, getAudioStats]);
+  }, [watchStats, getAudioStats, linkStatus, micOn, previewStream]);
 
   const selectClass =
     'w-full rounded-lg bg-black/40 border border-white/15 text-xs text-white px-2 py-1.5 outline-none focus:ring-1 focus:ring-sky-400';
   const ring = rtcLinkRingClass(linkStatus);
   const linkHint = rtcLinkLabel(linkStatus);
   const statsHint = formatAudioStats(stats);
+  const natHint = hasTurnConfigured
+    ? 'Audio sortant bloqué (NAT). Vérifiez coturn / ports — docs/WEBRTC_TURN_SETUP.md'
+    : 'Audio sortant bloqué (NAT). TURN requis — configurez VITE_ICE_SERVERS (docs/WEBRTC_TURN_SETUP.md)';
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1.5">
       <span className="sr-only" aria-live="polite">
         {linkHint}
       </span>
+      {oneWayHint ? (
+        <p
+          role="status"
+          className="hidden sm:block max-w-[14rem] rounded-lg bg-amber-500/20 ring-1 ring-amber-400/50 px-2 py-1 text-[10px] leading-snug text-amber-100"
+          title={natHint}
+        >
+          {hasTurnConfigured
+            ? 'Micro : paquets non envoyés (NAT / TURN)'
+            : 'Micro : paquets non envoyés — TURN manquant'}
+        </p>
+      ) : null}
       <div
         className="relative"
         onMouseEnter={() => setHoverMic(true)}
@@ -224,6 +266,7 @@ export function RtcControls({
             <p>Paquets envoyés : {stats.packetsSent}</p>
             <p>Paquets reçus : {stats.packetsReceived}</p>
             {stats.packetsLost > 0 ? <p>Paquets perdus : {stats.packetsLost}</p> : null}
+            {oneWayHint ? <p className="mt-1.5 text-amber-300 leading-snug">{natHint}</p> : null}
           </div>
         )}
       </div>
@@ -271,6 +314,7 @@ export function RtcControls({
             {linkHint}
           </p>
           <p className="text-[11px] text-white/55 tabular-nums">{statsHint}</p>
+          {oneWayHint ? <p className="text-[11px] text-amber-300 leading-snug">{natHint}</p> : null}
           <label className="block space-y-1">
             <span className="text-[11px] text-white/60">Périphérique</span>
             <select

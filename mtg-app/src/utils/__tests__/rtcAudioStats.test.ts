@@ -1,4 +1,9 @@
-import { EMPTY_AUDIO_STATS, formatAudioStats, sumAudioRtcStats } from '../rtcAudioStats';
+import {
+  EMPTY_AUDIO_STATS,
+  formatAudioStats,
+  isOutboundAudioBlocked,
+  sumAudioRtcStats,
+} from '../rtcAudioStats';
 
 describe('sumAudioRtcStats', () => {
   it('adds outbound and inbound audio packets across peers', () => {
@@ -21,5 +26,17 @@ describe('formatAudioStats', () => {
     expect(formatAudioStats({ packetsSent: 8, packetsReceived: 21, packetsLost: 0 })).toBe(
       'Envoyés 8 · Reçus 21',
     );
+  });
+});
+
+describe('isOutboundAudioBlocked', () => {
+  it('detects receive-only audio path', () => {
+    expect(isOutboundAudioBlocked({ packetsSent: 0, packetsReceived: 40, packetsLost: 0 })).toBe(
+      true,
+    );
+    expect(isOutboundAudioBlocked({ packetsSent: 1, packetsReceived: 40, packetsLost: 0 })).toBe(
+      false,
+    );
+    expect(isOutboundAudioBlocked(EMPTY_AUDIO_STATS)).toBe(false);
   });
 });

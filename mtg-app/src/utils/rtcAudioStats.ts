@@ -38,3 +38,8 @@ export function formatAudioStats(stats: RtcAudioStats): string {
     stats.packetsLost ? ` · Perdus ${stats.packetsLost}` : ''
   }`;
 }
+
+/** True when we hear the peer but our mic packets never leave (typical hard-NAT without TURN). */
+export function isOutboundAudioBlocked(stats: RtcAudioStats): boolean {
+  return stats.packetsReceived > 0 && stats.packetsSent === 0;
+}

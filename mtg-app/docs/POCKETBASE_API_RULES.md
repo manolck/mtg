@@ -61,7 +61,7 @@ PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... npm run ensure-play-collections
 - `play_match_actions` : journal append-only des coups (anti-rollback concurrent)
 - `play_rtc_signals` : signaling WebRTC éphémère (from/to)
 
-TURN (NAT difficiles) : `VITE_ICE_SERVERS` dans `.env.example`.
+TURN (NAT difficiles / audio à sens unique) : installer coturn et définir `VITE_ICE_SERVERS` — guide [WEBRTC_TURN_SETUP.md](./WEBRTC_TURN_SETUP.md), exemple conf [`deploy/coturn/turnserver.conf.example`](../deploy/coturn/turnserver.conf.example).
 
 ## Création de comptes
 
@@ -71,4 +71,5 @@ TURN (NAT difficiles) : `VITE_ICE_SERVERS` dans `.env.example`.
 
 - [SECURITY.md](./SECURITY.md)
 - [GDPR_DEPLOYMENT.md](./GDPR_DEPLOYMENT.md)
+- [WEBRTC_TURN_SETUP.md](./WEBRTC_TURN_SETUP.md)
 - Export schéma (format PocketBase 0.23+ `fields`) : `pocketbase_schema_export.json`

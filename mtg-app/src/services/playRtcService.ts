@@ -21,17 +21,65 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
+let iceConfigLogged = false;
+
+function urlsList(urls: RTCIceServer['urls']): string[] {
+  if (!urls) return [];
+  return Array.isArray(urls) ? urls : [urls];
+}
+
+export function iceServersHaveTurn(servers: RTCIceServer[]): boolean {
+  return servers.some((server) =>
+    urlsList(server.urls).some((url) => /^turns?:/i.test(url.trim())),
+  );
+}
+
+function normalizeIceServers(parsed: unknown): RTCIceServer[] | null {
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+  const servers: RTCIceServer[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as RTCIceServer;
+    const urls = urlsList(row.urls).filter((url) => typeof url === 'string' && url.trim());
+    if (!urls.length) continue;
+    const next: RTCIceServer = { urls: urls.length === 1 ? urls[0] : urls };
+    if (typeof row.username === 'string' && row.username) next.username = row.username;
+    if (typeof row.credential === 'string' && row.credential) next.credential = row.credential;
+    servers.push(next);
+  }
+  return servers.length ? servers : null;
+}
+
 export function getIceServers(): RTCIceServer[] {
   const raw = import.meta.env.VITE_ICE_SERVERS?.trim();
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as RTCIceServer[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const normalized = normalizeIceServers(JSON.parse(raw));
+      if (normalized) {
+        logIceConfigOnce(normalized);
+        return normalized;
+      }
     } catch {
       console.warn('VITE_ICE_SERVERS is not valid JSON; falling back to public STUN.');
     }
   }
+  logIceConfigOnce(DEFAULT_ICE_SERVERS);
   return DEFAULT_ICE_SERVERS;
+}
+
+function logIceConfigOnce(servers: RTCIceServer[]): void {
+  if (iceConfigLogged) return;
+  iceConfigLogged = true;
+  if (iceServersHaveTurn(servers)) {
+    console.info('WebRTC ICE: TURN configured');
+  } else {
+    console.info('WebRTC ICE: STUN only (no TURN) — remote NATs may get one-way audio');
+  }
+}
+
+/** Whether the current build includes a TURN URL in VITE_ICE_SERVERS / defaults. */
+export function isTurnConfigured(): boolean {
+  return iceServersHaveTurn(getIceServers());
 }
 
 async function sendSignal(input: {
@@ -197,6 +245,8 @@ export class PlayRtcMesh {
 
   async start(peerIds: string[], stream: MediaStream): Promise<void> {
     if (this.destroyed) return;
+    // Ensure ICE config is resolved (and logged) before peer connections.
+    getIceServers();
     stream.getTracks().forEach(hintOutgoingTrack);
     this.localStream = stream;
     this.listenSignals();

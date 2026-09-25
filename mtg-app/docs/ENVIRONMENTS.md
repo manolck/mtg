@@ -16,6 +16,7 @@ Définies au **build** (Vite). Préfixe obligatoire : `VITE_`.
 | `VITE_POCKETBASE_URL` | **Oui** | URL de l'instance PocketBase |
 | `VITE_PRICE_API_URL` | Non | API backend pour mise à jour des prix MTGJSON |
 | `VITE_SENTRY_DSN` | Non | DSN Sentry pour le monitoring |
+| `VITE_ICE_SERVERS` | Non (recommandé en prod) | JSON STUN/TURN WebRTC — voir [WEBRTC_TURN_SETUP.md](./WEBRTC_TURN_SETUP.md) |
 
 ### Exemple `.env.local` (développement)
 
@@ -31,6 +32,8 @@ VITE_SENTRY_DSN=
 VITE_POCKETBASE_URL=https://pb.mtg-app.duckdns.org
 VITE_SENTRY_DSN=https://xxx@sentry.io/xxx
 VITE_PRICE_API_URL=https://votre-api-prix.example.com
+# Audio playtest distant (coturn) — docs/WEBRTC_TURN_SETUP.md
+# VITE_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:turn.mtg-app.duckdns.org:3478?transport=udp","turn:turn.mtg-app.duckdns.org:3478?transport=tcp"],"username":"mtgturn","credential":"CHANGE_ME"},{"urls":"turns:turn.mtg-app.duckdns.org:5349","username":"mtgturn","credential":"CHANGE_ME"}]
 ```
 
 Si `VITE_POCKETBASE_URL` est absent, `vite` et `src/services/pocketbase.ts` échouent (plus de fallback duckdns / IP LAN).
@@ -43,11 +46,13 @@ Architecture documentée :
 Navigateur (HTTPS)
     → nginx (mtg-app.duckdns.org) — SPA statique (dist/)
     → PocketBase (pb.mtg-app.duckdns.org) — API + auth
+    → coturn (turn.mtg-app.duckdns.org) — relais WebRTC audio (optionnel mais requis pour NAT difficiles)
 ```
 
 - Build : `npm run build` → dossier `dist/`
 - Nginx front : [NGINX_CONFIG.md](../NGINX_CONFIG.md)
 - PocketBase HTTPS : [POCKETBASE_HTTPS_SETUP.md](./POCKETBASE_HTTPS_SETUP.md)
+- WebRTC TURN : [WEBRTC_TURN_SETUP.md](./WEBRTC_TURN_SETUP.md)
 
 ## CI/CD (GitHub Actions)
 
@@ -65,6 +70,7 @@ Workflows à la **racine du dépôt** : `.github/workflows/` (le repo Git est `m
 | `VITE_POCKETBASE_URL` | **Oui** (prod) | URL PocketBase injectée au build |
 | `VITE_PRICE_API_URL` | Non | API prix MTGJSON |
 | `VITE_SENTRY_DSN` | Non | Monitoring Sentry |
+| `VITE_ICE_SERVERS` | Non (recommandé) | JSON STUN/TURN pour audio playtest |
 
 Pour `build-production.yml`, configurez l’environnement **production** dans GitHub (optionnel) pour isoler les secrets prod.
 

@@ -13,6 +13,7 @@ import {
 } from '../services/playMatchService';
 import {
   getPlayMic,
+  isTurnConfigured,
   listPlayMics,
   loadPlayAvDevices,
   PlayRtcMesh,
@@ -578,6 +579,7 @@ export function PlayTable() {
             previewStream={localStream}
             error={mediaError}
             hearBlocked={hearBlocked}
+            hasTurnConfigured={isTurnConfigured()}
             getAudioStats={getAudioStats}
             onToggleMic={toggleMic}
             onMicChange={(id) => void switchMic(id)}
