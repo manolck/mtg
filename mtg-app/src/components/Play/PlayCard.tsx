@@ -29,6 +29,9 @@ interface PlayCardProps {
   onCounterDelta?: (counterId: string, delta: number) => void;
   onOpenCounters?: () => void;
   chosen?: boolean;
+  /** Accent colors of players who designated this hand card (linked to `by`). */
+  chosenColors?: string[];
+  chosenLabel?: string;
   stackCount?: number;
 }
 
@@ -50,6 +53,8 @@ export function PlayCard({
   onCounterDelta,
   onOpenCounters,
   chosen = false,
+  chosenColors,
+  chosenLabel,
   stackCount = 1,
 }: PlayCardProps) {
   const hidden = hideFace;
@@ -58,6 +63,10 @@ export function PlayCard({
   const counters = listedCounterCounts(card.counters);
   const shown = counters.slice(0, 4);
   const extra = counters.length - shown.length;
+  const accents = chosenColors?.length ? chosenColors : chosen ? ['#38bdf8'] : [];
+  const isChosen = accents.length > 0;
+  const primary = accents[0];
+  const banner = chosenLabel || (accents.length > 1 ? 'Choisi' : 'Choisi');
 
   return (
     <button
@@ -72,10 +81,18 @@ export function PlayCard({
       onMouseLeave={onMouseLeave}
       className={`relative aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] shadow-md ring-1 ring-white/10 shrink-0 transition-transform duration-150 hover:z-20 hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
         widthPx ? '' : SIZE_CLASS[size]
-      } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${
-        chosen ? 'ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.55)]' : ''
-      } ${className}`}
-      style={widthPx ? { width: widthPx, ...style } : style}
+      } ${card.tapped ? 'rotate-90 origin-center mx-2 my-1' : ''} ${className}`}
+      style={{
+        ...(widthPx ? { width: widthPx } : null),
+        ...style,
+        ...(isChosen
+          ? {
+              boxShadow: `0 0 12px ${primary}99`,
+              outline: `2px solid ${primary}`,
+              outlineOffset: 1,
+            }
+          : null),
+      }}
     >
       <img
         src={src}
@@ -93,14 +110,31 @@ export function PlayCard({
           ×{stackCount}
         </span>
       )}
-      {chosen && (
+      {isChosen && (
         <>
-          <span className="absolute inset-x-0 top-0 z-20 bg-sky-500/95 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white">
-            Choisi
+          <span
+            className="absolute inset-x-0 top-0 z-20 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white"
+            style={{ backgroundColor: primary }}
+          >
+            {banner}
           </span>
-          <span className="absolute inset-x-0 bottom-0 z-20 bg-sky-500/95 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white">
-            Choisi
+          <span
+            className="absolute inset-x-0 bottom-0 z-20 px-0.5 py-0.5 text-center text-[8px] sm:text-[9px] font-bold uppercase tracking-wide text-white"
+            style={{ backgroundColor: primary }}
+          >
+            {banner}
           </span>
+          {accents.length > 1 ? (
+            <span className="absolute left-0.5 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-0.5">
+              {accents.map((color) => (
+                <span
+                  key={color}
+                  className="h-2 w-2 rounded-full ring-1 ring-black/40"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </span>
+          ) : null}
         </>
       )}
       {canTransform && !hidden && onTransform && (

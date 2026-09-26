@@ -1,0 +1,15 @@
+[Unit]
+Description=MTG play-sync WebSocket server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mtg-play-sync
+EnvironmentFile=/etc/mtg-play-sync.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

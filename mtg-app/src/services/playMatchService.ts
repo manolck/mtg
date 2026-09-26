@@ -85,7 +85,7 @@ export function newMatchActionId(): string {
 }
 
 export function actionFrom(action: PlayAction, userId: string): PlayAction {
-  if (action.type === 'passTurn') return action;
+  if (action.type === 'passTurn' || action.type === 'setTurn') return action;
   return { ...action, userId };
 }
 

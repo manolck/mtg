@@ -8,6 +8,11 @@ import type { RtcSignalPayload } from '../types/play';
 
 export type { RtcLinkStatus, RtcAudioStats };
 
+/** Optional live transport (play-sync WebSocket). When set, PocketBase signal poll is skipped. */
+export interface RtcSignalChannel {
+  send: (toUserId: string, payload: RtcSignalPayload) => void;
+}
+
 function relationId(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object' && 'id' in value) {
@@ -82,7 +87,7 @@ export function isTurnConfigured(): boolean {
   return iceServersHaveTurn(getIceServers());
 }
 
-async function sendSignal(input: {
+async function sendSignalPb(input: {
   lobbyId: string;
   fromUserId: string;
   toUserId: string;
@@ -232,11 +237,22 @@ export class PlayRtcMesh {
   private myUserId: string;
   private handlers: PlayRtcHandlers;
   private peerIds: string[] = [];
+  private signalChannel: RtcSignalChannel | null = null;
 
-  constructor(lobbyId: string, myUserId: string, handlers: PlayRtcHandlers) {
+  constructor(
+    lobbyId: string,
+    myUserId: string,
+    handlers: PlayRtcHandlers,
+    signalChannel?: RtcSignalChannel | null,
+  ) {
     this.lobbyId = lobbyId;
     this.myUserId = myUserId;
     this.handlers = handlers;
+    this.signalChannel = signalChannel ?? null;
+  }
+
+  setSignalChannel(channel: RtcSignalChannel | null): void {
+    this.signalChannel = channel;
   }
 
   get stream(): MediaStream | null {
@@ -249,9 +265,36 @@ export class PlayRtcMesh {
     getIceServers();
     stream.getTracks().forEach(hintOutgoingTrack);
     this.localStream = stream;
-    this.listenSignals();
+    if (this.signalChannel) {
+      this.listening = true;
+    } else {
+      this.listenSignals();
+    }
     await this.updatePeers(peerIds);
     this.emitLinkStatus();
+  }
+
+  /** Deliver a signal received over the play-sync WebSocket. */
+  handleSocketSignal(fromUserId: string, payload: RtcSignalPayload, signalId: string): void {
+    if (this.destroyed || !payload?.type) return;
+    void this.handleSignal({
+      id: signalId,
+      fromUserId,
+      payload,
+    });
+  }
+
+  private sendSignal(toUserId: string, payload: RtcSignalPayload): void {
+    if (this.signalChannel) {
+      this.signalChannel.send(toUserId, payload);
+      return;
+    }
+    void sendSignalPb({
+      lobbyId: this.lobbyId,
+      fromUserId: this.myUserId,
+      toUserId,
+      payload,
+    });
   }
 
   async getAudioStats(): Promise<RtcAudioStats> {
@@ -412,12 +455,7 @@ export class PlayRtcMesh {
 
     pc.onicecandidate = (event) => {
       if (!event.candidate || this.destroyed) return;
-      void sendSignal({
-        lobbyId: this.lobbyId,
-        fromUserId: this.myUserId,
-        toUserId: peerId,
-        payload: { type: 'ice', candidate: event.candidate.toJSON() },
-      });
+      this.sendSignal(peerId, { type: 'ice', candidate: event.candidate.toJSON() });
     };
 
     pc.ontrack = (event) => {
@@ -548,14 +586,10 @@ export class PlayRtcMesh {
     this.makingOffer.add(peerId);
     try {
       const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
-      if (this.destroyed || pc.signalingState === 'closed') return;
+      if (this.destroyed) return;
       await pc.setLocalDescription(offer);
-      await sendSignal({
-        lobbyId: this.lobbyId,
-        fromUserId: this.myUserId,
-        toUserId: peerId,
-        payload: { type: 'offer', sdp: pc.localDescription ?? offer },
-      });
+      if (this.destroyed) return;
+      this.sendSignal(peerId, { type: 'offer', sdp: pc.localDescription ?? offer });
       await this.applyPendingAnswer(peerId);
     } finally {
       this.makingOffer.delete(peerId);
@@ -587,7 +621,7 @@ export class PlayRtcMesh {
       this.peerIds.map((id) => this.pcs.get(id)?.connectionState),
     );
     this.handlers.onLinkStatus?.(status);
-    this.syncSignalPoll(status);
+    if (!this.signalChannel) this.syncSignalPoll(status);
   }
 
   private syncSignalPoll(status: RtcLinkStatus): void {
@@ -700,12 +734,7 @@ export class PlayRtcMesh {
         const answer = await live.createAnswer();
         if (this.destroyed) return;
         await live.setLocalDescription(answer);
-        await sendSignal({
-          lobbyId: this.lobbyId,
-          fromUserId: this.myUserId,
-          toUserId: fromUserId,
-          payload: { type: 'answer', sdp: live.localDescription ?? answer },
-        });
+        this.sendSignal(fromUserId, { type: 'answer', sdp: live.localDescription ?? answer });
       } else if (payload.type === 'answer' && payload.sdp) {
         if (pc.signalingState !== 'have-local-offer') {
           this.pendingAnswer.set(fromUserId, payload.sdp);
@@ -730,6 +759,7 @@ export class PlayRtcMesh {
   }
 
   private async forgetSignal(id: string): Promise<void> {
+    if (this.signalChannel || id.startsWith('rtc-')) return;
     try {
       await pb.collection('play_rtc_signals').delete(id);
     } catch {

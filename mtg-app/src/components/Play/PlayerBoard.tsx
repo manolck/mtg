@@ -10,12 +10,13 @@ import {
   isAttachHostCandidate,
   isPlaymatAttachable,
   tableBattlefieldCards,
-  isHandCardChosen,
+  handCardChoosers,
   groupPlaymatCards,
   offsetOffTokenStack,
   tokenStackCell,
   deckOwnerId,
 } from '../../utils/playTable';
+import { playUserColor } from '../../utils/playPlayerColors';
 import { playDropAt } from '../../utils/playDrop';
 import { CardLightbox } from '../Card/CardLightbox';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
@@ -228,20 +229,33 @@ export function PlayerBoard({
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [handCollapsed, setHandCollapsed] = useState(false);
   const [lookMode, setLookMode] = useState<LibraryLookMode | null>(null);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [browseZone, setBrowseZone] = useState<'graveyard' | 'exile' | null>(null);
   const [counterCardId, setCounterCardId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [handInsertPreview, setHandInsertPreview] = useState<number | null>(null);
   const [matTheme, setMatTheme] = useState<MatTheme>('battlefield');
   const skipClickRef = useRef(false);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const playmatRef = useRef<HTMLDivElement | null>(null);
   const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
   const homeMat = isSelf || seatHome;
+  /** Across-the-table view: mirror playmat coords so near-hand cards stay near the enemy hand. */
+  const mirrorPlaymat = !homeMat;
+
+  const boardUsesHomeLayout = (boardUserId: string) =>
+    boardUserId === viewerId || (seatHome && boardUserId === player.userId);
+
+  const toDisplayPlaymat = (x: number, y: number) =>
+    mirrorPlaymat ? { x: 100 - x, y: 100 - y } : { x, y };
+
+  const toStoredPlaymat = (x: number, y: number, boardUserId = player.userId) =>
+    boardUsesHomeLayout(boardUserId) ? { x, y } : { x: 100 - x, y: 100 - y };
   const canControl = isSelf || controlOpponents;
-  const canUseLibrary = canControl && (isSelf ? isTurn : true);
+  const canUseLibrary = canControl;
   const rawPlayPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'play', compact) || 0;
   // Keep 3 right piles (LIB/CIM/EXL) + Fin de tour inside the board height.
   const rightDockChrome = (homeMat ? 48 : 8) + 3 * 12 + 20;
@@ -339,7 +353,6 @@ export function PlayerBoard({
 
   useEffect(() => {
     if (isTurn) return;
-    setLibraryOpen(false);
     setLookMode(null);
   }, [isTurn]);
 
@@ -355,7 +368,6 @@ export function PlayerBoard({
         event.preventDefault();
         onDraw?.();
       } else if (event.key === '/' || event.key === 'f' || event.key === 'F') {
-        if (!isTurn) return;
         event.preventDefault();
         setLibraryOpen(true);
       } else if (event.key === '+' || event.key === '=') {
@@ -429,13 +441,15 @@ export function PlayerBoard({
     const fan = handFanRef.current;
     if (!fan) return null;
     const fanRect = fan.getBoundingClientRect();
-    const padY = 28;
-    const padX = 24;
+    // Generous hit area: hand sits over the playmat.
+    const padY = 72;
+    const padX = 40;
     if (clientY < fanRect.top - padY || clientY > fanRect.bottom + padY) return null;
     if (clientX < fanRect.left - padX || clientX > fanRect.right + padX) return null;
     const others = [...fan.querySelectorAll<HTMLElement>('[data-hand-card]')].filter(
       (el) => el.dataset.handCard !== draggedId,
     );
+    if (others.length === 0) return 0;
     let insertAt = others.length;
     for (let i = 0; i < others.length; i += 1) {
       const rect = others[i].getBoundingClientRect();
@@ -451,6 +465,15 @@ export function PlayerBoard({
     const retrieving = canRetrieveCard(card);
     const stack = from === 'battlefield' && !retrieving ? stackFor(card) : [card];
     const members = splitOne && from === 'battlefield' && !retrieving ? [card] : stack;
+
+    // Prefer reordering within the hand over playing onto the battlefield underneath the fan.
+    if (from === 'hand' && canActOn(card)) {
+      const insertAt = handInsertIndex(clientX, clientY, card.instanceId);
+      if (insertAt != null) {
+        onReorderHand?.(card.instanceId, insertAt);
+        return true;
+      }
+    }
 
     const drop = playDropAt(
       clientX,
@@ -498,9 +521,10 @@ export function PlayerBoard({
 
     if (drop?.zone === 'battlefield' && drop.x != null && drop.y != null) {
       if (crossBoard) {
+        const stored = toStoredPlaymat(drop.x, drop.y, targetBoard);
         return transferCross('battlefield', {
-          playmatX: drop.x,
-          playmatY: drop.y,
+          playmatX: stored.x,
+          playmatY: stored.y,
           playmatRow: 'battlefield',
         });
       }
@@ -512,8 +536,9 @@ export function PlayerBoard({
         Boolean(card.isToken && target?.isToken && target.scryfallId === card.scryfallId) && target
           ? stackFor(target).filter((item) => item.instanceId !== card.instanceId)
           : [];
-      let x = stackTarget[0]?.playmatX ?? drop.x;
-      let y = stackTarget[0]?.playmatY ?? drop.y;
+      const dropped = toStoredPlaymat(drop.x, drop.y);
+      let x = stackTarget[0]?.playmatX ?? dropped.x;
+      let y = stackTarget[0]?.playmatY ?? dropped.y;
       if (splitOne && from === 'battlefield' && stackTarget.length === 0) {
         const origin = stack.find((item) => item.instanceId !== card.instanceId);
         if (origin?.playmatX != null && origin.playmatY != null) {
@@ -544,13 +569,6 @@ export function PlayerBoard({
       }
     }
 
-    if (from === 'hand' && canActOn(card)) {
-      const insertAt = handInsertIndex(clientX, clientY, card.instanceId);
-      if (insertAt != null) {
-        onReorderHand?.(card.instanceId, insertAt);
-        return true;
-      }
-    }
     return false;
   };
 
@@ -574,6 +592,9 @@ export function PlayerBoard({
       setHover(null);
       setDragId(card.instanceId);
       setDragPos({ x: moveEvent.clientX, y: moveEvent.clientY });
+      if (from === 'hand') {
+        setHandInsertPreview(handInsertIndex(moveEvent.clientX, moveEvent.clientY, card.instanceId));
+      }
     };
     const onUp = (upEvent: globalThis.PointerEvent) => {
       if (upEvent.pointerId !== event.pointerId) return;
@@ -587,6 +608,7 @@ export function PlayerBoard({
       }
       setDragId(null);
       setDragPos(null);
+      setHandInsertPreview(null);
       if (!moved) return;
       skipClickRef.current = true;
       window.setTimeout(() => {
@@ -649,7 +671,15 @@ export function PlayerBoard({
   ) => {
     const resolved = resolveCard(card);
     const pickingHost = Boolean(attachPickId && zone === 'battlefield' && isAttachHostCandidate(resolved, attachPickId));
-    const chosen = zone === 'hand' && isHandCardChosen(player, resolved.instanceId);
+    const chooserIds = zone === 'hand' ? handCardChoosers(player, resolved.instanceId) : [];
+    const chosenColors = chooserIds.map((id) => playUserColor(id, tablePlayers.length ? tablePlayers : [player]));
+    const chosenByMe = Boolean(viewerId && chooserIds.includes(viewerId));
+    const chosenLabel =
+      chooserIds.length === 0
+        ? undefined
+        : chooserIds.length === 1
+          ? (tablePlayers.find((p) => p.userId === chooserIds[0])?.displayName || 'Choisi').slice(0, 12)
+          : `${chooserIds.length} joueurs`;
     return (
       <PlayCard
         key={card.instanceId}
@@ -658,14 +688,16 @@ export function PlayerBoard({
         size={size}
         widthPx={widthPx}
         style={extraStyle}
-        chosen={chosen}
+        chosen={chosenColors.length > 0}
+        chosenColors={chosenColors}
+        chosenLabel={chosenLabel}
         title={
           !canControl && zone === 'hand'
-            ? chosen
-              ? 'Clic droit : retirer du choix'
-              : 'Clic droit : choisir cette carte'
+            ? chosenByMe
+              ? 'Clic droit : retirer votre choix'
+              : 'Clic droit : choisir cette carte (votre couleur)'
             : canControl && zone === 'hand'
-              ? 'Glisser pour trier · déposer sur le plateau pour jouer'
+              ? 'Glisser pour réordonner · déposer sur le plateau pour jouer'
               : canControl && zone === 'battlefield' && stackCount > 1
               ? 'Glisser : déplacer · double-clic : engager · Alt : séparer un jeton'
               : canControl && zone === 'battlefield'
@@ -789,15 +821,16 @@ export function PlayerBoard({
             </div>
           )}
         </div>
-        {placed.map((group) =>
-          renderPlaymatGroup(group, size, widthPx, {
+        {placed.map((group) => {
+          const at = toDisplayPlaymat(group.lead.playmatX!, group.lead.playmatY!);
+          return renderPlaymatGroup(group, size, widthPx, {
             position: 'absolute',
-            left: `${group.lead.playmatX}%`,
-            top: `${group.lead.playmatY}%`,
+            left: `${at.x}%`,
+            top: `${at.y}%`,
             transform: 'translate(-50%, -50%)',
             zIndex: dragId && group.members.some((item) => item.instanceId === dragId) ? 40 : 10,
-          }),
-        )}
+          });
+        })}
       </div>
     );
   };
@@ -874,9 +907,7 @@ export function PlayerBoard({
           style={widthPx ? { width: widthPx } : undefined}
           title={
             zone === 'library' && canControl
-              ? canUseLibrary
-                ? `Bibliothèque · ${count} cartes · clic droit : piocher, rechercher, regard…${dropHint}`
-                : `Bibliothèque · ${count} cartes · disponible pendant votre tour${dropHint}`
+              ? `Bibliothèque · ${count} cartes · clic droit : piocher, rechercher, regard…${dropHint}`
               : zone === 'graveyard' || zone === 'exile'
                 ? `${ZONE_LABELS[zone]} · ${count} · clic droit : consulter${dropHint}`
                 : zone === 'command'
@@ -1048,6 +1079,17 @@ export function PlayerBoard({
           : '-3.42rem';
     const peek = anchor === 'bottom' ? '48%' : '-48%';
     const chosenCount = (player.chosenHandCards || []).length;
+    const myChoiceCount = (player.chosenHandCards || []).filter((item) => item.by === viewerId).length;
+    const chooserIds = [...new Set((player.chosenHandCards || []).map((item) => item.by))];
+    const choiceLegend = chooserIds.map((id) => {
+      const who = (tablePlayers.length ? tablePlayers : [player]).find((p) => p.userId === id);
+      return {
+        id,
+        name: who?.displayName || 'Joueur',
+        color: playUserColor(id, tablePlayers.length ? tablePlayers : [player]),
+        count: (player.chosenHandCards || []).filter((item) => item.by === id).length,
+      };
+    });
     const hoverLiftPx = Math.round((widthPx || (size === 'sm' ? 48 : size === 'md' ? 72 : 96)) * 0.42);
     const hoverLift =
       anchor === 'bottom'
@@ -1065,18 +1107,63 @@ export function PlayerBoard({
           <div className="flex items-end gap-1 rounded-lg bg-black/45 p-1 ring-1 ring-white/15">
             {pile('command')}
           </div>
+          <button
+            type="button"
+            className={`min-h-[32px] px-2.5 rounded-lg text-[11px] font-semibold shadow-lg ring-1 ${
+              handCollapsed
+                ? 'bg-amber-500/90 text-black ring-amber-200/50 hover:bg-amber-400'
+                : 'bg-black/55 text-white/85 ring-white/20 hover:bg-black/70'
+            }`}
+            onClick={() => setHandCollapsed((value) => !value)}
+            title={
+              handCollapsed
+                ? 'Réafficher la main'
+                : 'Masquer temporairement la main pour voir le plateau'
+            }
+          >
+            {handCollapsed ? 'Main masquée' : 'Masquer la main'}
+          </button>
           {chosenCount > 0 && (
-            <button
-              type="button"
-              className="min-h-[32px] px-2.5 rounded-lg text-[11px] font-semibold shadow-lg bg-sky-500 text-white ring-1 ring-sky-200 hover:bg-sky-400"
-              onClick={() => onClearHandChoices?.()}
-              title="Retirer toutes les cartes choisies dans cette main"
-            >
-              Effacer les choix ({chosenCount})
-            </button>
+            <div className="flex flex-col gap-1 items-stretch">
+              {choiceLegend.length > 0 ? (
+                <div className="rounded-lg bg-black/55 px-2 py-1 ring-1 ring-white/15 space-y-0.5">
+                  {choiceLegend.map((entry) => (
+                    <p key={entry.id} className="flex items-center gap-1.5 text-[10px] text-white/90">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full ring-1 ring-black/30 shrink-0"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <span className="truncate">{entry.name}</span>
+                      <span className="tabular-nums text-white/55">×{entry.count}</span>
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              {(canControl || myChoiceCount > 0) && (
+                <button
+                  type="button"
+                  className="min-h-[32px] px-2.5 rounded-lg text-[11px] font-semibold shadow-lg text-white ring-1 ring-white/25 hover:brightness-110"
+                  style={{
+                    backgroundColor: canControl
+                      ? '#0ea5e9'
+                      : playUserColor(viewerId, tablePlayers.length ? tablePlayers : [player]),
+                  }}
+                  onClick={() => onClearHandChoices?.()}
+                  title={
+                    canControl
+                      ? 'Retirer tous les choix sur cette main'
+                      : 'Retirer uniquement vos choix sur cette main'
+                  }
+                >
+                  {canControl
+                    ? `Effacer les choix (${chosenCount})`
+                    : `Effacer mes choix (${myChoiceCount})`}
+                </button>
+              )}
+            </div>
           )}
         </div>
-        {n > 0 && (
+        {n > 0 && !handCollapsed && (
           <div
             className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
               anchor === 'bottom' ? 'bottom-0 items-end' : 'top-0 items-start'
@@ -1092,11 +1179,25 @@ export function PlayerBoard({
                 const offset = index - (n - 1) / 2;
                 const rotate = offset * spread;
                 const lift = Math.abs(offset) * Math.max(3, Math.round((widthPx || 72) / 18));
+                const showInsertBefore =
+                  handInsertPreview != null &&
+                  dragId != null &&
+                  dragId !== card.instanceId &&
+                  (() => {
+                    const withoutDrag = cards.filter((item) => item.instanceId !== dragId);
+                    const previewIndex = withoutDrag.findIndex((item) => item.instanceId === card.instanceId);
+                    return previewIndex === handInsertPreview;
+                  })();
+                const showInsertAtEnd =
+                  handInsertPreview != null &&
+                  dragId != null &&
+                  index === n - 1 &&
+                  handInsertPreview === cards.filter((item) => item.instanceId !== dragId).length;
                 return (
                   <div
                     key={card.instanceId}
                     data-hand-card={card.instanceId}
-                    className={`relative ${canControl ? 'touch-none' : ''}`}
+                    className={`relative ${canControl ? 'touch-none cursor-grab' : ''}`}
                     style={{
                       marginLeft: index === 0 ? 0 : overlap,
                       zIndex: dragId === card.instanceId ? 80 : index + 1,
@@ -1109,7 +1210,19 @@ export function PlayerBoard({
                     onPointerDown={canControl ? (event) => onCardPointerDown(event, card, 'hand') : undefined}
                     onDragStart={(event) => event.preventDefault()}
                   >
+                    {showInsertBefore ? (
+                      <span
+                        className="pointer-events-none absolute -left-1 top-1 bottom-1 z-50 w-1 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.9)]"
+                        aria-hidden
+                      />
+                    ) : null}
                     {renderOne('hand', card, size, hoverLift, widthPx)}
+                    {showInsertAtEnd ? (
+                      <span
+                        className="pointer-events-none absolute -right-1 top-1 bottom-1 z-50 w-1 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.9)]"
+                        aria-hidden
+                      />
+                    ) : null}
                   </div>
                 );
               })}
@@ -1714,6 +1827,38 @@ export function PlayerBoard({
                 )}
                 {menu.from === 'hand' && menu.card && (
                   <>
+                    {(() => {
+                      const idx = player.hand.findIndex((item) => item.instanceId === menu.card?.instanceId);
+                      if (idx < 0) return null;
+                      return (
+                        <>
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                              onClick={() => {
+                                onReorderHand?.(menu.card!.instanceId, idx - 1);
+                                setMenu(null);
+                              }}
+                            >
+                              Déplacer vers la gauche
+                            </button>
+                          )}
+                          {idx < player.hand.length - 1 && (
+                            <button
+                              type="button"
+                              className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                              onClick={() => {
+                                onReorderHand?.(menu.card!.instanceId, idx + 1);
+                                setMenu(null);
+                              }}
+                            >
+                              Déplacer vers la droite
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                     <button
                       type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"

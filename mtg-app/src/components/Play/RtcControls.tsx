@@ -219,8 +219,8 @@ export function RtcControls({
   const linkHint = rtcLinkLabel(linkStatus);
   const statsHint = formatAudioStats(stats);
   const natHint = hasTurnConfigured
-    ? 'Audio sortant bloqué (NAT). Vérifiez coturn / ports — docs/WEBRTC_TURN_SETUP.md'
-    : 'Audio sortant bloqué (NAT). TURN requis — configurez VITE_ICE_SERVERS (docs/WEBRTC_TURN_SETUP.md)';
+    ? 'Audio sortant bloqué (NAT). Vérifiez coturn / ports — voir README.md'
+    : 'Audio sortant bloqué (NAT). TURN requis — configurez VITE_ICE_SERVERS (README.md)';
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-1.5">

@@ -205,6 +205,7 @@ export type PlayAction =
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'passTurn' }
+  | { type: 'setTurn'; seatIndex: number }
   | { type: 'mulligan'; userId: string };
 
 export interface MatchActionRecord {

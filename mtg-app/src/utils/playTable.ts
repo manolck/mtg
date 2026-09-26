@@ -202,8 +202,19 @@ function pruneHandReveals(player: PlayerTableState): PlayerTableState {
   return { ...player, shownHandCards, chosenHandCards };
 }
 
-export function isHandCardChosen(player: PlayerTableState, instanceId: string): boolean {
-  return (player.chosenHandCards || []).some((item) => item.instanceId === instanceId);
+export function isHandCardChosen(player: PlayerTableState, instanceId: string, byUserId?: string): boolean {
+  return (player.chosenHandCards || []).some(
+    (item) => item.instanceId === instanceId && (byUserId == null || item.by === byUserId),
+  );
+}
+
+export function handCardChoosers(player: PlayerTableState, instanceId: string): string[] {
+  const ids: string[] = [];
+  for (const item of player.chosenHandCards || []) {
+    if (item.instanceId !== instanceId) continue;
+    if (!ids.includes(item.by)) ids.push(item.by);
+  }
+  return ids;
 }
 
 function toggleHandChoice(state: MatchState, action: { userId: string; ownerId: string; instanceId: string }): MatchState {
@@ -219,11 +230,16 @@ function toggleHandChoice(state: MatchState, action: { userId: string; ownerId: 
   return replacePlayer(state, { ...owner, chosenHandCards });
 }
 
-function clearHandChoices(state: MatchState, action: { ownerId: string }): MatchState {
+function clearHandChoices(state: MatchState, action: { userId: string; ownerId: string }): MatchState {
   const owner = findPlayer(state, action.ownerId);
   if (!owner) return state;
-  if (!(owner.chosenHandCards || []).length) return state;
-  return replacePlayer(state, { ...owner, chosenHandCards: [] });
+  const current = owner.chosenHandCards || [];
+  if (!current.length) return state;
+  // Owner clears everyone's picks on their hand; a chooser clears only their own.
+  const chosenHandCards =
+    action.userId === action.ownerId ? [] : current.filter((item) => item.by !== action.userId);
+  if (chosenHandCards.length === current.length) return state;
+  return replacePlayer(state, { ...owner, chosenHandCards });
 }
 
 function reorderHandCards(player: PlayerTableState, instanceId: string, toIndex: number): PlayerTableState {
@@ -631,6 +647,12 @@ export function applyMatchAction(
       ? state.players.map((player) => (player.userId === incoming.userId ? beginTurn(incoming) : player))
       : state.players;
     return { ...state, version: state.version + 1, turnSeatIndex: nextSeat, players: nextPlayers };
+  }
+
+  if (action.type === 'setTurn') {
+    const target = state.players.find((player) => player.seatIndex === action.seatIndex);
+    if (!target) return state;
+    return { ...state, version: state.version + 1, turnSeatIndex: action.seatIndex };
   }
 
   if (action.type === 'addSeat') {

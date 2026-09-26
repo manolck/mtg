@@ -14,6 +14,7 @@ import {
   isPlaymatAttachable,
   isPlaymatLand,
   isHandCardChosen,
+  handCardChoosers,
   snapshotFromDeck,
   splitBattlefield,
   tableBattlefieldCards,
@@ -369,6 +370,41 @@ describe('playTable', () => {
     expect(state.turnSeatIndex).toBe(1);
     state = applyMatchAction(state, { type: 'passTurn' });
     expect(state.turnSeatIndex).toBe(0);
+  });
+
+  it('sets the active turn seat without drawing', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const handBefore = state.players[1].hand.length;
+    state = applyMatchAction(state, { type: 'setTurn', seatIndex: 1 });
+    expect(state.turnSeatIndex).toBe(1);
+    expect(state.players[1].hand.length).toBe(handBefore);
   });
 
   it('splits battlefield lands, enchantments and other permanents', () => {
@@ -793,6 +829,70 @@ describe('playTable', () => {
       instanceId: third.instanceId,
     });
     state = applyMatchAction(state, { type: 'clearHandChoices', userId: 'u1', ownerId: 'u2' });
+    expect(target().chosenHandCards).toEqual([]);
+  });
+
+  it('keeps hand choices per chooser with distinct by ids and clears only own picks', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u3',
+          seatIndex: 2,
+          deckSnapshot: {
+            deckId: 'd3',
+            name: 'C',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const target = () => state.players[1];
+    const card = target().hand[0];
+
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u1',
+      ownerId: 'u2',
+      instanceId: card.instanceId,
+    });
+    state = applyMatchAction(state, {
+      type: 'chooseHandCard',
+      userId: 'u3',
+      ownerId: 'u2',
+      instanceId: card.instanceId,
+    });
+    expect(handCardChoosers(target(), card.instanceId)).toEqual(['u1', 'u3']);
+
+    state = applyMatchAction(state, { type: 'clearHandChoices', userId: 'u1', ownerId: 'u2' });
+    expect(target().chosenHandCards).toEqual([{ instanceId: card.instanceId, by: 'u3' }]);
+
+    state = applyMatchAction(state, { type: 'clearHandChoices', userId: 'u2', ownerId: 'u2' });
     expect(target().chosenHandCards).toEqual([]);
   });
 

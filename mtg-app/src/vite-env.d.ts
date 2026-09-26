@@ -7,8 +7,10 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_ANALYTICS_ID?: string;
   readonly VITE_DEPLOY_HOOK_URL?: string;
-  /** JSON array of RTCIceServer (STUN + TURN/coturn). See docs/WEBRTC_TURN_SETUP.md */
+  /** JSON array of RTCIceServer (STUN + TURN/coturn). See README.md */
   readonly VITE_ICE_SERVERS?: string;
+  /** Play table WebSocket URL (e.g. wss://mtg-app.duckdns.org/play-ws). See README.md */
+  readonly VITE_PLAY_WS_URL?: string;
   readonly DEV: boolean;
   readonly PROD: boolean;
 }

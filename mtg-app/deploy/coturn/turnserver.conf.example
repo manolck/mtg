@@ -1,6 +1,6 @@
 # Coturn — example config for MTG playtest WebRTC TURN
 # Copy to /etc/turnserver.conf (or /etc/coturn/turnserver.conf) and edit placeholders.
-# Full runbook: docs/WEBRTC_TURN_SETUP.md
+# Full runbook: README.md (section coturn)
 
 listening-port=3478
 tls-listening-port=5349

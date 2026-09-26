@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
 import {
+  actionFrom,
   applyPlayAction,
   compactMatchSnapshot,
   listMatchActions,
@@ -11,6 +12,7 @@ import {
   newMatchActionId,
   subscribeMatchActions,
 } from '../services/playMatchService';
+import { isPlaySyncSocketConfigured, PlaySyncSocket } from '../services/playSyncSocket';
 import {
   getPlayMic,
   isTurnConfigured,
@@ -21,6 +23,8 @@ import {
 } from '../services/playRtcService';
 import type { MatchActionRecord, MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
 import { applyMatchAction, isDummyUserId } from '../utils/playTable';
+import { createSeqActionBuffer } from '../utils/playSyncSeqBuffer';
+import type { SyncedPlayAction } from '../utils/playSyncProtocol';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
@@ -49,21 +53,24 @@ export function PlayTable() {
   const [hearBlocked, setHearBlocked] = useState(false);
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
   const [tableView, setTableView] = useState<'all' | 'active'>('all');
+  const [firstPlayerNotice, setFirstPlayerNotice] = useState<string | null>(null);
   const attachPickIdRef = useRef<string | null>(null);
   const attachOwnerRef = useRef<string | null>(null);
   attachPickIdRef.current = attachPickId;
   const meshRef = useRef<PlayRtcMesh | null>(null);
+  const syncSocketRef = useRef<PlaySyncSocket | null>(null);
   const captureStreamRef = useRef<MediaStream | null>(null);
   const stateRef = useRef<MatchState | null>(null);
   const appliedIdsRef = useRef<Set<string>>(new Set());
   const startGenRef = useRef(0);
   const micOnRef = useRef(micOn);
   const micIdRef = useRef(micId);
+  const useSocketSync = isPlaySyncSocketConfigured();
   stateRef.current = state;
   micOnRef.current = micOn;
   micIdRef.current = micId;
 
-  const applyRemoteAction = useCallback((entry: MatchActionRecord) => {
+  const applyRemoteAction = useCallback((entry: MatchActionRecord | SyncedPlayAction) => {
     if (appliedIdsRef.current.has(entry.actionId)) return;
     const current = stateRef.current;
     if (!current) return;
@@ -73,6 +80,14 @@ export function PlayTable() {
     stateRef.current = next;
     setState(next);
   }, []);
+
+  const seqBufferRef = useRef(
+    createSeqActionBuffer({
+      onApply: (entry) => {
+        applyRemoteAction(entry);
+      },
+    }),
+  );
 
   const syncActions = useCallback(async (id: string) => {
     const actions = await listMatchActions(id);
@@ -109,11 +124,13 @@ export function PlayTable() {
       }
       setMatchId(loaded.match.id);
       if (opts?.silent && stateRef.current) {
-        await syncActions(loaded.match.id);
+        if (!useSocketSync) await syncActions(loaded.match.id);
       } else {
         appliedIdsRef.current = loaded.appliedIds;
         stateRef.current = loaded.state;
         setState(loaded.state);
+        seqBufferRef.current.reset(loaded.actionCount);
+        syncSocketRef.current?.setLastSeq(loaded.actionCount);
       }
     } catch (err) {
       errorHandler.handleAndShowError(err);
@@ -121,26 +138,84 @@ export function PlayTable() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [lobbyId, currentUser, navigate, syncActions]);
+  }, [lobbyId, currentUser, navigate, syncActions, useSocketSync]);
 
   useEffect(() => {
     void load();
     const onChange = () => {
       void load({ silent: true });
     };
+    // Lobby/seat status only — action sync is socket or dedicated poll below.
     return watchWithPoll(onChange, () => () => {});
   }, [load]);
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!matchId || useSocketSync) return;
     return watchWithPoll(
       () => {
         void syncActions(matchId);
       },
       () => subscribeMatchActions(matchId, applyRemoteAction),
     );
-  }, [matchId, syncActions, applyRemoteAction]);
+  }, [matchId, syncActions, applyRemoteAction, useSocketSync]);
 
+  useEffect(() => {
+    if (!matchId || !currentUser || !useSocketSync) return;
+    const reloadFromPb = () => {
+      void load();
+    };
+    const socket = new PlaySyncSocket({
+      onJoined: (lastSeq) => {
+        seqBufferRef.current.reset(Math.max(seqBufferRef.current.lastSeq, lastSeq));
+        socket.setLastSeq(seqBufferRef.current.lastSeq);
+      },
+      onAction: (entry) => {
+        const result = seqBufferRef.current.push(entry);
+        socket.setLastSeq(seqBufferRef.current.lastSeq);
+        if (result === 'reload') reloadFromPb();
+      },
+      onActionAck: (actionId, seq) => {
+        const result = seqBufferRef.current.acknowledge(seq, actionId);
+        socket.setLastSeq(seqBufferRef.current.lastSeq);
+        if (result === 'reload') {
+          reloadFromPb();
+          return;
+        }
+        const current = stateRef.current;
+        if (!current || !matchId || !currentUser) return;
+        void compactMatchSnapshot({
+          matchId,
+          userId: currentUser.uid,
+          state: current,
+          actionCount: seq,
+        }).then((compacted) => {
+          if (!compacted || !stateRef.current) return;
+          if ((stateRef.current.actionSeq ?? 0) < (compacted.actionSeq ?? 0)) {
+            const merged = { ...stateRef.current, actionSeq: compacted.actionSeq };
+            stateRef.current = merged;
+            setState(merged);
+          }
+        });
+      },
+      onReload: () => reloadFromPb(),
+      onRtc: (fromUserId, payload, signalId) => {
+        meshRef.current?.handleSocketSignal(fromUserId, payload, signalId);
+      },
+      onError: (code, message, actionId) => {
+        if (actionId) appliedIdsRef.current.delete(actionId);
+        console.warn('play-sync', code, message);
+        if (code === 'join_failed' || code === 'forbidden') {
+          errorHandler.handleAndShowError(new Error(message));
+        }
+      },
+    });
+    syncSocketRef.current = socket;
+    socket.connect(matchId, seqBufferRef.current.lastSeq);
+    return () => {
+      socket.destroy();
+      if (syncSocketRef.current === socket) syncSocketRef.current = null;
+    };
+  }, [matchId, currentUser, useSocketSync, load]);
   const refreshDevices = useCallback(async () => {
     try {
       setMics(await listPlayMics());
@@ -173,19 +248,30 @@ export function PlayTable() {
     const peerIds = (stateRef.current?.players || seats)
       .map((p) => p.userId)
       .filter((id) => !isDummyUserId(id));
-    const mesh = new PlayRtcMesh(lobbyId, currentUser.uid, {
-      onRemoteStream: (userId, stream) => {
-        setRemoteStreams((prev) => ({ ...prev, [userId]: stream }));
+    const mesh = new PlayRtcMesh(
+      lobbyId,
+      currentUser.uid,
+      {
+        onRemoteStream: (userId, stream) => {
+          setRemoteStreams((prev) => ({ ...prev, [userId]: stream }));
+        },
+        onRemoteStreamEnded: (userId) => {
+          setRemoteStreams((prev) => {
+            const next = { ...prev };
+            delete next[userId];
+            return next;
+          });
+        },
+        onLinkStatus: setRtcLink,
       },
-      onRemoteStreamEnded: (userId) => {
-        setRemoteStreams((prev) => {
-          const next = { ...prev };
-          delete next[userId];
-          return next;
-        });
-      },
-      onLinkStatus: setRtcLink,
-    });
+      useSocketSync
+        ? {
+            send: (toUserId, payload) => {
+              syncSocketRef.current?.sendRtc(toUserId, payload);
+            },
+          }
+        : null,
+    );
     meshRef.current = mesh;
     let stream = new MediaStream();
     if (withMedia) {
@@ -208,7 +294,7 @@ export function PlayTable() {
     } catch (err) {
       console.warn('WebRTC start failed', err);
     }
-  }, [lobbyId, currentUser, publishLocalStream, rememberMic, refreshDevices, seats]);
+  }, [lobbyId, currentUser, publishLocalStream, rememberMic, refreshDevices, seats, useSocketSync]);
 
   const enableMedia = useCallback(async () => {
     try {
@@ -316,46 +402,77 @@ export function PlayTable() {
   const send = useCallback(async (action: PlayAction) => {
     if (!matchId || !currentUser || !stateRef.current) return;
     const actionId = newMatchActionId();
+    const normalized = actionFrom(action, currentUser.uid);
+    const previous = stateRef.current;
+    const next = applyMatchAction(previous, normalized);
+    if (next.version === previous.version) return;
+
     appliedIdsRef.current.add(actionId);
+    stateRef.current = next;
+    setState(next);
+
+    const socket = syncSocketRef.current;
+    if (useSocketSync && socket) {
+      const ok = socket.sendAction(actionId, normalized);
+      if (!ok) {
+        appliedIdsRef.current.delete(actionId);
+        void load();
+      }
+      return next;
+    }
+
     try {
       const result = await applyPlayAction({
         matchId,
         userId: currentUser.uid,
-        current: stateRef.current,
-        action,
+        current: previous,
+        action: normalized,
         actionId,
-        onApplied: (next) => {
-          stateRef.current = next;
-          setState(next);
-        },
       });
       if (!result.changed) {
         appliedIdsRef.current.delete(actionId);
+        stateRef.current = previous;
+        setState(previous);
         return;
       }
-      stateRef.current = result.state;
-      setState(result.state);
       void compactMatchSnapshot({
         matchId,
         userId: currentUser.uid,
-        state: result.state,
+        state: next,
         actionCount: appliedIdsRef.current.size,
       }).then((compacted) => {
         if (!compacted || !stateRef.current) return;
-        // Keep live version; only fold actionSeq from compaction.
         if ((stateRef.current.actionSeq ?? 0) < (compacted.actionSeq ?? 0)) {
           const merged = { ...stateRef.current, actionSeq: compacted.actionSeq };
           stateRef.current = merged;
           setState(merged);
         }
       });
-      return result.state;
+      return next;
     } catch (err) {
       appliedIdsRef.current.delete(actionId);
+      stateRef.current = previous;
+      setState(previous);
       errorHandler.handleAndShowError(err);
       void load();
     }
-  }, [matchId, currentUser, load]);
+  }, [matchId, currentUser, load, useSocketSync]);
+
+  const rollFirstPlayer = useCallback(() => {
+    const current = stateRef.current;
+    if (!current?.players.length) return;
+    const real = current.players.filter((player) => !isDummyUserId(player.userId));
+    const pool = real.length > 0 ? real : current.players;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!pick) return;
+    void send({ type: 'setTurn', seatIndex: pick.seatIndex });
+    const label = pick.displayName || 'Joueur';
+    const message = `${label} commence`;
+    setFirstPlayerNotice(message);
+    window.setTimeout(() => {
+      setFirstPlayerNotice((prev) => (prev === message ? null : prev));
+    }, 4500);
+  }, [send]);
 
   useEffect(() => {
     if (!attachPickId) return;
@@ -388,7 +505,6 @@ export function PlayTable() {
 
   const activePlayer = players.find((player) => player.seatIndex === state.turnSeatIndex) || players[0];
   const shownPlayers = tableView === 'active' && activePlayer ? [activePlayer] : players;
-  const count = players.length;
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
 
@@ -571,6 +687,14 @@ export function PlayTable() {
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            className="relative z-30 text-xs px-2.5 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 min-h-[36px] font-semibold"
+            onClick={rollFirstPlayer}
+            title="Désigne au hasard le joueur qui commence"
+          >
+            1ᵉʳ joueur
+          </button>
           <RtcControls
             micOn={micOn}
             linkStatus={rtcLink}
@@ -606,6 +730,12 @@ export function PlayTable() {
           </button>
         </div>
       </header>
+
+      {firstPlayerNotice && (
+        <div className="shrink-0 relative z-30 flex items-center justify-center px-3 py-1.5 bg-amber-400 text-black text-sm font-semibold">
+          {firstPlayerNotice}
+        </div>
+      )}
 
       {attachPickId && (
         <div className="shrink-0 relative z-30 flex items-center justify-center gap-3 px-3 py-1.5 bg-amber-400 text-black text-sm font-medium">

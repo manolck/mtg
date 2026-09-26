@@ -1,5 +1,5 @@
 {
-  "$comment": "Source of truth for PocketBase collection API rules. Apply in PocketBase Admin → each collection → API rules. See docs/POCKETBASE_API_RULES.md.",
+  "$comment": "Source of truth for PocketBase collection API rules. Apply in PocketBase Admin → each collection → API rules. See README.md (PocketBase).",
   "users": {
     "listRule": "@request.auth.id != \"\"",
     "viewRule": "@request.auth.id != \"\"",
