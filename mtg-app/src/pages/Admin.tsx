@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { createUser, setAdminRole, deleteUserAccount, listUsers } from '../services/adminAuth';
 import { triggerDeploy, isDeployConfigured, type DeployResult } from '../services/deployService';
 import { AdminMonitorPanel } from '../components/Admin/AdminMonitorPanel';
+import { AdminMagicCorpPanel } from '../components/Admin/AdminMagicCorpPanel';
 import { isAdmin, getUserRoles } from '../types/user';
 import type { UserProfile, AdminUser } from '../types/user';
 
@@ -194,6 +195,8 @@ export function Admin() {
           )}
         </div>
       )}
+
+      <AdminMagicCorpPanel />
 
       <AdminMonitorPanel />
 

@@ -23,58 +23,83 @@ interface MagicCorporationCard {
 let cardsDatabase: MagicCorporationCard[] | null = null;
 let cardsByFrenchName: Map<string, MagicCorporationCard> | null = null;
 let cardsByEnglishName: Map<string, MagicCorporationCard[]> | null = null;
+let loadPromise: Promise<MagicCorporationCard[]> | null = null;
+let missingLogged = false;
+
+function indexDatabase(cards: MagicCorporationCard[]): void {
+  cardsByFrenchName = new Map();
+  cardsByEnglishName = new Map();
+  for (const card of cards) {
+    if (card.nameVf) {
+      const frenchKey = card.nameVf.toLowerCase().trim();
+      if (!cardsByFrenchName.has(frenchKey)) {
+        cardsByFrenchName.set(frenchKey, card);
+      }
+    }
+    if (card.nameVo) {
+      const englishKey = card.nameVo.toLowerCase().trim();
+      if (!cardsByEnglishName.has(englishKey)) {
+        cardsByEnglishName.set(englishKey, []);
+      }
+      cardsByEnglishName.get(englishKey)!.push(card);
+    }
+  }
+}
 
 /**
- * Charge le fichier JSON MagicCorporation (chargement lazy)
+ * Invalide le cache en mémoire (après une mise à jour admin du JSON).
+ */
+export function invalidateMagicCorporationCache(): void {
+  cardsDatabase = null;
+  cardsByFrenchName = null;
+  cardsByEnglishName = null;
+  loadPromise = null;
+  missingLogged = false;
+}
+
+/**
+ * Charge le fichier JSON MagicCorporation (chargement lazy, une seule requête concurrente).
  */
 async function loadCardsDatabase(): Promise<MagicCorporationCard[]> {
   if (cardsDatabase !== null) {
     return cardsDatabase;
   }
-
-  try {
-    const response = await fetch('/magiccorporation-cards.json');
-    if (!response.ok) {
-      console.warn('Fichier MagicCorporation non trouvé, utilisation de Scryfall uniquement');
-      cardsDatabase = [];
-      return cardsDatabase;
-    }
-    cardsDatabase = await response.json();
-    
-    // Créer les index pour les recherches rapides
-    cardsByFrenchName = new Map();
-    cardsByEnglishName = new Map();
-    
-    if (!cardsDatabase || !Array.isArray(cardsDatabase)) {
-      cardsDatabase = [];
-      return cardsDatabase;
-    }
-    
-    for (const card of cardsDatabase) {
-      // Index par nom français
-      if (card.nameVf) {
-        const frenchKey = card.nameVf.toLowerCase().trim();
-        if (!cardsByFrenchName.has(frenchKey)) {
-          cardsByFrenchName.set(frenchKey, card);
-        }
-      }
-      
-      // Index par nom anglais (peut y avoir plusieurs cartes avec le même nom)
-      if (card.nameVo) {
-        const englishKey = card.nameVo.toLowerCase().trim();
-        if (!cardsByEnglishName.has(englishKey)) {
-          cardsByEnglishName.set(englishKey, []);
-        }
-        cardsByEnglishName.get(englishKey)!.push(card);
-      }
-    }
-    
-    return cardsDatabase;
-  } catch (error) {
-    console.warn('Erreur lors du chargement du fichier MagicCorporation:', error);
-    cardsDatabase = [];
-    return cardsDatabase;
+  if (loadPromise) {
+    return loadPromise;
   }
+
+  loadPromise = (async () => {
+    try {
+      const response = await fetch('/magiccorporation-cards.json');
+      if (!response.ok) {
+        if (!missingLogged) {
+          missingLogged = true;
+          console.warn('Fichier MagicCorporation absent — Scryfall uniquement (admin : mettre à jour le fichier).');
+        }
+        cardsDatabase = [];
+        cardsByFrenchName = new Map();
+        cardsByEnglishName = new Map();
+        return cardsDatabase;
+      }
+      const parsed = await response.json();
+      cardsDatabase = Array.isArray(parsed) ? parsed : [];
+      indexDatabase(cardsDatabase);
+      return cardsDatabase;
+    } catch (error) {
+      if (!missingLogged) {
+        missingLogged = true;
+        console.warn('Erreur lors du chargement du fichier MagicCorporation:', error);
+      }
+      cardsDatabase = [];
+      cardsByFrenchName = new Map();
+      cardsByEnglishName = new Map();
+      return cardsDatabase;
+    } finally {
+      loadPromise = null;
+    }
+  })();
+
+  return loadPromise;
 }
 
 /**

@@ -15,6 +15,7 @@
  * --output=FILE     : Fichier de sortie (défaut: magiccorporation-cards.json)
  * --delay=MS        : Délai entre les requêtes en ms (défaut: 1000)
  * --resume          : Reprendre depuis le dernier point sauvegardé
+ * --ndjson          : Émettre la progression en JSON ligne par ligne (admin SSE)
  */
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
@@ -32,6 +33,7 @@ const DEFAULT_CONFIG = {
   outputFile: 'magiccorporation-cards.json',
   delay: 1000, // 1 seconde entre les requêtes pour être respectueux
   resume: false,
+  ndjson: false,
 };
 
 // Parser les arguments de ligne de commande
@@ -50,10 +52,25 @@ function parseArgs() {
       config.delay = parseInt(arg.split('=')[1], 10);
     } else if (arg === '--resume') {
       config.resume = true;
+    } else if (arg === '--ndjson') {
+      config.ndjson = true;
     }
   }
   
   return config;
+}
+
+function emitNdjson(config, payload) {
+  if (!config.ndjson) return;
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+function logLine(config, message) {
+  if (config.ndjson) {
+    emitNdjson(config, { type: 'log', message });
+  } else {
+    console.log(message);
+  }
 }
 
 // Fonction pour faire une pause
@@ -319,10 +336,18 @@ function buildPageUrl(pageNumber) {
 async function main() {
   const config = parseArgs();
   
-  console.log('=== Scraper MagicCorporation ===\n');
-  console.log(`📄 Pages: ${config.startPage} à ${config.endPage}`);
-  console.log(`💾 Fichier de sortie: ${config.outputFile}`);
-  console.log(`⏱️  Délai entre requêtes: ${config.delay}ms\n`);
+  logLine(config, '=== Scraper MagicCorporation ===');
+  logLine(config, `Pages: ${config.startPage} à ${config.endPage}`);
+  logLine(config, `Fichier de sortie: ${config.outputFile}`);
+  logLine(config, `Délai entre requêtes: ${config.delay}ms`);
+  emitNdjson(config, {
+    type: 'progress',
+    phase: 'start',
+    page: 0,
+    totalPages: Math.max(1, config.endPage - config.startPage + 1),
+    cards: 0,
+    percent: 0,
+  });
   
   // Charger les données existantes si on reprend
   let allCards = [];
@@ -333,51 +358,52 @@ async function main() {
       const existingData = JSON.parse(readFileSync(config.outputFile, 'utf8'));
       if (Array.isArray(existingData)) {
         allCards = existingData;
-        console.log(`✅ ${allCards.length} cartes déjà chargées depuis ${config.outputFile}`);
+        logLine(config, `${allCards.length} cartes déjà chargées depuis ${config.outputFile}`);
         // Déterminer la dernière page traitée (approximatif)
         startPage = Math.max(config.startPage, Math.floor(allCards.length / 50) + 1);
-        console.log(`🔄 Reprise à partir de la page ${startPage}\n`);
+        logLine(config, `Reprise à partir de la page ${startPage}`);
       }
     } catch (error) {
-      console.warn(`⚠️  Impossible de charger le fichier existant: ${error.message}`);
-      console.log('📝 Démarrage depuis le début\n');
+      logLine(config, `Impossible de charger le fichier existant: ${error.message}`);
+      logLine(config, 'Démarrage depuis le début');
     }
   }
   
-  const totalPages = config.endPage - startPage + 1;
   let successCount = 0;
   let errorCount = 0;
   
   // Créer un fichier de sauvegarde temporaire pour la progression
-  const progressFile = config.outputFile.replace('.json', '.progress.json');
+  const progressFile = config.outputFile.replace(/\.json$/i, '.progress.json');
   
   // Détecter le nombre total de pages depuis la première page si nécessaire
   let detectedTotalPages = config.endPage;
   if (startPage === 1) {
     try {
-      console.log('🔍 Détection du nombre total de pages...');
+      logLine(config, 'Détection du nombre total de pages...');
       const firstPageUrl = buildPageUrl(1);
       const firstPageHtml = await fetchPage(firstPageUrl);
       const paginationInfo = extractPaginationInfo(firstPageHtml);
       if (paginationInfo && paginationInfo.totalPages) {
         detectedTotalPages = paginationInfo.totalPages;
-        console.log(`✅ ${detectedTotalPages} pages détectées\n`);
+        logLine(config, `${detectedTotalPages} pages détectées`);
         // Ajuster endPage si nécessaire
         if (config.endPage > detectedTotalPages) {
           config.endPage = detectedTotalPages;
-          console.log(`⚠️  Ajustement: fin à la page ${detectedTotalPages}\n`);
+          logLine(config, `Ajustement: fin à la page ${detectedTotalPages}`);
         }
       }
       await sleep(config.delay);
     } catch (error) {
-      console.warn(`⚠️  Impossible de détecter le nombre de pages: ${error.message}`);
-      console.log(`📝 Utilisation de la valeur par défaut: ${config.endPage} pages\n`);
+      logLine(config, `Impossible de détecter le nombre de pages: ${error.message}`);
+      logLine(config, `Utilisation de la valeur par défaut: ${config.endPage} pages`);
     }
   }
+
+  const totalPages = Math.max(1, config.endPage - startPage + 1);
   
   for (let page = startPage; page <= config.endPage; page++) {
     try {
-      console.log(`📖 Page ${page}/${config.endPage}...`);
+      logLine(config, `Page ${page}/${config.endPage}...`);
       
       const url = buildPageUrl(page);
       const html = await fetchPage(url);
@@ -385,7 +411,7 @@ async function main() {
       // Vérifier la pagination pour s'assurer qu'on est sur la bonne page
       const paginationInfo = extractPaginationInfo(html);
       if (paginationInfo && paginationInfo.currentPage !== page) {
-        console.warn(`⚠️  Page détectée: ${paginationInfo.currentPage}, attendue: ${page}`);
+        logLine(config, `Page détectée: ${paginationInfo.currentPage}, attendue: ${page}`);
         // Ajuster si nécessaire
         if (paginationInfo.totalPages) {
           detectedTotalPages = paginationInfo.totalPages;
@@ -395,13 +421,26 @@ async function main() {
       const cards = parseCards(html);
       
       if (cards.length === 0) {
-        console.warn(`⚠️  Aucune carte trouvée sur la page ${page}`);
+        logLine(config, `Aucune carte trouvée sur la page ${page}`);
         errorCount++;
       } else {
         allCards.push(...cards);
         successCount++;
-        console.log(`✅ ${cards.length} cartes extraites (Total: ${allCards.length})`);
+        logLine(config, `${cards.length} cartes extraites (Total: ${allCards.length})`);
       }
+
+      const donePages = page - startPage + 1;
+      emitNdjson(config, {
+        type: 'progress',
+        phase: 'page',
+        page,
+        totalPages: config.endPage,
+        donePages,
+        spanPages: totalPages,
+        cards: allCards.length,
+        percent: Math.min(99, Math.round((donePages / totalPages) * 100)),
+        pageErrors: errorCount,
+      });
       
       // Sauvegarder la progression toutes les 10 pages
       if (page % 10 === 0 || page === config.endPage) {
@@ -411,7 +450,7 @@ async function main() {
           totalCards: allCards.length,
           timestamp: new Date().toISOString(),
         }, null, 2), 'utf8');
-        console.log(`💾 Progression sauvegardée (${allCards.length} cartes)\n`);
+        logLine(config, `Progression sauvegardée (${allCards.length} cartes)`);
       }
       
       // Délai entre les requêtes pour être respectueux
@@ -420,7 +459,12 @@ async function main() {
       }
       
     } catch (error) {
-      console.error(`❌ Erreur sur la page ${page}: ${error.message}`);
+      logLine(config, `Erreur sur la page ${page}: ${error.message}`);
+      emitNdjson(config, {
+        type: 'page_error',
+        page,
+        message: error.message || String(error),
+      });
       errorCount++;
       
       // En cas d'erreur, attendre un peu plus avant de continuer
@@ -435,20 +479,28 @@ async function main() {
   if (existsSync(progressFile)) {
     unlinkSync(progressFile);
   }
-  
-  console.log('\n=== Scraping terminé ===\n');
-  console.log(`✅ Pages réussies: ${successCount}/${totalPages}`);
-  console.log(`❌ Pages en erreur: ${errorCount}/${totalPages}`);
-  console.log(`📊 Total de cartes: ${allCards.length}`);
-  console.log(`💾 Fichier sauvegardé: ${config.outputFile}\n`);
-  
-  // Statistiques
+
   const uniqueCards = new Set(allCards.map(c => c.nameVo)).size;
-  console.log(`📈 Statistiques:`);
-  console.log(`   - Cartes uniques (par nom VO): ${uniqueCards}`);
-  console.log(`   - Cartes avec nom VF: ${allCards.filter(c => c.nameVf && c.nameVf !== c.nameVo).length}`);
-  console.log(`   - Cartes avec mana cost: ${allCards.filter(c => c.manaCost).length}`);
-  console.log(`   - Cartes avec type: ${allCards.filter(c => c.type).length}`);
+  const withVf = allCards.filter(c => c.nameVf && c.nameVf !== c.nameVo).length;
+  
+  logLine(config, '=== Scraping terminé ===');
+  logLine(config, `Pages réussies: ${successCount}/${totalPages}`);
+  logLine(config, `Pages en erreur: ${errorCount}/${totalPages}`);
+  logLine(config, `Total de cartes: ${allCards.length}`);
+  logLine(config, `Fichier sauvegardé: ${config.outputFile}`);
+  logLine(config, `Cartes uniques (VO): ${uniqueCards}`);
+  logLine(config, `Cartes avec nom VF: ${withVf}`);
+
+  emitNdjson(config, {
+    type: 'done',
+    ok: true,
+    cards: allCards.length,
+    uniqueCards,
+    withVf,
+    pageErrors: errorCount,
+    outputFile: config.outputFile,
+    percent: 100,
+  });
 }
 
 // Exporter les fonctions pour les tests

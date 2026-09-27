@@ -31,7 +31,7 @@ import { ZoneBrowsePanel } from './ZoneBrowsePanel';
 import { useDfcFaces } from '../../hooks/useDfcFaces';
 import { useLocalizedTableFaces } from '../../hooks/useLocalizedTableFaces';
 import { useProfile } from '../../hooks/useProfile';
-import { applyLocalizedTableCard } from '../../utils/localizedTableFaces';
+import { applyLocalizedTableCard, collectVisibleLocalizationIds } from '../../utils/localizedTableFaces';
 
 interface PlayerBoardProps {
   player: PlayerTableState;
@@ -298,18 +298,22 @@ export function PlayerBoard({
   const dfcFaces = useDfcFaces(dfcIds);
   const { profile } = useProfile();
   const preferFrench = profile?.preferredLanguage === 'fr';
-  const localizedIds = useMemo(() => {
-    const visible = [
-      ...player.hand,
-      ...player.battlefield,
-      ...player.graveyard,
-      ...player.exile,
-      ...player.command,
-      ...player.library,
-    ];
-    const extra = allBattlefield.filter((card) => !visible.some((item) => item.instanceId === card.instanceId));
-    return [...visible, ...extra].map((card) => card.scryfallId);
-  }, [player, allBattlefield]);
+  const localizedIds = useMemo(
+    () =>
+      collectVisibleLocalizationIds({
+        hand: player.hand,
+        battlefield: player.battlefield,
+        command: player.command,
+        graveyard: player.graveyard,
+        exile: player.exile,
+        library: player.library,
+        browseZone,
+        libraryOpen,
+        lookMode: Boolean(lookMode),
+        revealLibraryTop: canSeeLibraryTop(player, viewerId),
+      }),
+    [player, browseZone, libraryOpen, lookMode, viewerId],
+  );
   const localizedFaces = useLocalizedTableFaces(localizedIds, preferFrench);
 
   const counterCard = useMemo(() => {

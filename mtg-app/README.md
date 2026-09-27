@@ -246,6 +246,8 @@ Nginx : coller [`deploy/monitor/nginx-monitor.conf.snippet`](deploy/monitor/ngin
 
 Build front : `VITE_MONITOR_URL=https://mtg-app.duckdns.org/monitor`.
 
+Même service : bouton admin **MagicCorporation** (`GET /magiccorp/status` + `GET /magiccorp/update` SSE) pour scraper et écrire `MAGICCORP_OUTPUT` (défaut `/var/www/mtg-app/magiccorporation-cards.json`). Déployer aussi `scripts/scrape-magiccorporation.js` (chemin `MAGICCORP_SCRIPT`, deps `cheerio` disponibles pour le node du service). La table de jeu ne charge plus ce JSON automatiquement.
+
 ## Import CSV
 
 Colonnes typiques : **Name** (requis), Quantity, Set code, Set name, Collector number, Foil, Rarity, Condition, Language.

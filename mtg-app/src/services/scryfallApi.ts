@@ -143,10 +143,12 @@ async function fetchFrenchPrinting(
  */
 export async function searchCardByScryfallId(
   scryfallId: string,
-  preferFrench: boolean = true
+  preferFrench: boolean = true,
+  options?: { magicCorporation?: boolean },
 ): Promise<MTGCard | null> {
-  const cacheKey = `scryfall_${scryfallId}_${preferFrench ? 'fr' : 'en'}`;
-  
+  const useMagicCorp = options?.magicCorporation !== false;
+  const cacheKey = `scryfall_${scryfallId}_${preferFrench ? 'fr' : 'en'}${useMagicCorp ? '' : '_nomc'}`;
+
   // Vérifier le cache
   const cached = getCachedCard(cacheKey);
   if (cached !== null) {
@@ -156,7 +158,7 @@ export async function searchCardByScryfallId(
   try {
     // ÉTAPE 1 : Récupérer d'abord la carte avec son édition précise (par Scryfall ID)
     const url = `${SCRYFALL_API_BASE_URL}/cards/${scryfallId}`;
-    
+
     const response = await scryfallQueue.enqueue(
       () => fetchWithRetry(url, {
         headers: {
@@ -181,7 +183,20 @@ export async function searchCardByScryfallId(
     }
 
     const scryfallCard = await response.json();
-    
+
+    const applyMagicCorp = async (card: MTGCard): Promise<MTGCard> => {
+      if (!preferFrench || !useMagicCorp) return card;
+      let mtgCard = await enrichCardWithFrenchData(card, true);
+      const frenchName = mtgCard.foreignNames?.find((fn) => fn.language === 'French' || fn.language === 'fr');
+      if (frenchName) {
+        if (frenchName.name) mtgCard = { ...mtgCard, name: frenchName.name };
+        if (frenchName.type) mtgCard = { ...mtgCard, type: frenchName.type };
+        if (frenchName.text) mtgCard = { ...mtgCard, text: frenchName.text };
+        if (frenchName.imageUrl) mtgCard = { ...mtgCard, imageUrl: frenchName.imageUrl };
+      }
+      return mtgCard;
+    };
+
     // ÉTAPE 2 : Si préférence française, tenter d'abord la version FR (image correcte)
     let mtgCard: MTGCard;
     if (preferFrench && scryfallCard.lang === 'fr') {
@@ -191,30 +206,12 @@ export async function searchCardByScryfallId(
       if (frenchCard?.imageUrl && frenchCard?.name) {
         mtgCard = frenchCard;
       } else {
-        mtgCard = convertScryfallCardToMTGCard(scryfallCard);
-        mtgCard = await enrichCardWithFrenchData(mtgCard, true);
-        const frenchName = mtgCard.foreignNames?.find(fn => fn.language === 'French' || fn.language === 'fr');
-        if (frenchName) {
-          if (frenchName.name) mtgCard.name = frenchName.name;
-          if (frenchName.type) mtgCard.type = frenchName.type;
-          if (frenchName.text) mtgCard.text = frenchName.text;
-          if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl;
-        }
+        mtgCard = await applyMagicCorp(convertScryfallCardToMTGCard(scryfallCard));
       }
     } else {
-      mtgCard = convertScryfallCardToMTGCard(scryfallCard);
-      if (preferFrench) {
-        mtgCard = await enrichCardWithFrenchData(mtgCard, true);
-        const frenchName = mtgCard.foreignNames?.find(fn => fn.language === 'French' || fn.language === 'fr');
-        if (frenchName) {
-          if (frenchName.name) mtgCard.name = frenchName.name;
-          if (frenchName.type) mtgCard.type = frenchName.type;
-          if (frenchName.text) mtgCard.text = frenchName.text;
-          if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl;
-        }
-      }
+      mtgCard = await applyMagicCorp(convertScryfallCardToMTGCard(scryfallCard));
     }
-    
+
     setCachedCard(cacheKey, mtgCard);
     return mtgCard;
   } catch (error) {

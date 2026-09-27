@@ -10,6 +10,9 @@
  *   MONITOR_UNITS     comma list (default: play-sync,coturn,nginx,pocketbase)
  *   PLAY_SYNC_HEALTH  default http://127.0.0.1:8091/health
  *   DISK_PATH         default /
+ *   MAGICCORP_OUTPUT  default /var/www/mtg-app/magiccorporation-cards.json
+ *   MAGICCORP_SCRIPT  default /opt/mtg-app/scripts/scrape-magiccorporation.js
+ *   MAGICCORP_DELAY_MS default 1000
  *
  * Example:
  *   POCKETBASE_URL=http://127.0.0.1:8090 node scripts/monitor-server.cjs
@@ -36,6 +39,14 @@ const MONITOR_UNITS = (process.env.MONITOR_UNITS || 'play-sync,coturn,nginx,pock
   .filter(Boolean);
 const PLAY_SYNC_HEALTH = process.env.PLAY_SYNC_HEALTH || 'http://127.0.0.1:8091/health';
 const DISK_PATH = process.env.DISK_PATH || '/';
+const MAGICCORP_OUTPUT =
+  process.env.MAGICCORP_OUTPUT || '/var/www/mtg-app/magiccorporation-cards.json';
+const MAGICCORP_SCRIPT =
+  process.env.MAGICCORP_SCRIPT || '/opt/mtg-app/scripts/scrape-magiccorporation.js';
+const MAGICCORP_DELAY_MS = parseInt(process.env.MAGICCORP_DELAY_MS || '1000', 10);
+const MAGICCORP_NODE = process.env.MAGICCORP_NODE || process.execPath;
+
+let magicCorpJob = null; // { child, startedAt }
 
 if (!POCKETBASE_URL) {
   console.error('Erreur: POCKETBASE_URL est requis.');
@@ -320,6 +331,180 @@ function streamLogs(req, res, units) {
   res.on('close', cleanup);
 }
 
+function magicCorpStatus() {
+  let exists = false;
+  let sizeBytes = 0;
+  let mtime = null;
+  try {
+    const st = fs.statSync(MAGICCORP_OUTPUT);
+    exists = st.isFile();
+    sizeBytes = st.size;
+    mtime = st.mtime.toISOString();
+  } catch {
+    /* missing */
+  }
+  return {
+    ok: true,
+    exists,
+    path: MAGICCORP_OUTPUT,
+    sizeBytes,
+    mtime,
+    running: Boolean(magicCorpJob),
+    startedAt: magicCorpJob?.startedAt || null,
+    script: MAGICCORP_SCRIPT,
+  };
+}
+
+function streamMagicCorpUpdate(req, res) {
+  if (magicCorpJob) {
+    json(res, 409, { ok: false, message: 'Une mise à jour MagicCorporation est déjà en cours.' });
+    return;
+  }
+
+  if (!fs.existsSync(MAGICCORP_SCRIPT)) {
+    json(res, 500, {
+      ok: false,
+      message: `Script introuvable: ${MAGICCORP_SCRIPT}. Définir MAGICCORP_SCRIPT dans /etc/mtg-monitor.env.`,
+    });
+    return;
+  }
+
+  const outDir = require('path').dirname(MAGICCORP_OUTPUT);
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+  } catch (e) {
+    json(res, 500, { ok: false, message: `Impossible de créer le dossier de sortie: ${e.message}` });
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const send = (event, data) => {
+    if (res.writableEnded) return;
+    try {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      /* client gone */
+    }
+  };
+
+  send('meta', { at: new Date().toISOString(), output: MAGICCORP_OUTPUT });
+  send('progress', { percent: 0, phase: 'start', message: 'Démarrage du scraper…' });
+
+  const args = [
+    MAGICCORP_SCRIPT,
+    `--output=${MAGICCORP_OUTPUT}`,
+    `--delay=${Number.isFinite(MAGICCORP_DELAY_MS) ? MAGICCORP_DELAY_MS : 1000}`,
+    '--ndjson',
+  ];
+
+  const child = spawn(MAGICCORP_NODE, args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
+  });
+  magicCorpJob = { child, startedAt: new Date().toISOString() };
+
+  let stdoutBuf = '';
+  let stderrBuf = '';
+  let finishedOk = false;
+
+  const onChunk = (chunk, isErr) => {
+    const text = chunk.toString('utf8');
+    if (isErr) {
+      stderrBuf += text;
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      for (const line of lines) {
+        send('log', { message: line });
+      }
+      return;
+    }
+    stdoutBuf += text;
+    const parts = stdoutBuf.split(/\r?\n/);
+    stdoutBuf = parts.pop() || '';
+    for (const line of parts) {
+      if (!line.trim()) continue;
+      try {
+        const payload = JSON.parse(line);
+        if (payload.type === 'progress') {
+          send('progress', {
+            percent: payload.percent ?? 0,
+            phase: payload.phase || 'page',
+            page: payload.page,
+            totalPages: payload.totalPages,
+            cards: payload.cards,
+            message:
+              payload.phase === 'start'
+                ? 'Démarrage…'
+                : `Page ${payload.page || '?'}/${payload.totalPages || '?'} — ${payload.cards || 0} cartes`,
+          });
+        } else if (payload.type === 'log') {
+          send('log', { message: payload.message || '' });
+        } else if (payload.type === 'page_error') {
+          send('log', { message: `Page ${payload.page}: ${payload.message}` });
+        } else if (payload.type === 'done') {
+          finishedOk = Boolean(payload.ok);
+          send('progress', {
+            percent: 100,
+            phase: 'done',
+            cards: payload.cards,
+            message: `Terminé — ${payload.cards || 0} cartes`,
+          });
+          send('done', {
+            ok: finishedOk,
+            cards: payload.cards,
+            uniqueCards: payload.uniqueCards,
+            withVf: payload.withVf,
+            pageErrors: payload.pageErrors,
+            path: MAGICCORP_OUTPUT,
+          });
+        }
+      } catch {
+        send('log', { message: line });
+      }
+    }
+  };
+
+  child.stdout.on('data', (c) => onChunk(c, false));
+  child.stderr.on('data', (c) => onChunk(c, true));
+
+  child.on('error', (err) => {
+    send('error', { message: err.message || String(err) });
+  });
+
+  child.on('close', (code) => {
+    magicCorpJob = null;
+    if (!finishedOk) {
+      const hint = stderrBuf.trim().slice(-500);
+      send('error', {
+        message:
+          code === 0
+            ? 'Scraping terminé sans confirmation.'
+            : `Scraping interrompu (code ${code})${hint ? `: ${hint}` : ''}`,
+      });
+    }
+    send('meta', { closed: true, code });
+    res.end();
+  });
+
+  const heartbeat = setInterval(() => {
+    res.write(': ping\n\n');
+  }, 15000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    // Do not kill the scrape on client disconnect — let it finish writing the file.
+  };
+
+  req.on('close', cleanup);
+  res.on('close', cleanup);
+}
+
 const server = http.createServer(async (req, res) => {
   setCors(req, res);
 
@@ -356,6 +541,16 @@ const server = http.createServer(async (req, res) => {
 
   if (path === '/logs' || path === '/monitor/logs') {
     streamLogs(req, res, parseUnits(req.url || '/'));
+    return;
+  }
+
+  if (path === '/magiccorp/status' || path === '/monitor/magiccorp/status') {
+    json(res, 200, magicCorpStatus());
+    return;
+  }
+
+  if (path === '/magiccorp/update' || path === '/monitor/magiccorp/update') {
+    streamMagicCorpUpdate(req, res);
     return;
   }
 
