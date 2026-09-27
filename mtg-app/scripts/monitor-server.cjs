@@ -12,7 +12,7 @@
  *   DISK_PATH         default /
  *
  * Example:
- *   POCKETBASE_URL=http://127.0.0.1:8090 node scripts/monitor-server.js
+ *   POCKETBASE_URL=http://127.0.0.1:8090 node scripts/monitor-server.cjs
  *
  * Front: VITE_MONITOR_URL=https://mtg-app.duckdns.org/monitor
  *

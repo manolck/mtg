@@ -97,7 +97,7 @@ export function AdminMonitorPanel() {
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Non configuré. Définir <code className="text-xs">VITE_MONITOR_URL</code> au build (ex.{' '}
           <code className="text-xs">https://mtg-app.duckdns.org/monitor</code>) et déployer{' '}
-          <code className="text-xs">scripts/monitor-server.js</code> — voir README.
+          <code className="text-xs">scripts/monitor-server.cjs</code> — voir README.
         </p>
       </div>
     );

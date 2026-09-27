@@ -240,6 +240,8 @@ sudo systemctl enable --now mtg-monitor
 curl -s http://127.0.0.1:9091/health
 ```
 
+Script : `scripts/monitor-server.cjs` (extension `.cjs` obligatoire — le `package.json` du front est `"type": "module"`).
+
 Nginx : coller [`deploy/monitor/nginx-monitor.conf.snippet`](deploy/monitor/nginx-monitor.conf.snippet), puis `nginx -t && systemctl reload nginx`.
 
 Build front : `VITE_MONITOR_URL=https://mtg-app.duckdns.org/monitor`.

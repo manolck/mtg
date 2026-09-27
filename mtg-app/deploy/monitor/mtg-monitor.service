@@ -7,11 +7,13 @@ Type=simple
 User=www-data
 WorkingDirectory=/var/www/mtg/mtg-app
 EnvironmentFile=/etc/mtg-monitor.env
-ExecStart=/usr/bin/node scripts/monitor-server.js
+ExecStart=/usr/bin/node /var/www/mtg/mtg-app/scripts/monitor-server.cjs
 Restart=on-failure
 RestartSec=3
 
-# journalctl: sudo usermod -aG systemd-journal www-data && reboot (or re-login)
+# journalctl access:
+#   sudo usermod -aG systemd-journal www-data
+# then re-login / reboot
 
 [Install]
 WantedBy=multi-user.target
