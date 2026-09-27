@@ -10,8 +10,8 @@
  *   MONITOR_UNITS     comma list (default: play-sync,coturn,nginx,pocketbase)
  *   PLAY_SYNC_HEALTH  default http://127.0.0.1:8091/health
  *   DISK_PATH         default /
- *   MAGICCORP_OUTPUT  default /var/www/mtg-app/magiccorporation-cards.json
- *   MAGICCORP_SCRIPT  default /opt/mtg-app/scripts/scrape-magiccorporation.js
+ *   MAGICCORP_OUTPUT  default /var/www/mtg/mtg-app/magiccorporation-cards.json
+ *   MAGICCORP_SCRIPT  default /var/www/mtg/mtg-app/scripts/scrape-magiccorporation.js
  *   MAGICCORP_DELAY_MS default 1000
  *
  * Example:
@@ -40,9 +40,9 @@ const MONITOR_UNITS = (process.env.MONITOR_UNITS || 'play-sync,coturn,nginx,pock
 const PLAY_SYNC_HEALTH = process.env.PLAY_SYNC_HEALTH || 'http://127.0.0.1:8091/health';
 const DISK_PATH = process.env.DISK_PATH || '/';
 const MAGICCORP_OUTPUT =
-  process.env.MAGICCORP_OUTPUT || '/var/www/mtg-app/magiccorporation-cards.json';
+  process.env.MAGICCORP_OUTPUT || '/var/www/mtg/mtg-app/magiccorporation-cards.json';
 const MAGICCORP_SCRIPT =
-  process.env.MAGICCORP_SCRIPT || '/opt/mtg-app/scripts/scrape-magiccorporation.js';
+  process.env.MAGICCORP_SCRIPT || '/var/www/mtg/mtg-app/scripts/scrape-magiccorporation.js';
 const MAGICCORP_DELAY_MS = parseInt(process.env.MAGICCORP_DELAY_MS || '1000', 10);
 const MAGICCORP_NODE = process.env.MAGICCORP_NODE || process.execPath;
 
