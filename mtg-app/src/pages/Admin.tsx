@@ -5,6 +5,7 @@ import { Modal } from '../components/UI/Modal';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { createUser, setAdminRole, deleteUserAccount, listUsers } from '../services/adminAuth';
 import { triggerDeploy, isDeployConfigured, type DeployResult } from '../services/deployService';
+import { AdminMonitorPanel } from '../components/Admin/AdminMonitorPanel';
 import { isAdmin, getUserRoles } from '../types/user';
 import type { UserProfile, AdminUser } from '../types/user';
 
@@ -193,6 +194,8 @@ export function Admin() {
           )}
         </div>
       )}
+
+      <AdminMonitorPanel />
 
       {loading ? (
         <div className="text-center py-12">

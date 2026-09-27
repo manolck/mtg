@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_ANALYTICS_ID?: string;
   readonly VITE_DEPLOY_HOOK_URL?: string;
+  /** Admin monitor API base (e.g. https://mtg-app.duckdns.org/monitor). See README.md */
+  readonly VITE_MONITOR_URL?: string;
   /** JSON array of RTCIceServer (STUN + TURN/coturn). See README.md */
   readonly VITE_ICE_SERVERS?: string;
   /** Play table WebSocket URL (e.g. wss://mtg-app.duckdns.org/play-ws). See README.md */

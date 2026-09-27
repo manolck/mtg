@@ -1,0 +1,17 @@
+[Unit]
+Description=MTG admin monitor (stats + journal logs)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/mtg/mtg-app
+EnvironmentFile=/etc/mtg-monitor.env
+ExecStart=/usr/bin/node scripts/monitor-server.js
+Restart=on-failure
+RestartSec=3
+
+# journalctl: sudo usermod -aG systemd-journal www-data && reboot (or re-login)
+
+[Install]
+WantedBy=multi-user.target

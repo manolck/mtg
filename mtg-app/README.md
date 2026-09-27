@@ -58,6 +58,7 @@ Définies au **build** (Vite). Sans `VITE_POCKETBASE_URL`, le dev et le build re
 | `VITE_PRICE_API_URL` | Non | API backend prix MTGJSON |
 | `VITE_SENTRY_DSN` | Non | Monitoring Sentry |
 | `VITE_DEPLOY_HOOK_URL` | Non | Webhook admin « build + reload » (same-origin recommandé) |
+| `VITE_MONITOR_URL` | Non | Monitoring admin (stats + logs) — same-origin recommandé |
 | `VITE_ICE_SERVERS` | Non (recommandé prod) | JSON STUN/TURN WebRTC |
 | `VITE_PLAY_WS_URL` | Non (recommandé prod) | WebSocket table (`ws://…` ou `wss://…/play-ws`) |
 
@@ -68,6 +69,8 @@ VITE_POCKETBASE_URL=http://127.0.0.1:8090
 VITE_PRICE_API_URL=
 VITE_SENTRY_DSN=
 VITE_DEPLOY_HOOK_URL=
+# VITE_MONITOR_URL=https://mtg-app.duckdns.org/monitor
+VITE_MONITOR_URL=
 VITE_ICE_SERVERS=
 # VITE_PLAY_WS_URL=ws://127.0.0.1:8091/play-ws
 VITE_PLAY_WS_URL=
@@ -219,6 +222,27 @@ Depuis l’admin app (« Lancer build et reload ») :
 - Env serveur : `POCKETBASE_URL`, `PORT=9090`, `SCRIPT_PATH` → script shell de update
 - **Aucun secret de deploy dans `VITE_*`** — seulement `VITE_DEPLOY_HOOK_URL` (URL du webhook)
 - Nginx peut proxy `/deploy` vers `127.0.0.1:9090`
+
+### Monitoring admin (optionnel)
+
+Page `/admin` : CPU / RAM / disque / température, statut systemd, health play-sync & PocketBase, console `journalctl` live.
+
+```bash
+sudo cp deploy/monitor/mtg-monitor.env.example /etc/mtg-monitor.env
+# Éditer POCKETBASE_URL, MONITOR_UNITS, chemins si besoin
+
+sudo usermod -aG systemd-journal www-data   # logs journalctl
+
+# Adapter WorkingDirectory / ExecStart dans le unit au chemin réel du repo
+sudo cp deploy/monitor/mtg-monitor.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mtg-monitor
+curl -s http://127.0.0.1:9091/health
+```
+
+Nginx : coller [`deploy/monitor/nginx-monitor.conf.snippet`](deploy/monitor/nginx-monitor.conf.snippet), puis `nginx -t && systemctl reload nginx`.
+
+Build front : `VITE_MONITOR_URL=https://mtg-app.duckdns.org/monitor`.
 
 ## Import CSV
 
