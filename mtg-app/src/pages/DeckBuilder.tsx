@@ -31,6 +31,7 @@ import { SearchInput } from '../components/UI/SearchInput';
 import { CardSearchFilterBar } from '../components/Card/CardSearchFilterBar';
 import { CardHoverPreview } from '../components/Card/CardHoverPreview';
 import { CardLightbox } from '../components/Card/CardLightbox';
+import { isCoarsePointer } from '../utils/coarsePointer';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
 import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
@@ -884,19 +885,32 @@ export function DeckBuilder() {
                                 title="Survolez pour agrandir"
                                 aria-label={`Voir ${card.name} en grand`}
                                 onMouseEnter={(e) => {
+                                  if (isCoarsePointer()) return;
                                   setSearchHover({
                                     name: card.name,
                                     imageUrl: card.imageUrl,
                                     rect: e.currentTarget.getBoundingClientRect(),
                                   });
                                 }}
-                                onMouseLeave={() => setSearchHover(null)}
-                                onClick={() =>
+                                onMouseLeave={() => {
+                                  if (isCoarsePointer()) return;
+                                  setSearchHover(null);
+                                }}
+                                onClick={(e) => {
+                                  if (isCoarsePointer()) {
+                                    e.preventDefault();
+                                    setSearchHover({
+                                      name: card.name,
+                                      imageUrl: card.imageUrl,
+                                      rect: e.currentTarget.getBoundingClientRect(),
+                                    });
+                                    return;
+                                  }
                                   setSearchLightbox({
                                     name: card.name,
                                     imageUrl: card.imageUrl,
-                                  })
-                                }
+                                  });
+                                }}
                               >
                                 <LazyImage
                                   src={card.imageUrl}
@@ -1273,6 +1287,7 @@ export function DeckBuilder() {
           name={searchHover.name}
           imageUrl={searchHover.imageUrl}
           anchorRect={searchHover.rect}
+          onDismiss={isCoarsePointer() ? () => setSearchHover(null) : undefined}
         />
       )}
 

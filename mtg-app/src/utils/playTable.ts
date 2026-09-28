@@ -12,12 +12,19 @@ import type {
 } from '../types/play';
 import { REVEAL_ALL, ZONE_NAMES } from '../types/play';
 import { normalizeCounterId } from '../data/mtgCounters';
+import { DEFAULT_PLAY_MAT_ID, isValidPlaymatId } from '../data/playMats';
 import { shuffleCards } from './sampleHand';
 
 const STARTING_HAND = 7;
 
 function isCommanderFormat(format: string | undefined): boolean {
   return (format || '').toLowerCase() === 'commander';
+}
+
+/** Commander 3–4 joueurs : 40 PV. Duel (1–2) et formats construits : 20 PV. */
+export function startingLifeFor(format: string | undefined, playerCount: number): number {
+  if (isCommanderFormat(format) && playerCount >= 3) return 40;
+  return 20;
 }
 
 /** Deck owner for a card (explicit field, or inferred from instanceId). */
@@ -105,11 +112,10 @@ export function snapshotFromDeck(input: {
 
 export function createPlayerFromSnapshot(
   seat: Pick<PlaySeat, 'userId' | 'seatIndex' | 'displayName' | 'deckSnapshot'>,
-  options?: { random?: () => number }
+  options?: { random?: () => number; playerCount?: number; format?: string }
 ): PlayerTableState {
   const snapshot = seat.deckSnapshot;
-  const format = snapshot?.format || 'commander';
-  const commander = isCommanderFormat(format);
+  const format = options?.format || snapshot?.format || 'commander';
   const libraryPool = shuffleCards(
     expandEntries(snapshot?.mainboard, `${seat.userId}-lib`, seat.userId),
     options?.random,
@@ -119,7 +125,7 @@ export function createPlayerFromSnapshot(
     userId: seat.userId,
     seatIndex: seat.seatIndex,
     displayName: seat.displayName,
-    life: commander ? 40 : 20,
+    life: startingLifeFor(format, options?.playerCount ?? 1),
     poison: 0,
     library: libraryPool,
     hand,
@@ -145,7 +151,9 @@ export function createInitialMatchState(
     actionSeq: 0,
     turnSeatIndex: ordered[0]?.seatIndex ?? 0,
     format,
-    players: ordered.map((seat) => createPlayerFromSnapshot(seat, options)),
+    players: ordered.map((seat) =>
+      createPlayerFromSnapshot(seat, { ...options, playerCount: ordered.length, format }),
+    ),
   };
 }
 
@@ -600,7 +608,6 @@ export function addDummyPlayer(
   const userId = dummyUserIdForSeat(seatIndex);
   if (state.players.some((player) => player.userId === userId)) return state;
 
-  const commander = isCommanderFormat(state.format);
   const pool = cloneCardsForDummy(
     [...actor.library, ...actor.hand, ...actor.battlefield, ...actor.graveyard, ...actor.exile],
     `${userId}-lib`,
@@ -612,7 +619,7 @@ export function addDummyPlayer(
     userId,
     seatIndex,
     displayName: options?.displayName || `Siège ${seatIndex + 1}`,
-    life: commander ? 40 : 20,
+    life: startingLifeFor(state.format, state.players.length + 1),
     poison: 0,
     library: shuffled,
     hand,
@@ -769,6 +776,12 @@ export function applyMatchAction(
     case 'setPoison':
       nextPlayer = { ...player, poison: Math.max(0, player.poison + action.delta) };
       break;
+    case 'setPlaymat': {
+      if (!isValidPlaymatId(action.playmatId)) return state;
+      if ((player.playmatId || DEFAULT_PLAY_MAT_ID) === action.playmatId) return state;
+      nextPlayer = { ...player, playmatId: action.playmatId };
+      break;
+    }
     case 'mulligan':
       nextPlayer = mulligan(player, options?.random);
       break;
@@ -957,10 +970,17 @@ function millCards(player: PlayerTableState, count: number): PlayerTableState {
 function beginTurn(player: PlayerTableState): PlayerTableState {
   const battlefield = player.battlefield.map((card) => {
     if (!card.tapped) return card;
-    if (isPlaymatLand(card) || isPlaymatCreature(card)) return { ...card, tapped: false };
+    if (shouldUntapForTurn(card)) return { ...card, tapped: false };
     return card;
   });
   return drawOne({ ...player, battlefield });
+}
+
+/** Lands still untap if they were dropped on the main playmat row. */
+function shouldUntapForTurn(card: TableCard): boolean {
+  if (isPlaymatCreature(card)) return true;
+  if (card.playmatRow === 'lands') return true;
+  return isPlaymatLand({ ...card, playmatRow: undefined });
 }
 
 export function isPlaymatCreature(

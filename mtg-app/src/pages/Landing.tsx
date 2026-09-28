@@ -374,12 +374,12 @@ function PlayLobbyPreview() {
         <div className="flex items-center justify-between gap-3 text-sm">
           <p>
             <span className="font-semibold">Léa</span>
-            <span className="text-white/70"> · 40 PV</span>
+            <span className="text-white/70"> · 20 PV</span>
           </p>
           <p className="text-[11px] uppercase tracking-wide text-emerald-300">Tour de Léa</p>
           <p>
             <span className="font-semibold">Marc</span>
-            <span className="text-white/70"> · 36 PV</span>
+            <span className="text-white/70"> · 16 PV</span>
           </p>
         </div>
         <div className="mt-4 flex justify-center gap-2">

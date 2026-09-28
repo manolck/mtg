@@ -87,6 +87,34 @@
   pointer-events: none;
 }
 
+.zone--photo {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px var(--gold-4),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.55),
+    inset 0 0 40px rgba(0, 0, 0, 0.45);
+  background-color: #0c0906;
+}
+.zone--photo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--playmat-image) center / cover no-repeat;
+  pointer-events: none;
+}
+.zone--photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-shadow: inset 0 0 min(18vw, 160px) rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
 .zone-layer {
   position: relative;
   z-index: 1;

@@ -1,0 +1,12 @@
+{
+  "mats": [
+    { "id": "Vivi", "file": "vivi.jpg", "label": "Vivi à l'Aventure" },
+    { "id": "Dragon_rouge", "file": "dragon_rouge.jpg", "label": "Dragon Rouge" },
+    { "id": "Foret_fantastique", "file": "foret_fantastique.jpg", "label": "Forêt Fantastique" },
+    { "id": "Brasier", "file": "brasier.jpg", "label": "Brasier" },
+    { "id": "Chevarbre", "file": "chevarbre.jpg", "label": "Chevarbre" },
+    { "id": "Foret_luxuriante", "file": "foret_luxuriante.jpg", "label": "Foret Luxuriante" },
+    { "id": "Druide_maléfique", "file": "druide_maléfique.jpg", "label": "Druide Maléfique" },
+    { "id": "Porte_dargonath", "file": "porte_dargonath.jpeg", "label": "Porte Dargonath" }
+  ]
+}

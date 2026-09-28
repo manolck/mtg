@@ -5,6 +5,7 @@ import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
 import { LazyImage } from '../UI/LazyImage';
 import { useProfile } from '../../hooks/useProfile';
+import { isCoarsePointer } from '../../utils/coarsePointer';
 
 interface CardDisplayProps {
   card: UserCard;
@@ -139,10 +140,17 @@ export const CardDisplay = memo(function CardDisplay({
         if ((e.target as HTMLElement).closest('button')) {
           return;
         }
+        if (isCoarsePointer()) setShowMenu(true);
         setShowEnlarged(true);
       }}
-      onMouseEnter={() => setShowMenu(true)}
-      onMouseLeave={() => setShowMenu(false)}
+      onMouseEnter={() => {
+        if (isCoarsePointer()) return;
+        setShowMenu(true);
+      }}
+      onMouseLeave={() => {
+        if (isCoarsePointer()) return;
+        setShowMenu(false);
+      }}
     >
       {/* Image de la carte en entier */}
       <div className="relative w-full aspect-[63/88] bg-gray-100 dark:bg-gray-900">
@@ -155,6 +163,7 @@ export const CardDisplay = memo(function CardDisplay({
               WebkitPerspective: '1000px',
             }}
             onClick={(e) => {
+              if (isCoarsePointer()) return;
               e.preventDefault();
               e.stopPropagation();
               setShowBackFace(!showBackFace);

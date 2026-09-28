@@ -122,6 +122,8 @@ export interface PlayerTableState {
   chosenHandCards?: ChosenHandCard[];
   /** Dessus de bibliothèque révélé pour cette audience. */
   libraryTopRevealedTo?: RevealAudience;
+  /** Tapis du champ de bataille (`battlefield` CSS, ou id d’image dans /play/mats). */
+  playmatId?: string;
 }
 
 export interface MatchState {
@@ -204,6 +206,7 @@ export type PlayAction =
   | { type: 'setPlaymatPos'; userId: string; instanceIds: string[]; x: number; y: number; row?: 'lands' | 'battlefield' | 'enchantments' | null }
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
+  | { type: 'setPlaymat'; userId: string; playmatId: string }
   | { type: 'passTurn' }
   | { type: 'setTurn'; seatIndex: number }
   | { type: 'mulligan'; userId: string };

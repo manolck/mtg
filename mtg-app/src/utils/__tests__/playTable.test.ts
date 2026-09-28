@@ -81,7 +81,7 @@ describe('playTable', () => {
     );
 
     const player = state.players[0];
-    expect(player.life).toBe(40);
+    expect(player.life).toBe(20);
     expect(player.hand).toHaveLength(3);
     expect(player.library).toHaveLength(0);
     expect(player.command).toHaveLength(1);
@@ -110,6 +110,75 @@ describe('playTable', () => {
     expect(state.players[0].life).toBe(20);
     expect(state.players[0].hand).toHaveLength(7);
     expect(state.players[0].library).toHaveLength(3);
+  });
+
+  it('stores a playmat on the player without changing the opponent', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'A',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'B',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    state = applyMatchAction(state, { type: 'setPlaymat', userId: 'u1', playmatId: 'canopy' });
+    expect(state.players[0].playmatId).toBe('canopy');
+    expect(state.players[1].playmatId).toBeUndefined();
+    const version = state.version;
+    state = applyMatchAction(state, { type: 'setPlaymat', userId: 'u1', playmatId: 'canopy' });
+    expect(state.version).toBe(version);
+    state = applyMatchAction(state, { type: 'setPlaymat', userId: 'u1', playmatId: '../secret' });
+    expect(state.players[0].playmatId).toBe('canopy');
+  });
+
+  it('starts 2-player commander at 20 life and multiplayer at 40', () => {
+    const commanderSeat = (userId: string, seatIndex: number) =>
+      seat({
+        userId,
+        seatIndex,
+        displayName: userId,
+        deckSnapshot: {
+          deckId: `d-${userId}`,
+          name: 'Kaalia',
+          format: 'commander',
+          mainboard: [bolt],
+          commanders: [commander],
+        },
+      });
+
+    const duel = createInitialMatchState(
+      [commanderSeat('u1', 0), commanderSeat('u2', 1)],
+      'commander',
+      { random: () => 0 },
+    );
+    expect(duel.players.map((player) => player.life)).toEqual([20, 20]);
+
+    const multi = createInitialMatchState(
+      [commanderSeat('u1', 0), commanderSeat('u2', 1), commanderSeat('u3', 2)],
+      'commander',
+      { random: () => 0 },
+    );
+    expect(multi.players.map((player) => player.life)).toEqual([40, 40, 40]);
   });
 
   it('reorders cards in hand by toIndex', () => {
@@ -1272,7 +1341,7 @@ describe('playTable', () => {
       userId: 'dummy:1',
       seatIndex: 1,
       displayName: 'Siège 2',
-      life: 40,
+      life: 20,
     });
     expect(state.players[1].hand).toHaveLength(7);
     expect(state.players[1].command).toHaveLength(1);
@@ -1441,6 +1510,52 @@ describe('playTable', () => {
     expect(state.players[0].battlefield.every((card) => !card.tapped)).toBe(true);
     expect(state.players[0].hand.length).toBe(handBefore + 1);
     expect(state.players[0].library.length).toBe(libBefore - 1);
+  });
+
+  it('untaps lands even when they sit on the battlefield row', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Lands',
+            format: 'modern',
+            mainboard: [{ scryfallId: 'shock', name: 'Steam Vents', typeLine: 'Land — Island Mountain', quantity: 8 }],
+            commanders: [],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'Opp',
+            format: 'modern',
+            mainboard: [{ ...bolt, quantity: 10 }],
+            commanders: [],
+          },
+        }),
+      ],
+      'modern',
+      { random: () => 0 },
+    );
+    const land = state.players[0].hand[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: land.instanceId,
+      from: 'hand',
+      to: 'battlefield',
+      playmatRow: 'battlefield',
+    });
+    state = applyMatchAction(state, { type: 'tap', userId: 'u1', instanceId: land.instanceId });
+    expect(state.players[0].battlefield[0].tapped).toBe(true);
+    expect(state.players[0].battlefield[0].playmatRow).toBe('battlefield');
+    state = applyMatchAction(state, { type: 'passTurn' });
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.players[0].battlefield[0].tapped).toBe(false);
   });
 
   it('stacks identical tokens that share a playmat cell', () => {

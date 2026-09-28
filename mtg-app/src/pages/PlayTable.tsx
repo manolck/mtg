@@ -22,7 +22,7 @@ import {
   savePlayAvDevices,
 } from '../services/playRtcService';
 import type { MatchActionRecord, MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
-import { applyMatchAction, isDummyUserId } from '../utils/playTable';
+import { applyMatchAction, isDummyUserId, startingLifeFor } from '../utils/playTable';
 import { createSeqActionBuffer } from '../utils/playSyncSeqBuffer';
 import type { SyncedPlayAction } from '../utils/playSyncProtocol';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
@@ -524,7 +524,7 @@ export function PlayTable() {
         compact={homeLayout ? false : compact}
         seatHome={homeLayout}
         visibleSeats={homeLayout ? 1 : shownCount}
-        startingLife={(state.format || '').toLowerCase() === 'commander' ? 40 : 20}
+        startingLife={startingLifeFor(state.format, state.players.length)}
         deckName={seats.find((seat) => seat.userId === player.userId)?.deckSnapshot?.name}
         onDraw={() => send({ type: 'draw', userId: boardUserId })}
         onShuffle={() => send({ type: 'shuffleLibrary', userId: boardUserId })}
@@ -532,6 +532,7 @@ export function PlayTable() {
         onPassTurn={() => send({ type: 'passTurn' })}
         onLife={(delta) => send({ type: 'setLife', userId: boardUserId, delta })}
         onPoison={(delta) => send({ type: 'setPoison', userId: boardUserId, delta })}
+        onSetPlaymat={(playmatId) => send({ type: 'setPlaymat', userId: boardUserId, playmatId })}
         onMove={(instanceId, from, to, options) =>
           send({
             type: 'moveCard',

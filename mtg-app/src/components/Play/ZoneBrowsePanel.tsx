@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TableCard, ZoneName } from '../../types/play';
 import { ZONE_LABELS } from '../../types/play';
 import { canSeeGraveOrExileFace, filterPublicZoneCards, visibleCardFace } from '../../utils/playTable';
 import { listedCounterCounts } from '../../data/mtgCounters';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { isCoarsePointer } from '../../utils/coarsePointer';
 import { MTG_CARD_BACK_URL } from './PlayCard';
 
 interface ZoneBrowsePanelProps {
@@ -41,7 +42,6 @@ export function ZoneBrowsePanel({
 }: ZoneBrowsePanelProps) {
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<{ imageUrl?: string; name: string; rect: DOMRect } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const filtered = useMemo(
     () => filterPublicZoneCards(cards, query, ownerId, viewerId),
     [cards, query, ownerId, viewerId],
@@ -49,7 +49,6 @@ export function ZoneBrowsePanel({
   const hiddenCount = cards.filter((card) => card.facedown).length;
 
   useEffect(() => {
-    inputRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -78,7 +77,6 @@ export function ZoneBrowsePanel({
             </p>
           </div>
           <input
-            ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Nom, type, coût…"
@@ -107,7 +105,8 @@ export function ZoneBrowsePanel({
                       type="button"
                       className="block w-full aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] mb-2"
                       title={label}
-                      onMouseEnter={(event) => {
+                      onClick={(event) => {
+                        if (!isCoarsePointer()) return;
                         if (!canSee || !face.imageUrl) {
                           setHover(null);
                           return;
@@ -118,7 +117,22 @@ export function ZoneBrowsePanel({
                           rect: event.currentTarget.getBoundingClientRect(),
                         });
                       }}
-                      onMouseLeave={() => setHover(null)}
+                      onMouseEnter={(event) => {
+                        if (isCoarsePointer()) return;
+                        if (!canSee || !face.imageUrl) {
+                          setHover(null);
+                          return;
+                        }
+                        setHover({
+                          imageUrl: face.imageUrl,
+                          name: face.name,
+                          rect: event.currentTarget.getBoundingClientRect(),
+                        });
+                      }}
+                      onMouseLeave={() => {
+                        if (isCoarsePointer()) return;
+                        setHover(null);
+                      }}
                     >
                       <img
                         src={canSee && face.imageUrl ? face.imageUrl : MTG_CARD_BACK_URL}
@@ -177,7 +191,14 @@ export function ZoneBrowsePanel({
           )}
         </div>
       </div>
-      {hover && <CardHoverPreview imageUrl={hover.imageUrl} name={hover.name} anchorRect={hover.rect} />}
+      {hover && (
+        <CardHoverPreview
+          imageUrl={hover.imageUrl}
+          name={hover.name}
+          anchorRect={hover.rect}
+          onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
+        />
+      )}
     </div>
   );
 }

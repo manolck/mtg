@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TableCard, ZoneName } from '../../types/play';
 import { filterLibraryCards } from '../../utils/playTable';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { isCoarsePointer } from '../../utils/coarsePointer';
 
 interface LibrarySearchPanelProps {
   cards: TableCard[];
@@ -33,7 +34,7 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
   const filtered = useMemo(() => filterLibraryCards(cards, query), [cards, query]);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (!isCoarsePointer()) inputRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -103,11 +104,22 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
                     type="button"
                     className="block w-full aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] mb-2"
                     title={`${card.name} — clic : main`}
-                    onClick={() => take(card, 'hand')}
-                    onMouseEnter={(event) =>
-                      setHover({ card, rect: event.currentTarget.getBoundingClientRect() })
-                    }
-                    onMouseLeave={() => setHover(null)}
+                    onClick={(event) => {
+                      if (isCoarsePointer()) {
+                        event.preventDefault();
+                        setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                        return;
+                      }
+                      take(card, 'hand');
+                    }}
+                    onMouseEnter={(event) => {
+                      if (isCoarsePointer()) return;
+                      setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                    }}
+                    onMouseLeave={() => {
+                      if (isCoarsePointer()) return;
+                      setHover(null);
+                    }}
                   >
                     {card.imageUrl ? (
                       <img src={card.imageUrl} alt={card.name} className="h-full w-full object-cover" />
@@ -152,7 +164,14 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
           )}
         </div>
       </div>
-      {hover && <CardHoverPreview imageUrl={hover.card.imageUrl} name={hover.card.name} anchorRect={hover.rect} />}
+      {hover && (
+        <CardHoverPreview
+          imageUrl={hover.card.imageUrl}
+          name={hover.card.name}
+          anchorRect={hover.rect}
+          onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
+        />
+      )}
     </div>
   );
 }

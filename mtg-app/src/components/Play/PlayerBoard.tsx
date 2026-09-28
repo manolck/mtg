@@ -32,6 +32,13 @@ import { useDfcFaces } from '../../hooks/useDfcFaces';
 import { useLocalizedTableFaces } from '../../hooks/useLocalizedTableFaces';
 import { useProfile } from '../../hooks/useProfile';
 import { applyLocalizedTableCard, collectVisibleLocalizationIds } from '../../utils/localizedTableFaces';
+import { isCoarsePointer } from '../../utils/coarsePointer';
+import {
+  BUILTIN_PLAY_MATS,
+  loadImagePlayMats,
+  resolvePlayMat,
+  type PlayMatOption,
+} from '../../data/playMats';
 
 interface PlayerBoardProps {
   player: PlayerTableState;
@@ -115,9 +122,10 @@ interface PlayerBoardProps {
   ) => void;
   onToggleHandChoice?: (instanceId: string) => void;
   onClearHandChoices?: () => void;
+  onSetPlaymat?: (playmatId: string) => void;
 }
 
-type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'libraryDrop' | 'sendTo' | 'mill';
+type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'libraryDrop' | 'sendTo' | 'mill' | 'playmat';
 
 interface MenuState {
   card: TableCard | null;
@@ -138,30 +146,6 @@ function primaryMove(from: ZoneName): ZoneName | null {
 }
 
 const CARD_ASPECT = 88 / 63;
-
-type MatTheme = 'battlefield' | 'enchant' | 'terrain';
-
-const MAT_THEMES: Array<{ id: MatTheme; label: string; swatch: string; className: string }> = [
-  {
-    id: 'battlefield',
-    label: 'Champ de bataille',
-    swatch: 'linear-gradient(160deg, var(--battlefield-a), var(--battlefield-c))',
-    className: 'zone--battlefield',
-  },
-  {
-    id: 'enchant',
-    label: 'Enchantements',
-    swatch: 'linear-gradient(160deg, var(--ench-a), var(--ench-c))',
-    className: 'zone--enchant',
-  },
-  {
-    id: 'terrain',
-    label: 'Terrains',
-    swatch: 'linear-gradient(160deg, var(--terrain-a), var(--terrain-c))',
-    className: 'zone--terrain',
-  },
-];
-
 
 function cardWidthForSpace(
   width: number,
@@ -224,6 +208,7 @@ export function PlayerBoard({
   onTransferCard,
   onToggleHandChoice,
   onClearHandChoices,
+  onSetPlaymat,
 }: PlayerBoardProps) {
   const [lightbox, setLightbox] = useState<TableCard | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -237,7 +222,7 @@ export function PlayerBoard({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [handInsertPreview, setHandInsertPreview] = useState<number | null>(null);
-  const [matTheme, setMatTheme] = useState<MatTheme>('battlefield');
+  const [imageMats, setImageMats] = useState<PlayMatOption[]>([]);
   const skipClickRef = useRef(false);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const playmatRef = useRef<HTMLDivElement | null>(null);
@@ -279,6 +264,13 @@ export function PlayerBoard({
     observer.observe(el);
     return () => observer.disconnect();
   }, [visibleSeats, compact]);
+
+  useEffect(() => {
+    void loadImagePlayMats().then(setImageMats);
+  }, []);
+
+  const playMats = useMemo(() => [...BUILTIN_PLAY_MATS, ...imageMats], [imageMats]);
+  const currentMat = resolvePlayMat(player.playmatId, imageMats);
   const boardCards = useMemo(
     () => player.battlefield.filter((card) => !card.attachedTo),
     [player.battlefield],
@@ -646,7 +638,7 @@ export function PlayerBoard({
     onTap?.(card.instanceId, members.length > 1 ? members.map((item) => item.instanceId) : undefined);
   };
 
-  const setCardHover = (event: MouseEvent<HTMLButtonElement>, card: TableCard, zone: ZoneName) => {
+  const setCardHover = (event: MouseEvent<Element>, card: TableCard, zone: ZoneName) => {
     if (dragId) {
       setHover(null);
       return;
@@ -716,7 +708,11 @@ export function PlayerBoard({
         canTransform={Boolean(canActOn(resolved) && isDoubleFacedCard(resolved))}
         stackCount={stackCount}
         onTransform={() => flipCard(resolved)}
-        onClick={(event) => handleCardClick(event, resolved, zone)}
+        onClick={(event) => {
+          handleCardClick(event, resolved, zone);
+          if (skipClickRef.current || !isCoarsePointer()) return;
+          setCardHover(event, resolved, zone);
+        }}
         onDoubleClick={(event) => handleCardDoubleClick(event, resolved, zone)}
         onContextMenu={(event) => {
           if (canActOn(resolved)) {
@@ -726,8 +722,14 @@ export function PlayerBoard({
           event.preventDefault();
           if (zone === 'hand' && !canControl) onToggleHandChoice?.(resolved.instanceId);
         }}
-        onMouseEnter={(event) => setCardHover(event, resolved, zone)}
-          onMouseLeave={() => setHover(null)}
+        onMouseEnter={(event) => {
+          if (isCoarsePointer()) return;
+          setCardHover(event, resolved, zone);
+        }}
+        onMouseLeave={() => {
+          if (isCoarsePointer()) return;
+          setHover(null);
+        }}
         onCounterDelta={
           canActOn(resolved) && zone !== 'library'
             ? (counterId, delta) => onSetCounter?.(resolved.instanceId, counterId, delta)
@@ -895,14 +897,22 @@ export function PlayerBoard({
             if (canControl && top) openMenu(event, resolveCard(top), zone);
             else event.preventDefault();
           }}
+          onClick={(event) => {
+            if (!isCoarsePointer() || !canSeeTop || !resolvedTop) return;
+            setCardHover(event, resolvedTop, zone);
+          }}
           onMouseEnter={(event) => {
+            if (isCoarsePointer()) return;
             if (!canSeeTop || !resolvedTop) {
               setHover(null);
               return;
             }
             setCardHover(event, resolvedTop, zone);
           }}
-          onMouseLeave={() => setHover(null)}
+          onMouseLeave={() => {
+            if (isCoarsePointer()) return;
+            setHover(null);
+          }}
           className={`relative ${sizeClass} aspect-[63/88] rounded-md bg-[#241c2c] ring-1 ${
             canSeeTop ? 'ring-sky-300/70' : 'ring-amber-200/25'
           } shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70 shrink-0 ${
@@ -1000,37 +1010,27 @@ export function PlayerBoard({
     </div>
   );
 
-  const matThemeClass = MAT_THEMES.find((theme) => theme.id === matTheme)?.className || 'zone--battlefield';
+  const matThemeClass = currentMat.kind === 'image' ? 'zone--photo' : currentMat.className || 'zone--battlefield';
+  const matThemeStyle =
+    currentMat.kind === 'image' && currentMat.imageUrl
+      ? ({ ['--playmat-image']: `url("${currentMat.imageUrl}")` } as CSSProperties)
+      : undefined;
 
-  const matThemeMenuItems = (
-    <div className="mt-1 pt-1 border-t border-white/10">
-      <p className="px-2 py-1 text-[11px] text-white/55">Couleur du tapis</p>
-      {MAT_THEMES.map((theme) => (
-        <button
-          key={theme.id}
-          type="button"
-          className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm ${
-            matTheme === theme.id ? 'ring-1 ring-amber-300/80 bg-white/5' : ''
-          }`}
-          onClick={() => {
-            setMatTheme(theme.id);
-            setMenu(null);
-          }}
-        >
-          <span
-            className="h-6 w-6 shrink-0 rounded-md ring-1 ring-white/20"
-            style={{ background: theme.swatch }}
-            aria-hidden
-          />
-          <span>{theme.label}</span>
-          </button>
-      ))}
-        </div>
-  );
+  const matThemeMenuItems = onSetPlaymat ? (
+    <button
+      type="button"
+      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+      onClick={() => setMenu((current) => (current ? { ...current, view: 'playmat' } : current))}
+    >
+      Tapis de jeu
+      <span className="block text-[11px] text-white/50 truncate">{currentMat.label}</span>
+    </button>
+  ) : null;
 
   const battlefieldZone = (
     <div
       className={`${matThemeClass} flex-1 min-h-0 min-w-0 flex flex-col px-1.5 py-1`}
+      style={matThemeStyle}
       data-play-drop="battlefield"
       data-play-board-user-id={player.userId}
       onContextMenu={(event) => {
@@ -1297,7 +1297,9 @@ export function PlayerBoard({
               </button>
             )}
             <p className="px-2 py-1 text-sm font-medium truncate">
-              {menu.from === 'libraryPile'
+              {menu.view === 'playmat'
+                ? 'Tapis de jeu'
+                : menu.from === 'libraryPile'
                 ? 'Bibliothèque'
                 : !menu.card
                   ? menu.from === 'battlefield'
@@ -1309,7 +1311,34 @@ export function PlayerBoard({
                       ? 'Carte'
                       : visibleCardFace(resolveCard(menu.card)).name}
             </p>
-            {menu.view === 'showHand' || menu.view === 'showCard' || menu.view === 'revealTop' ? (
+            {menu.view === 'playmat' ? (
+              <div className="flex flex-col gap-0.5">
+                {playMats.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className={`w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm ${
+                      currentMat.id === theme.id ? 'ring-1 ring-amber-300/80 bg-white/5' : ''
+                    }`}
+                    onClick={() => {
+                      onSetPlaymat?.(theme.id);
+                      setMenu(null);
+                    }}
+                  >
+                    <span
+                      className="h-8 w-12 shrink-0 rounded-md ring-1 ring-white/20 bg-cover bg-center"
+                      style={
+                        theme.kind === 'image' && theme.imageUrl
+                          ? { backgroundImage: `url("${theme.imageUrl}")` }
+                          : { background: theme.swatch }
+                      }
+                      aria-hidden
+                    />
+                    <span>{theme.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : menu.view === 'showHand' || menu.view === 'showCard' || menu.view === 'revealTop' ? (
               <div className="flex flex-col gap-0.5">
                 {menu.view === 'revealTop' && (
                   <button
@@ -1566,7 +1595,9 @@ export function PlayerBoard({
                     >
                       Ajouter un jeton
                     </button>
-                    {matThemeMenuItems}
+                    {matThemeMenuItems ? (
+                      <div className="mt-1 pt-1 border-t border-white/10">{matThemeMenuItems}</div>
+                    ) : null}
                   </>
                 )}
                 {menu.from === 'libraryPile' && (
@@ -1935,6 +1966,7 @@ export function PlayerBoard({
           imageUrl={visibleCardFace(hover.card).imageUrl}
           name={visibleCardFace(hover.card).name}
           anchorRect={hover.rect}
+          onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
         />
       )}
 

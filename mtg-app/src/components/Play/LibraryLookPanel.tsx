@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TableCard } from '../../types/play';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { isCoarsePointer } from '../../utils/coarsePointer';
 import { MTG_CARD_BACK_URL } from './PlayCard';
 
 export type LibraryLookMode = 'scry' | 'surveil';
@@ -87,12 +88,22 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
                 <button
                   type="button"
                   className="w-24 sm:w-[7.5rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
-                  onMouseEnter={(event) =>
-                    card.imageUrl
-                      ? setHover({ card, rect: event.currentTarget.getBoundingClientRect() })
-                      : setHover(null)
-                  }
-                  onMouseLeave={() => setHover(null)}
+                  onClick={(event) => {
+                    if (!isCoarsePointer() || !card.imageUrl) return;
+                    setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                  }}
+                  onMouseEnter={(event) => {
+                    if (isCoarsePointer()) return;
+                    if (card.imageUrl) {
+                      setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                    } else {
+                      setHover(null);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (isCoarsePointer()) return;
+                    setHover(null);
+                  }}
                 >
                   <img
                     src={card.imageUrl || MTG_CARD_BACK_URL}
@@ -217,7 +228,14 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
           </p>
         </div>
       </div>
-      {hover && <CardHoverPreview imageUrl={hover.card.imageUrl} name={hover.card.name} anchorRect={hover.rect} />}
+      {hover && (
+        <CardHoverPreview
+          imageUrl={hover.card.imageUrl}
+          name={hover.card.name}
+          anchorRect={hover.rect}
+          onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
+        />
+      )}
     </div>
   );
 }

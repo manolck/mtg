@@ -109,6 +109,13 @@
   }
 }
 
+@media (hover: none) {
+  .card-hover-lift:active {
+    transform: translateY(-2px) scale(1.03);
+    z-index: 10;
+  }
+}
+
 .virtualized-card-grid,
 .collection-card-scroll {
   scrollbar-width: none;

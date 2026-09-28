@@ -3,6 +3,7 @@ import type { MTGCard } from '../../types/card';
 import type { TokenBlueprint } from '../../types/play';
 import { searchPlayTokens } from '../../services/scryfallSearchService';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
+import { isCoarsePointer } from '../../utils/coarsePointer';
 import { useProfile } from '../../hooks/useProfile';
 
 interface TokenSearchPanelProps {
@@ -158,11 +159,22 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
                     type="button"
                     className="block w-full aspect-[63/88] rounded-md overflow-hidden bg-[#1a1520] mb-2"
                     title={`${card.name} — poser ×${quantity}`}
-                    onClick={() => addCard(card)}
-                    onMouseEnter={(event) =>
-                      setHover({ card, rect: event.currentTarget.getBoundingClientRect() })
-                    }
-                    onMouseLeave={() => setHover(null)}
+                    onClick={(event) => {
+                      if (isCoarsePointer()) {
+                        event.preventDefault();
+                        setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                        return;
+                      }
+                      addCard(card);
+                    }}
+                    onMouseEnter={(event) => {
+                      if (isCoarsePointer()) return;
+                      setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                    }}
+                    onMouseLeave={() => {
+                      if (isCoarsePointer()) return;
+                      setHover(null);
+                    }}
                   >
                     {card.imageUrl ? (
                       <img src={card.imageUrl} alt={card.name} className="h-full w-full object-cover" />
@@ -189,7 +201,14 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
           )}
         </div>
       </div>
-      {hover && <CardHoverPreview imageUrl={hover.card.imageUrl} name={hover.card.name} anchorRect={hover.rect} />}
+      {hover && (
+        <CardHoverPreview
+          imageUrl={hover.card.imageUrl}
+          name={hover.card.name}
+          anchorRect={hover.rect}
+          onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
+        />
+      )}
     </div>
   );
 }
