@@ -77,7 +77,22 @@ export default defineConfig(({ mode }) => {
         '/rapidocr': {
           target: 'http://127.0.0.1:5201',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/rapidocr/, ''),
+          rewrite: (path) => path.replace(/^\/rapidocr/, '') || '/',
+          configure: (proxy) => {
+            proxy.on('error', (err, _req, res) => {
+              console.error('[vite] RapidOCR proxy error — is the sidecar running? (npm run ocr:sidecar)', err.message);
+              if (res && !res.headersSent && 'writeHead' in res) {
+                (res as import('http').ServerResponse).writeHead(502, {
+                  'Content-Type': 'application/json',
+                });
+                (res as import('http').ServerResponse).end(
+                  JSON.stringify({
+                    error: 'RapidOCR sidecar unreachable on :5201 — run: npm run ocr:sidecar',
+                  })
+                );
+              }
+            });
+          },
         },
       },
     },

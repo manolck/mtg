@@ -1,7 +1,7 @@
 /**
  * Load OpenCV.js lazily for card edge detection.
  * Prefer a self-hosted copy under /vendor/opencv.js (no third-party runtime).
- * Falls back to the official CDN only if the local file is missing.
+ * Falls back to CDN mirrors only if the local file is missing.
  */
 
 declare global {
@@ -31,7 +31,14 @@ declare global {
       RETR_LIST: number;
       CHAIN_APPROX_SIMPLE: number;
       getPerspectiveTransform: (src: any, dst: any) => any;
-      warpPerspective: (src: any, dst: any, M: any, dsize: any, flags?: number, borderMode?: number) => void;
+      warpPerspective: (
+        src: any,
+        dst: any,
+        M: any,
+        dsize: any,
+        flags?: number,
+        borderMode?: number
+      ) => void;
       INTER_LINEAR: number;
       BORDER_CONSTANT: number;
       [key: string]: unknown;
@@ -40,40 +47,55 @@ declare global {
 }
 
 const LOCAL_OPENCV_URL = `${import.meta.env.BASE_URL}vendor/opencv.js`;
-const CDN_OPENCV_URL = 'https://docs.opencv.org/4.8.0/opencv.js';
+/** Mirrors — docs.opencv.org is often blocked / flaky. */
+const CDN_OPENCV_URLS = [
+  'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.8.0-release.1/dist/opencv.js',
+  'https://docs.opencv.org/4.8.0/opencv.js',
+];
 
 let loadPromise: Promise<void> | null = null;
 
 function injectScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    (window as Window & { Module?: { onRuntimeInitialized?: () => void } }).Module = {
-      onRuntimeInitialized: () => resolve(),
+    let settled = false;
+    const done = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else resolve();
     };
+
+    const timeout = window.setTimeout(() => {
+      done(new Error(`OpenCV load timed out: ${src}`));
+    }, 60000);
+
+    (window as Window & { Module?: { onRuntimeInitialized?: () => void } }).Module = {
+      onRuntimeInitialized: () => {
+        window.clearTimeout(timeout);
+        done();
+      },
+    };
+
     const script = document.createElement('script');
     script.async = true;
     script.src = src;
-    script.crossOrigin = 'anonymous';
+    // Same-origin local file: avoid crossOrigin (can break some hosts)
+    if (!src.startsWith('/') && !src.startsWith(window.location.origin)) {
+      script.crossOrigin = 'anonymous';
+    }
     script.onload = () => {
-      if (!window.cv) {
-        reject(new Error('OpenCV failed to load'));
-      }
-      // Some builds resolve via onRuntimeInitialized; if cv is already ready, resolve now
       if (window.cv && typeof window.cv.Mat === 'function') {
-        resolve();
+        window.clearTimeout(timeout);
+        done();
       }
+      // else wait for onRuntimeInitialized
     };
-    script.onerror = () => reject(new Error(`Failed to load OpenCV from ${src}`));
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      done(new Error(`Failed to load OpenCV from ${src}`));
+    };
     document.head.appendChild(script);
   });
-}
-
-async function localOpenCvAvailable(): Promise<boolean> {
-  try {
-    const res = await fetch(LOCAL_OPENCV_URL, { method: 'HEAD', cache: 'no-cache' });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }
 
 export function loadOpenCV(): Promise<void> {
@@ -83,16 +105,33 @@ export function loadOpenCV(): Promise<void> {
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
-    if (await localOpenCvAvailable()) {
+    // Always try local first (HEAD probes often 405/timeout on large static files)
+    try {
       await injectScript(LOCAL_OPENCV_URL);
       return;
+    } catch (e) {
+      console.warn('OpenCV: local /vendor/opencv.js failed, trying CDN…', e);
+      if (import.meta.env.DEV) {
+        console.warn(
+          'If missing, run: curl -L -o public/vendor/opencv.js https://docs.opencv.org/4.8.0/opencv.js'
+        );
+      }
     }
-    if (import.meta.env.DEV) {
-      console.warn(
-        'OpenCV: /public/vendor/opencv.js missing — falling back to CDN. For production, download opencv.js 4.8.0 into public/vendor/.'
-      );
+
+    let lastErr: unknown;
+    for (const url of CDN_OPENCV_URLS) {
+      try {
+        await injectScript(url);
+        return;
+      } catch (e) {
+        lastErr = e;
+        console.warn(`OpenCV CDN failed: ${url}`, e);
+      }
     }
-    await injectScript(CDN_OPENCV_URL);
+    loadPromise = null;
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error('Failed to load OpenCV from local file and CDN mirrors');
   })();
 
   return loadPromise;
@@ -100,4 +139,9 @@ export function loadOpenCV(): Promise<void> {
 
 export function isOpenCVLoaded(): boolean {
   return typeof window !== 'undefined' && !!window.cv;
+}
+
+/** Clear cached load promise (tests / retry after sidecar/vendor fix). */
+export function resetOpenCVLoader(): void {
+  loadPromise = null;
 }

@@ -56,7 +56,11 @@ export async function rapidOcrFromCanvas(canvas: HTMLCanvasElement): Promise<Rap
     signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) {
-    throw new Error(`RapidOCR ${res.status}`);
+    const hint =
+      res.status === 405 || res.status === 502
+        ? ' — lance le sidecar: npm run ocr:sidecar'
+        : '';
+    throw new Error(`RapidOCR ${res.status}${hint}`);
   }
   const data = (await res.json()) as {
     texts?: string[];

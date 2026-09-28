@@ -189,14 +189,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def do_HEAD(self) -> None:
+        # Avoid 405 when probes use HEAD (health checks / proxies)
+        if self.path.startswith("/health") or self.path.startswith("/ocr"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
+
     def do_GET(self) -> None:
-        if self.path.startswith("/health"):
+        path = self.path.split("?", 1)[0]
+        if path.startswith("/health"):
             self._json(200, {"ok": True, "engine": "rapidocr"})
             return
         self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
-        if not self.path.startswith("/ocr"):
+        path = self.path.split("?", 1)[0]
+        if not path.startswith("/ocr"):
             self._json(404, {"error": "not found"})
             return
         length = int(self.headers.get("Content-Length", "0"))
