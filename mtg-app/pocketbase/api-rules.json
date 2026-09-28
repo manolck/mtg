@@ -68,7 +68,7 @@
     "viewRule": "@request.auth.id != \"\" && (status != \"closed\" || hostId = @request.auth.id)",
     "createRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
     "updateRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
-    "deleteRule": "@request.auth.id != \"\" && (hostId = @request.auth.id || (@collection.users.id(@request.auth.id).roles != null && @collection.users.id(@request.auth.id).roles ~ \"admin\"))",
+    "deleteRule": "@request.auth.id != \"\" && (hostId = @request.auth.id || @request.auth.roles ~ \"admin\")",
     "notes": "Authenticated users can see open/playing lobbies. Host owns writes. Admins can delete any lobby. Join is enforced on play_seats (waiting + free seat)."
   },
   "play_seats": {

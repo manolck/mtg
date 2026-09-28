@@ -1102,7 +1102,7 @@
     "viewRule": "@request.auth.id != \"\" && (status != \"closed\" || hostId = @request.auth.id)",
     "createRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
     "updateRule": "@request.auth.id != \"\" && hostId = @request.auth.id",
-    "deleteRule": "@request.auth.id != \"\" && (hostId = @request.auth.id || (@collection.users.id(@request.auth.id).roles != null && @collection.users.id(@request.auth.id).roles ~ \"admin\"))"
+    "deleteRule": "@request.auth.id != \"\" && (hostId = @request.auth.id || @request.auth.roles ~ \"admin\")"
   },
   {
     "id": "play_seats_id",

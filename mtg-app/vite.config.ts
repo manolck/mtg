@@ -67,6 +67,7 @@ export default defineConfig(({ mode }) => {
         'mtg-app.duckdns.org',
         'localhost',
         '.duckdns.org',
+        '192.168.1.53',
       ],
       proxy: {
         '/scryfall-icons': {

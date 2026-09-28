@@ -685,11 +685,11 @@ export function PlayerBoard({
           ? (tablePlayers.find((p) => p.userId === chooserIds[0])?.displayName || 'Choisi').slice(0, 12)
           : `${chooserIds.length} joueurs`;
     return (
-      <PlayCard
-        key={card.instanceId}
+        <PlayCard
+          key={card.instanceId}
         card={resolved}
         hideFace={!showFace(zone, resolved)}
-        size={size}
+          size={size}
         widthPx={widthPx}
         style={extraStyle}
         chosen={chosenColors.length > 0}
@@ -727,7 +727,7 @@ export function PlayerBoard({
           if (zone === 'hand' && !canControl) onToggleHandChoice?.(resolved.instanceId);
         }}
         onMouseEnter={(event) => setCardHover(event, resolved, zone)}
-        onMouseLeave={() => setHover(null)}
+          onMouseLeave={() => setHover(null)}
         onCounterDelta={
           canActOn(resolved) && zone !== 'library'
             ? (counterId, delta) => onSetCounter?.(resolved.instanceId, counterId, delta)
@@ -794,8 +794,8 @@ export function PlayerBoard({
             </div>
           </div>
         )}
-      </div>
-    );
+    </div>
+  );
   };
 
   const renderPlaymatArea = (
@@ -983,7 +983,7 @@ export function PlayerBoard({
         onClick={onPassTurn}
       >
         Fin de tour
-      </button>
+          </button>
     ) : null;
 
   const rightPilesDock = (
@@ -1023,9 +1023,9 @@ export function PlayerBoard({
             aria-hidden
           />
           <span>{theme.label}</span>
-        </button>
+          </button>
       ))}
-    </div>
+        </div>
   );
 
   const battlefieldZone = (
@@ -1162,10 +1162,10 @@ export function PlayerBoard({
                   {canControl
                     ? `Effacer les choix (${chosenCount})`
                     : `Effacer mes choix (${myChoiceCount})`}
-                </button>
+          </button>
               )}
-            </div>
-          )}
+        </div>
+      )}
         </div>
         {n > 0 && !handCollapsed && (
           <div
@@ -1227,8 +1227,8 @@ export function PlayerBoard({
                         aria-hidden
                       />
                     ) : null}
-                  </div>
-                );
+    </div>
+  );
               })}
             </div>
           </div>
@@ -1264,8 +1264,8 @@ export function PlayerBoard({
         >
           {battlefieldZone}
           {renderHeldHand(homeMat ? 'bottom' : 'top')}
-        </div>
-      </div>
+            </div>
+          </div>
 
       {menu && canControl && (
         <div className="fixed inset-0 z-[95]" onClick={() => setMenu(null)} onContextMenu={(event) => event.preventDefault()}>
@@ -1387,14 +1387,14 @@ export function PlayerBoard({
                   >
                     Cacher le dessus
                   </button>
-                )}
-              </div>
+            )}
+          </div>
             ) : menu.view === 'sendTo' && menu.card && menu.from !== 'libraryPile' ? (
               <div className="flex flex-col gap-0.5">
                 {menu.from !== 'library' && (
                   <>
-                    <button
-                      type="button"
+              <button
+                type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
                       onClick={() => {
                         onMove?.(menu.card!.instanceId, menu.from as ZoneName, 'library', { toTop: true });
@@ -1459,9 +1459,9 @@ export function PlayerBoard({
                     }}
                   >
                     Exil face caché
-                  </button>
-                )}
-              </div>
+              </button>
+            )}
+          </div>
             ) : menu.view === 'libraryDrop' && menu.card && menu.from !== 'libraryPile' ? (
               <div className="flex flex-col gap-0.5">
                 <p className="px-2 py-1 text-[11px] text-white/60">Où placer dans la bibliothèque ?</p>
@@ -1492,7 +1492,7 @@ export function PlayerBoard({
                 >
                   N-ième position…
                 </button>
-              </div>
+        </div>
             ) : menu.view === 'libraryPos' && menu.card && menu.from !== 'libraryPile' ? (
               <form
                 className="px-2 py-1 space-y-2"
@@ -1579,18 +1579,18 @@ export function PlayerBoard({
                         setMenu(null);
                       }}
                     >
-                      Piocher
-                    </button>
-                    <button
-                      type="button"
+              Piocher
+            </button>
+            <button
+              type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
                       onClick={() => {
                         setLibraryOpen(true);
                         setMenu(null);
                       }}
-                    >
-                      Rechercher
-                    </button>
+            >
+              Rechercher
+            </button>
                     {player.library.length > 0 && (
                       <>
                         <button
@@ -1623,8 +1623,8 @@ export function PlayerBoard({
                         setMenu(null);
                       }}
                     >
-                      Mélanger
-                    </button>
+              Mélanger
+            </button>
                     <button
                       type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
@@ -1633,8 +1633,8 @@ export function PlayerBoard({
                         setMenu(null);
                       }}
                     >
-                      Mulligan
-                    </button>
+              Mulligan
+            </button>
                     {player.library.length > 0 && (
                       <button
                         type="button"
@@ -1642,7 +1642,7 @@ export function PlayerBoard({
                         onClick={() => setMenu({ ...menu, view: 'mill', libraryN: '1' })}
                       >
                         Meule (Mill)…
-                      </button>
+            </button>
                     )}
                     {player.library.length > 0 && (
                       <button
@@ -1668,37 +1668,37 @@ export function PlayerBoard({
                   </>
                 )}
                 {menu.card && menu.from !== 'libraryPile' && primaryMove(menu.from) && (
-                  <button
-                    type="button"
-                    className="w-full text-left px-2 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold mb-1"
-                    onClick={() => {
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold mb-1"
+                onClick={() => {
                       const dest = primaryMove(menu.from as ZoneName);
                       if (dest) onMove?.(menu.card!.instanceId, menu.from as ZoneName, dest);
-                      setMenu(null);
-                    }}
-                  >
+                  setMenu(null);
+                }}
+              >
                     {menu.from === 'hand' || menu.from === 'command'
                       ? 'Poser'
                       : menu.card?.isToken && primaryMove(menu.from as ZoneName) === 'graveyard'
                         ? 'Détruire'
                         : `Vers ${ZONE_LABELS[primaryMove(menu.from as ZoneName) as ZoneName]}`}
-                  </button>
-                )}
+              </button>
+            )}
                 {menu.from === 'battlefield' && menu.card && (
                   <>
-                    <button
-                      type="button"
-                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-                      onClick={() => {
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                onClick={() => {
                         const members = stackFor(menu.card!);
                         onTap?.(
                           menu.card!.instanceId,
                           members.length > 1 ? members.map((item) => item.instanceId) : undefined,
                         );
-                        setMenu(null);
-                      }}
-                    >
-                      {menu.card.tapped ? 'Dégager' : 'Engager'}
+                  setMenu(null);
+                }}
+              >
+                {menu.card.tapped ? 'Dégager' : 'Engager'}
                       {stackFor(menu.card).length > 1 ? ` (×${stackFor(menu.card).length})` : ''}
                     </button>
                     <button
@@ -1749,8 +1749,8 @@ export function PlayerBoard({
                             }}
                           >
                             Étaler la pile ({stackFor(menu.card).length})
-                          </button>
-                        )}
+              </button>
+            )}
                       </>
                     )}
                   </>
@@ -1768,16 +1768,16 @@ export function PlayerBoard({
                   </button>
                 )}
                 {menu.card && menu.from !== 'libraryPile' && (
-                  <button
-                    type="button"
-                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-                    onClick={() => {
+            <button
+              type="button"
+              className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+              onClick={() => {
                       setCounterCardId(menu.card!.instanceId);
-                      setMenu(null);
-                    }}
-                  >
+                setMenu(null);
+              }}
+            >
                     Marqueurs…
-                  </button>
+            </button>
                 )}
                 {menu.card && menu.from !== 'libraryPile' && isPlaymatAttachable(resolveCard(menu.card)) && (
                   <>
@@ -1818,17 +1818,17 @@ export function PlayerBoard({
                   </button>
                 )}
                 {menu.card && menu.from !== 'libraryPile' && showFace(menu.from, menu.card) && (
-                  <button
-                    type="button"
-                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-                    onClick={() => {
-                      setLightbox(menu.card);
-                      setMenu(null);
-                    }}
-                  >
-                    Voir en grand
-                  </button>
-                )}
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                onClick={() => {
+                  setLightbox(menu.card);
+                  setMenu(null);
+                }}
+              >
+                Voir en grand
+              </button>
+            )}
                 {menu.from === 'hand' && menu.card && (
                   <>
                     {(() => {
@@ -1837,16 +1837,16 @@ export function PlayerBoard({
                       return (
                         <>
                           {idx > 0 && (
-                            <button
-                              type="button"
+                <button
+                  type="button"
                               className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-                              onClick={() => {
+                  onClick={() => {
                                 onReorderHand?.(menu.card!.instanceId, idx - 1);
-                                setMenu(null);
-                              }}
-                            >
+                    setMenu(null);
+                  }}
+                >
                               Déplacer vers la gauche
-                            </button>
+                </button>
                           )}
                           {idx < player.hand.length - 1 && (
                             <button

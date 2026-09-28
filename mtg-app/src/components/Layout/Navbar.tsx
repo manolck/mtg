@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
@@ -91,7 +92,7 @@ export function Navbar() {
   );
 
   return (
-    <nav className="sticky top-0 z-40 shrink-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700">
+    <nav className="sticky top-0 z-50 shrink-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14 sm:h-16 gap-2">
           <div className="flex items-center min-w-0 gap-2 lg:gap-3">
@@ -134,8 +135,9 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen((o) => !o)}
-              className="p-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="relative z-[60] p-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
               aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-nav-menu"
               aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
             >
               {mobileMenuOpen ? (
@@ -152,57 +154,62 @@ export function Navbar() {
         </div>
       </div>
 
-      {mobileMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 top-14 sm:top-16 bg-black/50 z-40 lg:hidden"
-            onClick={closeMobileMenu}
-            aria-hidden="true"
-          />
-          <div className="fixed top-14 sm:top-16 right-0 bottom-0 z-50 lg:hidden w-[min(20rem,100vw)] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl overflow-y-auto">
-            <div className="px-3 py-4 space-y-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-              {links.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  className={mobileLinkClass}
-                  onClick={closeMobileMenu}
-                >
-                  {link.label}
+      {mobileMenuOpen &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 top-14 sm:top-16 bg-black/50 z-[90] lg:hidden"
+              onClick={closeMobileMenu}
+              aria-hidden="true"
+            />
+            <div
+              id="mobile-nav-menu"
+              className="fixed top-14 sm:top-16 right-0 bottom-0 z-[100] lg:hidden w-[min(20rem,100vw)] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl overflow-y-auto"
+            >
+              <div className="px-3 py-4 space-y-1 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+                {links.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    className={mobileLinkClass}
+                    onClick={closeMobileMenu}
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
+                <NavLink to="/profile" className={mobileLinkClass} onClick={closeMobileMenu}>
+                  Profil
                 </NavLink>
-              ))}
-              <NavLink to="/profile" className={mobileLinkClass} onClick={closeMobileMenu}>
-                Profil
-              </NavLink>
-              {isAdmin && (
-                <NavLink to="/admin" className={mobileLinkClass} onClick={closeMobileMenu}>
-                  Admin
+                {isAdmin && (
+                  <NavLink to="/admin" className={mobileLinkClass} onClick={closeMobileMenu}>
+                    Admin
+                  </NavLink>
+                )}
+                <NavLink to="/privacy-policy" className={mobileLinkClass} onClick={closeMobileMenu}>
+                  Confidentialité
                 </NavLink>
-              )}
-              <NavLink to="/privacy-policy" className={mobileLinkClass} onClick={closeMobileMenu}>
-                Confidentialité
-              </NavLink>
-              <div className="pt-4 mt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-3 px-3 min-w-0"
-                  onClick={closeMobileMenu}
-                >
-                  <AvatarDisplay avatarId={profile?.avatarId} size="sm" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                    {profile?.pseudonym || currentUser.email}
-                  </span>
-                </Link>
-                <div className="px-3">
-                  <Button variant="secondary" onClick={handleLogout} className="w-full">
-                    Déconnexion
-                  </Button>
+                <div className="pt-4 mt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                  <Link
+                    to="/profile"
+                    className="flex items-center gap-3 px-3 min-w-0"
+                    onClick={closeMobileMenu}
+                  >
+                    <AvatarDisplay avatarId={profile?.avatarId} size="sm" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                      {profile?.pseudonym || currentUser.email}
+                    </span>
+                  </Link>
+                  <div className="px-3">
+                    <Button variant="secondary" onClick={handleLogout} className="w-full">
+                      Déconnexion
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
+          </>,
+          document.body
+        )}
     </nav>
   );
 }
