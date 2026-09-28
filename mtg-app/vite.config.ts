@@ -37,7 +37,12 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          navigateFallbackDenylist: [/^\/api\//, /\/_\/.*/],
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /\/_\/.*/,
+            /^\/table-mats\//,
+            /^\/play\/.*\.(png|jpe?g|webp|svg|json|gif)$/i,
+          ],
           runtimeCaching: [],
         },
         devOptions: { enabled: false },

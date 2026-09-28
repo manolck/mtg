@@ -1,3 +1,5 @@
+import bundledCatalog from '../../public/table-mats/index.json';
+
 export type PlayMatKind = 'css' | 'image';
 
 export interface PlayMatOption {
@@ -9,8 +11,8 @@ export interface PlayMatOption {
   imageUrl?: string;
 }
 
-/** Images dropped in this public folder are served as `/play/mats/<file>`. */
-export const PLAY_MATS_DIR = '/play/mats';
+/** Images in `public/table-mats/` are served as `/table-mats/<file>`. */
+export const PLAY_MATS_DIR = '/table-mats';
 
 export const DEFAULT_PLAY_MAT_ID = 'battlefield';
 
@@ -38,15 +40,15 @@ export const BUILTIN_PLAY_MATS: PlayMatOption[] = [
   },
 ];
 
-const ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
-const FILE_RE = /^[a-z0-9][a-z0-9._-]*\.(png|jpe?g|webp|avif|svg|gif)$/i;
-
 export function isValidPlaymatId(id: string | undefined): id is string {
-  return Boolean(id && ID_RE.test(id));
+  if (!id || id.length > 64) return false;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) return false;
+  return /^[\p{L}\p{N}][\p{L}\p{N}._-]*$/u.test(id);
 }
 
 function isSafeMatFile(file: string): boolean {
-  return FILE_RE.test(file) && !file.includes('..') && !file.includes('/') && !file.includes('\\');
+  if (!file || file.includes('..') || file.includes('/') || file.includes('\\')) return false;
+  return /\.(png|jpe?g|webp|avif|svg|gif)$/i.test(file);
 }
 
 type MatsIndex = {
@@ -64,12 +66,13 @@ function parseImageMats(data: unknown): PlayMatOption[] {
     const label = typeof raw.label === 'string' ? raw.label.trim() : id;
     if (!isValidPlaymatId(id) || seen.has(id) || !isSafeMatFile(file)) continue;
     seen.add(id);
+    const encoded = encodeURIComponent(file);
     out.push({
       id,
       label: label || id,
       kind: 'image',
-      imageUrl: `${PLAY_MATS_DIR}/${encodeURIComponent(file)}`,
-      swatch: `center / cover url(${PLAY_MATS_DIR}/${encodeURIComponent(file)})`,
+      imageUrl: `${PLAY_MATS_DIR}/${encoded}`,
+      swatch: `center / cover url(${PLAY_MATS_DIR}/${encoded})`,
     });
   }
   return out;
@@ -81,12 +84,14 @@ let imageMatsPending: Promise<PlayMatOption[]> | null = null;
 export function loadImagePlayMats(): Promise<PlayMatOption[]> {
   if (imageMatsCache) return Promise.resolve(imageMatsCache);
   if (imageMatsPending) return imageMatsPending;
+  const bundled = parseImageMats(bundledCatalog);
   imageMatsPending = fetch(`${PLAY_MATS_DIR}/index.json`, { cache: 'no-store' })
     .then(async (res) => {
-      if (!res.ok) return [];
-      return parseImageMats(await res.json());
+      if (!res.ok) return bundled;
+      const parsed = parseImageMats(await res.json());
+      return parsed.length > 0 ? parsed : bundled;
     })
-    .catch(() => [])
+    .catch(() => bundled)
     .then((mats) => {
       imageMatsCache = mats;
       return mats;

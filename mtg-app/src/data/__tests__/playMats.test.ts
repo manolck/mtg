@@ -4,6 +4,7 @@ describe('playMats', () => {
   it('accepts catalog ids and rejects path tricks', () => {
     expect(isValidPlaymatId('canopy')).toBe(true);
     expect(isValidPlaymatId('coast-2')).toBe(true);
+    expect(isValidPlaymatId('Druide_maléfique')).toBe(true);
     expect(isValidPlaymatId('../secret')).toBe(false);
     expect(isValidPlaymatId('foo/bar')).toBe(false);
     expect(isValidPlaymatId('')).toBe(false);

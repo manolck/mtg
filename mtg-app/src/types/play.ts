@@ -122,7 +122,7 @@ export interface PlayerTableState {
   chosenHandCards?: ChosenHandCard[];
   /** Dessus de bibliothèque révélé pour cette audience. */
   libraryTopRevealedTo?: RevealAudience;
-  /** Tapis du champ de bataille (`battlefield` CSS, ou id d’image dans /play/mats). */
+  /** Tapis du champ de bataille (`battlefield` CSS, ou id d’image dans /table-mats). */
   playmatId?: string;
 }
 
