@@ -82,11 +82,11 @@ export default defineConfig(({ mode }) => {
           configure: (proxy) => {
             proxy.on('error', (err, _req, res) => {
               console.error('[vite] RapidOCR proxy error — is the sidecar running? (npm run ocr:sidecar)', err.message);
-              if (res && !res.headersSent && 'writeHead' in res) {
-                (res as import('http').ServerResponse).writeHead(502, {
+              if (res && 'writeHead' in res && !res.headersSent) {
+                res.writeHead(502, {
                   'Content-Type': 'application/json',
                 });
-                (res as import('http').ServerResponse).end(
+                res.end(
                   JSON.stringify({
                     error: 'RapidOCR sidecar unreachable on :5201 — run: npm run ocr:sidecar',
                   })
