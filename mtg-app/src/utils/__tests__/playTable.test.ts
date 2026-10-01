@@ -15,6 +15,8 @@ import {
   isPlaymatLand,
   isHandCardChosen,
   handCardChoosers,
+  matchWinner,
+  rebuildMatchPlayers,
   snapshotFromDeck,
   splitBattlefield,
   tableBattlefieldCards,
@@ -87,6 +89,78 @@ describe('playTable', () => {
     expect(player.command).toHaveLength(1);
     expect(player.command[0].name).toBe('Kaalia of the Vast');
     expect(state.version).toBe(1);
+    expect(state.chat).toEqual([]);
+  });
+
+  it('syncs table chat and dice rolls for every player', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          displayName: 'A',
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Kaalia',
+            format: 'commander',
+            mainboard: [bolt],
+            commanders: [commander],
+          },
+        }),
+        seat({
+          userId: 'u2',
+          seatIndex: 1,
+          displayName: 'B',
+          deckSnapshot: {
+            deckId: 'd2',
+            name: 'Burn',
+            format: 'commander',
+            mainboard: [bolt],
+            commanders: [],
+          },
+        }),
+      ],
+      'commander',
+      { random: () => 0 },
+    );
+
+    state = applyMatchAction(state, {
+      type: 'chat',
+      userId: 'u1',
+      id: 'c1',
+      text: 'salut',
+      name: 'A',
+      created: 10,
+    });
+    state = applyMatchAction(state, {
+      type: 'chat',
+      userId: 'u2',
+      id: 'c2',
+      text: '/r 2d6',
+      name: 'B',
+      created: 11,
+      dice: { count: 2, faces: 6, rolls: [3, 5] },
+    });
+    expect(state.chat).toEqual([
+      { id: 'c1', userId: 'u1', name: 'A', text: 'salut', created: 10 },
+      {
+        id: 'c2',
+        userId: 'u2',
+        name: 'B',
+        text: '/r 2d6',
+        created: 11,
+        dice: { count: 2, faces: 6, rolls: [3, 5] },
+      },
+    ]);
+
+    const replayed = applyMatchAction(state, {
+      type: 'chat',
+      userId: 'u1',
+      id: 'c1',
+      text: 'salut',
+    });
+    expect(replayed.version).toBe(state.version);
+    expect(replayed.chat).toHaveLength(2);
   });
 
   it('starts constructed at 20 life', () => {
@@ -441,6 +515,99 @@ describe('playTable', () => {
     expect(state.turnSeatIndex).toBe(0);
   });
 
+  it('skips eliminated players on passTurn and can hide them from the living set', () => {
+    const mk = (userId: string, seatIndex: number) =>
+      seat({
+        userId,
+        seatIndex,
+        displayName: userId,
+        deckSnapshot: {
+          deckId: userId,
+          name: userId,
+          format: 'commander',
+          mainboard: [{ ...bolt, quantity: 8 }],
+          commanders: [],
+        },
+      });
+    let state = createInitialMatchState([mk('u1', 0), mk('u2', 1), mk('u3', 2)], 'commander', {
+      random: () => 0,
+    });
+    expect(state.turnSeatIndex).toBe(0);
+    state = applyMatchAction(state, { type: 'setEliminated', userId: 'u2', eliminated: true });
+    expect(state.players[1].eliminated).toBe(true);
+    expect(state.turnSeatIndex).toBe(0);
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.turnSeatIndex).toBe(2);
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.turnSeatIndex).toBe(0);
+
+    state = applyMatchAction(state, { type: 'setEliminated', userId: 'u1', eliminated: true });
+    expect(state.turnSeatIndex).toBe(2);
+    state = applyMatchAction(state, { type: 'passTurn' });
+    expect(state.turnSeatIndex).toBe(2);
+
+    state = applyMatchAction(state, { type: 'setEliminated', userId: 'u2', eliminated: false });
+    state = applyMatchAction(state, { type: 'setLife', userId: 'u3', delta: -50 });
+    expect(state.players[2].eliminated).toBe(true);
+    expect(state.players[2].life).toBeLessThanOrEqual(0);
+    expect(state.turnSeatIndex).toBe(1);
+
+    state = applyMatchAction(state, { type: 'setEliminated', userId: 'u1', eliminated: false });
+    expect(state.players[0].eliminated).toBeFalsy();
+  });
+
+  it('declares a winner when only one player remains and can restart the match', () => {
+    const seats = [
+      seat({
+        userId: 'u1',
+        seatIndex: 0,
+        displayName: 'A',
+        deckSnapshot: {
+          deckId: 'd1',
+          name: 'A',
+          format: 'commander',
+          mainboard: [{ ...bolt, quantity: 8 }],
+          commanders: [commander],
+        },
+      }),
+      seat({
+        userId: 'u2',
+        seatIndex: 1,
+        displayName: 'B',
+        deckSnapshot: {
+          deckId: 'd2',
+          name: 'B',
+          format: 'commander',
+          mainboard: [{ ...bolt, quantity: 8 }],
+          commanders: [],
+        },
+      }),
+    ];
+    let state = createInitialMatchState(seats, 'commander', { random: () => 0 });
+    expect(matchWinner(state)).toBeNull();
+    state = applyMatchAction(state, { type: 'setEliminated', userId: 'u2', eliminated: true });
+    expect(matchWinner(state)?.userId).toBe('u1');
+
+    const players = rebuildMatchPlayers(state, seats, { random: () => 0 });
+    expect(players).toHaveLength(2);
+    expect(players?.[0].eliminated).toBeFalsy();
+    expect(players?.[0].hand).toHaveLength(7);
+    expect(players?.[0].command).toHaveLength(1);
+    expect(players?.[1].eliminated).toBeFalsy();
+
+    const restarted = applyMatchAction(state, {
+      type: 'restartMatch',
+      userId: 'u1',
+      players: players!,
+      turnSeatIndex: 0,
+    });
+    expect(restarted.version).toBe(state.version + 1);
+    expect(matchWinner(restarted)).toBeNull();
+    expect(restarted.players.every((player) => !player.eliminated)).toBe(true);
+    expect(restarted.players[0].life).toBe(20);
+    expect(restarted.players[1].hand).toHaveLength(7);
+  });
+
   it('sets the active turn seat without drawing', () => {
     let state = createInitialMatchState(
       [
@@ -740,6 +907,13 @@ describe('playTable', () => {
     });
     const after = state.players[0].library;
     expect(after[after.length - 1].instanceId).toBe(lastHand.instanceId);
+
+    const topId = state.players[0].library[0].instanceId;
+    expect(state.players[0].library[0].facedown).toBe(true);
+    state = applyMatchAction(state, { type: 'draw', userId: 'u1' });
+    const drawn = state.players[0].hand[state.players[0].hand.length - 1];
+    expect(drawn.instanceId).toBe(topId);
+    expect(drawn.facedown).toBe(false);
   });
 
   it('shows and hides a hand, a card, and the library top to chosen viewers', () => {

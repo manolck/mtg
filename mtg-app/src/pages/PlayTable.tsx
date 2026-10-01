@@ -22,12 +22,14 @@ import {
   savePlayAvDevices,
 } from '../services/playRtcService';
 import type { MatchActionRecord, MatchState, PlayAction, PlayLobby, PlaySeat, ZoneName } from '../types/play';
-import { applyMatchAction, isDummyUserId, startingLifeFor } from '../utils/playTable';
+import { applyMatchAction, isDummyUserId, matchWinner, rebuildMatchPlayers, startingLifeFor } from '../utils/playTable';
 import { createSeqActionBuffer } from '../utils/playSyncSeqBuffer';
 import type { SyncedPlayAction } from '../utils/playSyncProtocol';
 import { PlayerBoard } from '../components/Play/PlayerBoard';
+import { PlayTableChat } from '../components/Play/PlayTableChat';
 import { RtcControls } from '../components/Play/RtcControls';
 import { PlayAvConsent, PLAY_AV_CONSENT_KEY } from '../components/Play/PlayAvConsent';
+import { PlayMatchEndMenu } from '../components/Play/PlayMatchEndMenu';
 import { RemoteAudioHub, unlockRemoteAudio } from '../components/Play/RemoteAudio';
 import { Spinner } from '../components/UI/Spinner';
 import { watchWithPoll } from '../utils/playRealtime';
@@ -52,8 +54,9 @@ export function PlayTable() {
   const [rtcLink, setRtcLink] = useState<RtcLinkStatus>('idle');
   const [hearBlocked, setHearBlocked] = useState(false);
   const [attachPickId, setAttachPickId] = useState<string | null>(null);
-  const [tableView, setTableView] = useState<'all' | 'active'>('all');
+  const [tableView, setTableView] = useState<'all' | 'active' | 'alive'>('all');
   const [firstPlayerNotice, setFirstPlayerNotice] = useState<string | null>(null);
+  const [rematchBusy, setRematchBusy] = useState(false);
   const attachPickIdRef = useRef<string | null>(null);
   const attachOwnerRef = useRef<string | null>(null);
   attachPickIdRef.current = attachPickId;
@@ -301,6 +304,7 @@ export function PlayTable() {
       const stream = rememberMic(await getPlayMic(micIdRef.current || undefined));
       if (meshRef.current) {
         await meshRef.current.replaceMedia(stream);
+        meshRef.current.setTrackEnabled('audio', true);
       }
       publishLocalStream(stream);
       localStorage.setItem(PLAY_AV_CONSENT_KEY, 'yes');
@@ -355,10 +359,13 @@ export function PlayTable() {
       void enableMedia();
       return;
     }
-    meshRef.current?.setTrackEnabled('audio', next);
-    capture?.getAudioTracks().forEach((track) => {
-      track.enabled = next;
-    });
+    if (meshRef.current) {
+      meshRef.current.setTrackEnabled('audio', next);
+    } else {
+      capture?.getAudioTracks().forEach((track) => {
+        track.enabled = next;
+      });
+    }
     if (capture) publishLocalStream(capture);
   }, [enableMedia, localStream, publishLocalStream]);
 
@@ -458,11 +465,42 @@ export function PlayTable() {
     }
   }, [matchId, currentUser, load, useSocketSync]);
 
+  const rematch = useCallback(async () => {
+    const current = stateRef.current;
+    if (!current || !currentUser || rematchBusy) return;
+    if (!matchWinner(current)) return;
+    const players = rebuildMatchPlayers(current, seats);
+    if (!players) {
+      errorHandler.handleAndShowError(new Error('Impossible de relancer : decks introuvables.'));
+      return;
+    }
+    setRematchBusy(true);
+    try {
+      const next = await send({
+        type: 'restartMatch',
+        userId: currentUser.uid,
+        players,
+        turnSeatIndex: players[0]?.seatIndex ?? 0,
+      });
+      if (next && matchId) {
+        void compactMatchSnapshot({
+          matchId,
+          userId: currentUser.uid,
+          state: next,
+          actionCount: appliedIdsRef.current.size,
+          force: true,
+        });
+      }
+    } finally {
+      setRematchBusy(false);
+    }
+  }, [currentUser, matchId, rematchBusy, seats, send]);
+
   const rollFirstPlayer = useCallback(() => {
     const current = stateRef.current;
     if (!current?.players.length) return;
-    const real = current.players.filter((player) => !isDummyUserId(player.userId));
-    const pool = real.length > 0 ? real : current.players;
+    const real = current.players.filter((player) => !isDummyUserId(player.userId) && !player.eliminated);
+    const pool = real.length > 0 ? real : current.players.filter((player) => !player.eliminated);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     if (!pick) return;
     void send({ type: 'setTurn', seatIndex: pick.seatIndex });
@@ -503,10 +541,19 @@ export function PlayTable() {
     );
   }
 
-  const activePlayer = players.find((player) => player.seatIndex === state.turnSeatIndex) || players[0];
-  const shownPlayers = tableView === 'active' && activePlayer ? [activePlayer] : players;
+  const activePlayer = players.find((player) => player.seatIndex === state.turnSeatIndex && !player.eliminated)
+    || players.find((player) => !player.eliminated)
+    || players[0];
+  const filteredPlayers =
+    tableView === 'active' && activePlayer
+      ? [activePlayer]
+      : tableView === 'alive'
+        ? players.filter((player) => !player.eliminated)
+        : players;
+  const shownPlayers = filteredPlayers.length > 0 ? filteredPlayers : players;
   const shownCount = shownPlayers.length;
   const stacked = shownCount <= 2;
+  const winner = matchWinner(state);
 
   const renderPane = (player: (typeof players)[number], compact: boolean) => {
     const isSelf = player.userId === currentUser.uid;
@@ -533,6 +580,7 @@ export function PlayTable() {
         onLife={(delta) => send({ type: 'setLife', userId: boardUserId, delta })}
         onPoison={(delta) => send({ type: 'setPoison', userId: boardUserId, delta })}
         onSetPlaymat={(playmatId) => send({ type: 'setPlaymat', userId: boardUserId, playmatId })}
+        onSetEliminated={(eliminated) => send({ type: 'setEliminated', userId: boardUserId, eliminated })}
         onMove={(instanceId, from, to, options) =>
           send({
             type: 'moveCard',
@@ -648,12 +696,14 @@ export function PlayTable() {
         onClearHandChoices={() =>
           send({ type: 'clearHandChoices', userId: currentUser.uid, ownerId: player.userId })
         }
+        chatMessages={isSelf ? state.chat : undefined}
+        onSendChat={isSelf ? (action) => void send(action) : undefined}
       />
     );
   };
 
   return (
-    <div className="h-dvh flex flex-col bg-[#07141c] text-white overflow-hidden">
+    <div className="h-dvh relative flex flex-col bg-[#07141c] text-white overflow-hidden">
       <RemoteAudioHub streams={remoteStreams} onBlockedChange={setHearBlocked} />
       <header className="shrink-0 relative z-30 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 bg-black/40 border-b border-white/10">
         <div className="min-w-0">
@@ -674,7 +724,17 @@ export function PlayTable() {
             }`}
             onClick={() => setTableView('all')}
           >
-            Vue globale
+            Tous
+          </button>
+          <button
+            type="button"
+            title="Masquer les plateaux des joueurs éliminés"
+            className={`px-2 sm:px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-semibold ${
+              tableView === 'alive' ? 'bg-amber-400 text-black' : 'text-white/70 hover:text-white'
+            }`}
+            onClick={() => setTableView('alive')}
+          >
+            Vivants
           </button>
           <button
             type="button"
@@ -684,7 +744,7 @@ export function PlayTable() {
             }`}
             onClick={() => setTableView('active')}
           >
-            Joueur actif
+            Actif
           </button>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -794,6 +854,17 @@ export function PlayTable() {
               ))}
           </div>
         )}
+        {!shownPlayers.some((player) => player.userId === currentUser.uid) && (
+          <div className="absolute bottom-4 left-3 z-40 group/cmd">
+            <PlayTableChat
+              messages={state.chat || []}
+              selfId={currentUser.uid}
+              selfName={players.find((item) => item.userId === currentUser.uid)?.displayName}
+              players={state.players}
+              onSend={(action) => void send(action)}
+            />
+          </div>
+        )}
       </div>
 
       <PlayAvConsent
@@ -809,6 +880,15 @@ export function PlayTable() {
           void startRtc(false);
         }}
       />
+      {winner && (
+        <PlayMatchEndMenu
+          winnerName={winner.displayName || 'Joueur'}
+          isWinner={winner.userId === currentUser.uid}
+          rematchBusy={rematchBusy}
+          onRematch={() => void rematch()}
+          onLeave={() => navigate(`/play/${lobbyId}`, { state: { fromTable: true } })}
+        />
+      )}
     </div>
   );
 }

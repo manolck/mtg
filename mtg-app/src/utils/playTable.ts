@@ -14,6 +14,7 @@ import { REVEAL_ALL, ZONE_NAMES } from '../types/play';
 import { normalizeCounterId } from '../data/mtgCounters';
 import { DEFAULT_PLAY_MAT_ID, isValidPlaymatId } from '../data/playMats';
 import { shuffleCards } from './sampleHand';
+import { appendChatMessage, isValidChatDice, sanitizeChatText } from './playChat';
 
 const STARTING_HAND = 7;
 
@@ -154,12 +155,88 @@ export function createInitialMatchState(
     players: ordered.map((seat) =>
       createPlayerFromSnapshot(seat, { ...options, playerCount: ordered.length, format }),
     ),
+    chat: [],
   };
+}
+
+export function livingPlayers(state: MatchState): PlayerTableState[] {
+  return state.players.filter((player) => !player.eliminated);
+}
+
+/** Last living player when at least two started and everyone else is out. */
+export function matchWinner(state: MatchState): PlayerTableState | null {
+  if (state.players.length < 2) return null;
+  const living = livingPlayers(state);
+  return living.length === 1 ? living[0] : null;
+}
+
+export function rebuildMatchPlayers(
+  state: MatchState,
+  seats: Array<Pick<PlaySeat, 'userId' | 'seatIndex' | 'displayName' | 'deckSnapshot'>>,
+  options?: { random?: () => number },
+): PlayerTableState[] | null {
+  const ordered = [...state.players].sort((a, b) => a.seatIndex - b.seatIndex);
+  const seatByUser = new Map(seats.map((seat) => [seat.userId, seat]));
+  for (const player of ordered) {
+    if (isDummyUserId(player.userId)) continue;
+    if (!seatByUser.get(player.userId)?.deckSnapshot) return null;
+  }
+
+  const count = ordered.length;
+  const rebuilt = ordered.map((player) => {
+    const seat = seatByUser.get(player.userId);
+    if (!seat?.deckSnapshot) return player;
+    const fresh = createPlayerFromSnapshot(
+      {
+        userId: player.userId,
+        seatIndex: player.seatIndex,
+        displayName: player.displayName || seat.displayName,
+        deckSnapshot: seat.deckSnapshot,
+      },
+      { random: options?.random, playerCount: count, format: state.format },
+    );
+    return { ...fresh, playmatId: player.playmatId };
+  });
+
+  const template = rebuilt.find((player) => !isDummyUserId(player.userId));
+  if (!template && rebuilt.some((player) => isDummyUserId(player.userId))) return null;
+
+  return rebuilt.map((player) => {
+    if (!isDummyUserId(player.userId)) return player;
+    if (!template) return player;
+    const pool = cloneCardsForDummy(
+      [...template.library, ...template.hand],
+      `${player.userId}-lib`,
+      player.userId,
+    );
+    const shuffled = shuffleCards(pool, options?.random);
+    const hand = shuffled.splice(0, Math.min(STARTING_HAND, shuffled.length));
+    return {
+      userId: player.userId,
+      seatIndex: player.seatIndex,
+      displayName: player.displayName,
+      life: startingLifeFor(state.format, count),
+      poison: 0,
+      library: shuffled,
+      hand,
+      battlefield: [],
+      graveyard: [],
+      exile: [],
+      command: cloneCardsForDummy(template.command, `${player.userId}-cmd`, player.userId),
+      shownHandTo: [],
+      shownHandCards: [],
+      chosenHandCards: [],
+      libraryTopRevealedTo: [],
+      playmatId: player.playmatId,
+      eliminated: false,
+    };
+  });
 }
 
 function drawOne(player: PlayerTableState): PlayerTableState {
   if (player.library.length === 0) return player;
-  const [drawn, ...rest] = player.library;
+  const [top, ...rest] = player.library;
+  const drawn = { ...top, facedown: false, tapped: false };
   return { ...player, library: rest, hand: [...player.hand, drawn] };
 }
 
@@ -639,27 +716,130 @@ export function addDummyPlayer(
   };
 }
 
+function livingSeatIndexes(state: MatchState): number[] {
+  return state.players
+    .filter((player) => !player.eliminated)
+    .map((player) => player.seatIndex)
+    .sort((a, b) => a - b);
+}
+
+/** Next living seat after `fromSeat`. Same seat if they are the only living player. */
+export function nextLivingSeatIndex(state: MatchState, fromSeat: number): number | undefined {
+  const seats = livingSeatIndexes(state);
+  if (seats.length === 0) return undefined;
+  const after = seats.find((seat) => seat > fromSeat);
+  return after ?? seats[0];
+}
+
+function advanceToNextLiving(state: MatchState): MatchState {
+  const nextSeat = nextLivingSeatIndex(state, state.turnSeatIndex);
+  if (nextSeat == null || nextSeat === state.turnSeatIndex) return state;
+  const incoming = state.players.find((player) => player.seatIndex === nextSeat);
+  if (!incoming || incoming.eliminated) return state;
+  return {
+    ...state,
+    turnSeatIndex: nextSeat,
+    players: state.players.map((player) => (player.userId === incoming.userId ? beginTurn(incoming) : player)),
+  };
+}
+
+function appendTableChat(state: MatchState, action: Extract<PlayAction, { type: 'chat' }>): MatchState {
+  const sender = findPlayer(state, action.userId);
+  if (!sender) return state;
+  const id = typeof action.id === 'string' ? action.id.trim().slice(0, 64) : '';
+  if (!id) return state;
+  const current = state.chat || [];
+  if (current.some((item) => item.id === id)) return state;
+
+  const dice = isValidChatDice(action.dice)
+    ? {
+        count: Math.floor(action.dice.count),
+        faces: Math.floor(action.dice.faces),
+        rolls: action.dice.rolls.map((value) => Math.floor(value)),
+      }
+    : undefined;
+  const text = sanitizeChatText(action.text || '');
+  if (!dice && !text) return state;
+
+  const name = sanitizeChatText(action.name || sender.displayName || 'Joueur').slice(0, 40) || 'Joueur';
+  const created = typeof action.created === 'number' && Number.isFinite(action.created) ? action.created : 0;
+  return {
+    ...state,
+    version: state.version + 1,
+    chat: appendChatMessage(current, {
+      id,
+      userId: action.userId,
+      name,
+      text,
+      created,
+      dice,
+    }),
+  };
+}
+
+function isRestartPlayer(value: PlayerTableState | undefined): value is PlayerTableState {
+  if (!value?.userId) return false;
+  return ZONE_NAMES.every((zone) => Array.isArray(value[zone]));
+}
+
+function restartMatchFromAction(
+  state: MatchState,
+  action: Extract<PlayAction, { type: 'restartMatch' }>,
+): MatchState {
+  if (!findPlayer(state, action.userId)) return state;
+  if (!matchWinner(state)) return state;
+  if (!Array.isArray(action.players) || action.players.length !== state.players.length) return state;
+  const currentIds = new Set(state.players.map((player) => player.userId));
+  const nextIds = new Set<string>();
+  for (const player of action.players) {
+    if (!isRestartPlayer(player) || !currentIds.has(player.userId) || nextIds.has(player.userId)) return state;
+    nextIds.add(player.userId);
+  }
+  if (nextIds.size !== currentIds.size) return state;
+  const turnPlayer = action.players.find((player) => player.seatIndex === action.turnSeatIndex);
+  if (!turnPlayer) return state;
+  return {
+    ...state,
+    version: state.version + 1,
+    turnSeatIndex: action.turnSeatIndex,
+    players: action.players.map((player) => ({
+      ...player,
+      eliminated: false,
+      poison: Math.max(0, player.poison || 0),
+    })),
+  };
+}
+
 export function applyMatchAction(
   state: MatchState,
   action: PlayAction,
   options?: { random?: () => number }
 ): MatchState {
   if (action.type === 'passTurn') {
-    const seats = state.players.map((p) => p.seatIndex).sort((a, b) => a - b);
-    if (seats.length === 0) return state;
-    const currentIdx = seats.indexOf(state.turnSeatIndex);
-    const nextSeat = seats[(currentIdx + 1) % seats.length];
-    const incoming = state.players.find((player) => player.seatIndex === nextSeat);
-    const nextPlayers = incoming
-      ? state.players.map((player) => (player.userId === incoming.userId ? beginTurn(incoming) : player))
-      : state.players;
-    return { ...state, version: state.version + 1, turnSeatIndex: nextSeat, players: nextPlayers };
+    const next = advanceToNextLiving(state);
+    if (next === state) return state;
+    return { ...next, version: state.version + 1 };
   }
 
   if (action.type === 'setTurn') {
     const target = state.players.find((player) => player.seatIndex === action.seatIndex);
-    if (!target) return state;
+    if (!target || target.eliminated) return state;
     return { ...state, version: state.version + 1, turnSeatIndex: action.seatIndex };
+  }
+
+  if (action.type === 'setEliminated') {
+    const target = findPlayer(state, action.userId);
+    if (!target || Boolean(target.eliminated) === action.eliminated) return state;
+    let next: MatchState = {
+      ...state,
+      players: state.players.map((player) =>
+        player.userId === target.userId ? { ...player, eliminated: action.eliminated } : player,
+      ),
+    };
+    if (action.eliminated && next.turnSeatIndex === target.seatIndex) {
+      next = advanceToNextLiving(next);
+    }
+    return { ...next, version: state.version + 1 };
   }
 
   if (action.type === 'addSeat') {
@@ -680,6 +860,14 @@ export function applyMatchAction(
 
   if (action.type === 'transferCard') {
     return transferCardBetweenPlayers(state, action);
+  }
+
+  if (action.type === 'chat') {
+    return appendTableChat(state, action);
+  }
+
+  if (action.type === 'restartMatch') {
+    return restartMatchFromAction(state, action);
   }
 
   const rawPlayer = findPlayer(state, action.userId);
@@ -770,12 +958,26 @@ export function applyMatchAction(
     case 'setPlaymatPos':
       nextPlayer = setPlaymatPos(player, action.instanceIds, action.x, action.y, action.row);
       break;
-    case 'setLife':
-      nextPlayer = { ...player, life: player.life + action.delta };
+    case 'setLife': {
+      const life = player.life + action.delta;
+      const eliminated = life <= 0 ? true : player.eliminated;
+      nextPlayer = { ...player, life, eliminated };
+      if (!player.eliminated && eliminated && state.turnSeatIndex === player.seatIndex) {
+        const next = replacePlayer(state, nextPlayer);
+        return { ...advanceToNextLiving(next), version: state.version + 1 };
+      }
       break;
-    case 'setPoison':
-      nextPlayer = { ...player, poison: Math.max(0, player.poison + action.delta) };
+    }
+    case 'setPoison': {
+      const poison = Math.max(0, player.poison + action.delta);
+      const eliminated = poison >= 10 ? true : player.eliminated;
+      nextPlayer = { ...player, poison, eliminated };
+      if (!player.eliminated && eliminated && state.turnSeatIndex === player.seatIndex) {
+        const next = replacePlayer(state, nextPlayer);
+        return { ...advanceToNextLiving(next), version: state.version + 1 };
+      }
       break;
+    }
     case 'setPlaymat': {
       if (!isValidPlaymatId(action.playmatId)) return state;
       if ((player.playmatId || DEFAULT_PLAY_MAT_ID) === action.playmatId) return state;

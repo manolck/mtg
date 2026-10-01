@@ -124,6 +124,23 @@ export interface PlayerTableState {
   libraryTopRevealedTo?: RevealAudience;
   /** Tapis du champ de bataille (`battlefield` CSS, ou id d’image dans /table-mats). */
   playmatId?: string;
+  /** Joueur hors-jeu : plus de tour, plateau masquable. */
+  eliminated?: boolean;
+}
+
+export interface PlayChatDice {
+  count: number;
+  faces: number;
+  rolls: number[];
+}
+
+export interface PlayChatMessage {
+  id: string;
+  userId: string;
+  name: string;
+  text: string;
+  created: number;
+  dice?: PlayChatDice;
 }
 
 export interface MatchState {
@@ -133,6 +150,8 @@ export interface MatchState {
   turnSeatIndex: number;
   format: DeckFormat | string;
   players: PlayerTableState[];
+  /** Messages de table : disparaissent avec la partie. */
+  chat?: PlayChatMessage[];
 }
 
 export interface PlayMatch {
@@ -207,6 +226,22 @@ export type PlayAction =
   | { type: 'setLife'; userId: string; delta: number }
   | { type: 'setPoison'; userId: string; delta: number }
   | { type: 'setPlaymat'; userId: string; playmatId: string }
+  | { type: 'setEliminated'; userId: string; eliminated: boolean }
+  | {
+      type: 'restartMatch';
+      userId: string;
+      players: PlayerTableState[];
+      turnSeatIndex: number;
+    }
+  | {
+      type: 'chat';
+      userId: string;
+      id: string;
+      text: string;
+      name?: string;
+      created?: number;
+      dice?: PlayChatDice;
+    }
   | { type: 'passTurn' }
   | { type: 'setTurn'; seatIndex: number }
   | { type: 'mulligan'; userId: string };

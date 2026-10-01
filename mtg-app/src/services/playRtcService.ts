@@ -4,6 +4,7 @@ import { isRealtimeUnavailable, swallowRealtimeError } from '../utils/playRealti
 import { aggregateRtcLinkStatus, type RtcLinkStatus } from '../utils/rtcLinkStatus';
 import { EMPTY_AUDIO_STATS, sumAudioRtcStats, type RtcAudioStats } from '../utils/rtcAudioStats';
 import { playMicConstraintAttempts } from '../utils/playMicConstraints';
+import { rtcOutgoingAudioTrack, setRtpSenderSending } from '../utils/rtcOutgoingAudio';
 import type { RtcSignalPayload } from '../types/play';
 
 export type { RtcLinkStatus, RtcAudioStats };
@@ -208,7 +209,8 @@ function senderForKind(pc: RTCPeerConnection, kind: 'audio'): RTCRtpSender | und
   const transceiver = pc.getTransceivers().find((item) => {
     return item.sender.track?.kind === kind || item.receiver.track.kind === kind;
   });
-  return transceiver?.sender;
+  if (transceiver?.sender) return transceiver.sender;
+  return pc.getSenders().find((sender) => !sender.track);
 }
 
 const SIGNAL_POLL_CONNECTING_MS = 300;
@@ -227,6 +229,9 @@ export class PlayRtcMesh {
   private restartTimers = new Map<string, number>();
   private lastRecoverAt = new Map<string, number>();
   private localStream: MediaStream | null = null;
+  /** When false, RTP senders hold no audio track (mute must not send packets). */
+  private audioSendEnabled = true;
+  private outgoingSync = 0;
   private unsub: (() => void) | null = null;
   private signalPoll: number | null = null;
   private signalPollMs = SIGNAL_POLL_CONNECTING_MS;
@@ -265,6 +270,7 @@ export class PlayRtcMesh {
     getIceServers();
     stream.getTracks().forEach(hintOutgoingTrack);
     this.localStream = stream;
+    this.audioSendEnabled = stream.getAudioTracks().some((track) => track.enabled);
     if (this.signalChannel) {
       this.listening = true;
     } else {
@@ -332,8 +338,17 @@ export class PlayRtcMesh {
   }
 
   setTrackEnabled(kind: 'audio', enabled: boolean): void {
-    this.localStream?.getTracks().forEach((track) => {
-      if (track.kind === kind) track.enabled = enabled;
+    this.audioSendEnabled = enabled;
+    if (enabled) {
+      this.localStream?.getTracks().forEach((track) => {
+        if (track.kind === kind) track.enabled = true;
+      });
+    }
+    void this.syncOutgoingAudio().finally(() => {
+      if (this.audioSendEnabled) return;
+      this.localStream?.getTracks().forEach((track) => {
+        if (track.kind === kind) track.enabled = false;
+      });
     });
   }
 
@@ -355,41 +370,45 @@ export class PlayRtcMesh {
       hintOutgoingTrack(track);
       this.localStream.addTrack(track);
     }
-
-    for (const pc of this.pcs.values()) {
-      const sender = senderForKind(pc, kind);
-      if (sender) {
-        try {
-          await sender.replaceTrack(track);
-        } catch (err) {
-          console.warn('replaceTrack failed', err);
-        }
-      } else if (track) {
-        pc.addTrack(track, this.localStream);
-      }
-    }
+    await this.syncOutgoingAudio();
   }
 
   async replaceMedia(stream: MediaStream): Promise<void> {
     if (this.destroyed) return;
     const previous = this.localStream;
     this.localStream = stream;
-    const track = stream.getAudioTracks()[0] ?? null;
-    for (const pc of this.pcs.values()) {
-      const sender = senderForKind(pc, 'audio');
-      if (sender) {
-        try {
-          await sender.replaceTrack(track);
-        } catch (err) {
-          console.warn('replaceTrack failed', err);
-        }
-      } else if (track) {
-        pc.addTrack(track, stream);
-      }
-    }
+    stream.getAudioTracks().forEach(hintOutgoingTrack);
+    await this.syncOutgoingAudio();
     previous?.getTracks().forEach((item) => {
       if (!stream.getTracks().includes(item)) item.stop();
     });
+  }
+
+  /** Attach a live track only while unmuted; mute uses replaceTrack(null) so no audio RTP. */
+  private async syncOutgoingAudio(): Promise<void> {
+    const gen = ++this.outgoingSync;
+    const sendTrack = rtcOutgoingAudioTrack(this.localStream, this.audioSendEnabled);
+    const stream = this.localStream;
+    for (const pc of [...this.pcs.values()]) {
+      if (gen !== this.outgoingSync || this.destroyed) return;
+      let sender = senderForKind(pc, 'audio');
+      if (!sender && sendTrack && stream) {
+        try {
+          sender = pc.addTrack(sendTrack, stream);
+        } catch (err) {
+          console.warn('addTrack failed', err);
+        }
+      }
+      if (!sender) continue;
+      try {
+        if (sender.track !== sendTrack) {
+          await sender.replaceTrack(sendTrack);
+        }
+        await setRtpSenderSending(sender, Boolean(sendTrack));
+      } catch (err) {
+        console.warn('replaceTrack failed', err);
+      }
+    }
   }
 
   async destroy(): Promise<void> {
@@ -422,10 +441,10 @@ export class PlayRtcMesh {
 
   private attachLocalMedia(pc: RTCPeerConnection): void {
     const stream = this.localStream;
-    const track = stream?.getAudioTracks()[0] ?? null;
-    if (track && stream) {
-      hintOutgoingTrack(track);
-      pc.addTrack(track, stream);
+    const sendTrack = rtcOutgoingAudioTrack(stream, this.audioSendEnabled);
+    if (sendTrack && stream) {
+      hintOutgoingTrack(sendTrack);
+      pc.addTrack(sendTrack, stream);
     } else {
       pc.addTransceiver('audio', { direction: 'sendrecv' });
     }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
-import type { PlayerTableState, RevealAudience, TableCard, TokenBlueprint, ZoneName } from '../../types/play';
+import type { PlayAction, PlayChatMessage, PlayerTableState, RevealAudience, TableCard, TokenBlueprint, ZoneName } from '../../types/play';
 import { REVEAL_ALL, ZONE_LABELS } from '../../types/play';
 import {
   isDoubleFacedCard,
@@ -22,6 +22,7 @@ import { CardLightbox } from '../Card/CardLightbox';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { PlayCard, MTG_CARD_BACK_URL } from './PlayCard';
 import { LifeVial } from './LifeVial';
+import { PlayTableChat } from './PlayTableChat';
 import './playerBar.css';
 import { CounterPicker } from './CounterPicker';
 import { LibrarySearchPanel } from './LibrarySearchPanel';
@@ -123,6 +124,9 @@ interface PlayerBoardProps {
   onToggleHandChoice?: (instanceId: string) => void;
   onClearHandChoices?: () => void;
   onSetPlaymat?: (playmatId: string) => void;
+  onSetEliminated?: (eliminated: boolean) => void;
+  chatMessages?: PlayChatMessage[];
+  onSendChat?: (action: Extract<PlayAction, { type: 'chat' }>) => void;
 }
 
 type MenuView = 'root' | 'showHand' | 'showCard' | 'revealTop' | 'libraryPos' | 'libraryDrop' | 'sendTo' | 'mill' | 'playmat';
@@ -209,6 +213,9 @@ export function PlayerBoard({
   onToggleHandChoice,
   onClearHandChoices,
   onSetPlaymat,
+  onSetEliminated,
+  chatMessages,
+  onSendChat,
 }: PlayerBoardProps) {
   const [lightbox, setLightbox] = useState<TableCard | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -360,7 +367,7 @@ export function PlayerBoard({
         return;
       }
       if (event.key === 'd' || event.key === 'D') {
-        if (!isTurn) return;
+        if (!isTurn || player.eliminated) return;
         event.preventDefault();
         onDraw?.();
       } else if (event.key === '/' || event.key === 'f' || event.key === 'F') {
@@ -373,13 +380,14 @@ export function PlayerBoard({
         event.preventDefault();
         onLife?.(event.shiftKey ? -5 : -1);
       } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        if (player.eliminated) return;
         event.preventDefault();
         onPassTurn?.();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isSelf, isTurn, onDraw, onLife, onPassTurn]);
+  }, [isSelf, isTurn, onDraw, onLife, onPassTurn, player.eliminated]);
 
   const showFace = (zone: ZoneName, card: TableCard) => {
     if (zone === 'graveyard' || zone === 'exile') {
@@ -982,11 +990,24 @@ export function PlayerBoard({
       {!canControl && player.poison > 0 ? (
         <p className="life-poison mt-0.5">☠ {player.poison}</p>
       ) : null}
+      {onSetEliminated ? (
+        <button
+          type="button"
+          className={`mt-1 min-h-[28px] px-2 rounded-md text-[10px] font-semibold uppercase tracking-wide ring-1 ${
+            player.eliminated
+              ? 'bg-emerald-700/90 text-white ring-emerald-300/40 hover:bg-emerald-600'
+              : 'bg-red-900/80 text-red-100 ring-red-400/40 hover:bg-red-800'
+          }`}
+          onClick={() => onSetEliminated(!player.eliminated)}
+        >
+          {player.eliminated ? 'Revenir en jeu' : 'Mort'}
+        </button>
+      ) : null}
     </div>
   );
 
   const endTurnButton =
-    isSelf || seatHome ? (
+    (isSelf || seatHome) && !player.eliminated ? (
       <button
         type="button"
         className={`player-bar-end ${isTurn ? '' : 'is-waiting'}`.trim()}
@@ -1104,7 +1125,7 @@ export function PlayerBoard({
       <>
         <div
           data-mat-chrome="true"
-          className={`absolute z-40 flex gap-1.5 ${
+          className={`absolute z-40 flex gap-1.5 group/cmd ${
             anchor === 'bottom' ? 'bottom-3 left-3 flex-col-reverse items-start' : 'top-3 left-3 flex-col items-start'
           }`}
         >
@@ -1127,6 +1148,15 @@ export function PlayerBoard({
           >
             {handCollapsed ? 'Main masquée' : 'Masquer la main'}
           </button>
+          {isSelf && onSendChat && (
+            <PlayTableChat
+              messages={chatMessages || []}
+              selfId={viewerId}
+              selfName={player.displayName}
+              players={tablePlayers.length ? tablePlayers : [player]}
+              onSend={onSendChat}
+            />
+          )}
           {chosenCount > 0 && (
             <div className="flex flex-col gap-1 items-stretch">
               {choiceLegend.length > 0 ? (
@@ -1264,6 +1294,13 @@ export function PlayerBoard({
         >
           {battlefieldZone}
           {renderHeldHand(homeMat ? 'bottom' : 'top')}
+          {player.eliminated ? (
+            <div className="pointer-events-none absolute inset-0 z-[70] flex items-center justify-center bg-black/50">
+              <p className="rounded-lg bg-black/85 px-3 py-1.5 text-sm font-semibold uppercase tracking-wide text-red-200 ring-1 ring-red-400/50">
+                Éliminé
+              </p>
+            </div>
+          ) : null}
             </div>
           </div>
 
@@ -1597,6 +1634,18 @@ export function PlayerBoard({
                     </button>
                     {matThemeMenuItems ? (
                       <div className="mt-1 pt-1 border-t border-white/10">{matThemeMenuItems}</div>
+                    ) : null}
+                    {onSetEliminated ? (
+                      <button
+                        type="button"
+                        className="mt-1 w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
+                        onClick={() => {
+                          onSetEliminated(!player.eliminated);
+                          setMenu(null);
+                        }}
+                      >
+                        {player.eliminated ? 'Revenir en jeu' : 'Déclarer mort'}
+                      </button>
                     ) : null}
                   </>
                 )}
