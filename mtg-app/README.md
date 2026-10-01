@@ -11,7 +11,7 @@ Stack : **React 19 / Vite 7 / TypeScript / Tailwind** + **PocketBase** (auth + d
 - **Decks** — Création / édition, formats, visibilité publique / unlisted
 - **Wishlist** — Liste de cartes avec recherche Scryfall
 - **Statistiques** — Valeur estimée (MTGJSON / Scryfall), répartitions
-- **Scan** — Détection OpenCV, OCR Tesseract, logos d’éditions Scryfall ; playtest physique via webcam + dHash d’illustration
+- **Scan** — Sidecar Python (OpenCV + RapidOCR) : set + collector number, puis fuzzy noms FR/EN ; playtest physique via webcam + dHash d’illustration
 - **Playtest** — Lobbies, table multi-joueurs, sync live (WebSocket `play-sync`), audio WebRTC (STUN/TURN)
 - **Profil** — Avatar, pseudonyme, langue, mot de passe, suppression de compte
 - **Administration** — Page `/admin` (rôle `admin`) : utilisateurs, déploiement optionnel
@@ -106,6 +106,32 @@ Puis dans `.env.local` : `VITE_PLAY_WS_URL=ws://127.0.0.1:8091/play-ws`.
 - Service worker **désactivé** en `dev` ; pour tester la PWA : `npm run build && npm run preview`
 - Collections play : `PB_ADMIN_EMAIL=… PB_ADMIN_PASSWORD=… npm run ensure-play-collections`
 
+### Scan de cartes (sidecar obligatoire)
+
+Le chemin `/scan` n’utilise plus OpenCV.js ni Tesseract dans le navigateur. Prérequis :
+
+```bash
+# 1) Indexes compacts (set|cn + noms FR/EN) — une fois, ou après maj Scryfall
+npm run build-scan-indexes
+# ou téléchargement bulk Scryfall si aucun all-cards/default-cards local :
+npm run build-scan-indexes -- --download
+# toutes les langues (FR inclus dans prints) — fichier plus gros :
+npm run build-scan-indexes -- --download --all
+# noms seuls depuis le dictionnaire existant (sans prints set|cn) :
+npm run build-scan-indexes -- --names-only
+
+# 2) Dépendances Python OCR + OpenCV
+pip install -r requirements-ocr.txt
+
+# 3) Sidecar (port 5201, proxifié par Vite via /rapidocr)
+npm run ocr:sidecar
+
+# 4) Front
+npm run dev
+```
+
+Sans sidecar : message clair (HTTP 502/405) invitant à lancer `npm run ocr:sidecar`.
+
 ### Scripts npm utiles
 
 | Commande | Description |
@@ -115,7 +141,9 @@ Puis dans `.env.local` : `VITE_PLAY_WS_URL=ws://127.0.0.1:8091/play-ws`.
 | `npm run lint` | ESLint |
 | `npm run ensure-play-collections` | Crée/maj collections play dans PB |
 | `npm run generate-pwa-icons` | Icônes PWA |
-| `npm run build-scryfall-dictionary` | Dictionnaire OCR |
+| `npm run build-scryfall-dictionary` | Dictionnaire OCR (legacy) |
+| `npm run build-scan-indexes` | Indexes scan (`public/scan-indexes/`) |
+| `npm run ocr:sidecar` | Sidecar RapidOCR + OpenCV (`POST /scan`) |
 
 ## PocketBase
 

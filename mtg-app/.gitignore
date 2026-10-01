@@ -25,6 +25,13 @@ dist-ssr
 *.sw?
 #big files
 mtg-app/all-cards-*.json
+all-cards-*.json
+all-cards-*.jsonl
+all-cards-*.jsonl.gz
+default-cards-*.json
+default-cards-*.jsonl
+default-cards-*.jsonl.gz
+scripts/.scan-debug/
 
 # Environment variables (ne jamais committer de secrets)
 .env

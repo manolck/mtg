@@ -23,6 +23,7 @@
     "test-scraping": "node scripts/test-scraping.js",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
     "build-scryfall-dictionary": "node --max-old-space-size=8192 scripts/build-scryfall-dictionary.cjs",
+    "build-scan-indexes": "node --max-old-space-size=8192 scripts/build-scan-indexes.mjs",
     "test:scan-ocr": "node scripts/scan-ocr-benchmark.mjs --runs=10",
     "test:scan-ocr-webcam": "node scripts/scan-ocr-webcam-benchmark.mjs --runs=10",
     "ocr:sidecar": "python scripts/rapidocr_sidecar.py",

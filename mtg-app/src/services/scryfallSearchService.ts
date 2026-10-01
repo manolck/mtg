@@ -452,6 +452,11 @@ export async function searchPrintingsByExactName(
 
   const name = exactName.trim();
   let query = `!"${name.replace(/"/g, '\\"')}"`;
+  if (preferredLanguage === 'fr') {
+    query += ' lang:fr';
+  } else if (preferredLanguage === 'en') {
+    query += ' lang:en';
+  }
   if (setCode && setCode.trim()) {
     query += ` set:${setCode.trim().toLowerCase()}`;
   }

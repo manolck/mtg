@@ -3,33 +3,72 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useCamera } from '../../hooks/useCamera';
 import { useUserCollections } from '../../hooks/useUserCollections';
-import { detectCardEdges, drawQuadOnContext, type Quadrilateral } from '../../utils/cardEdgeDetection';
-import { rectifyCardToCanvas } from '../../utils/rectifyCard';
-import { extractCardNameWithOCR, CARD_NAME_REGION } from '../../utils/cardOcr';
+import {
+  canvasToJpegBlob,
+  checkScanHealth,
+  scanFrame,
+  type ScanCandidate,
+} from '../../services/scanService';
+import {
+  searchCardByScryfallId,
+  searchCardBySetAndNumber,
+  searchCardByOracleId,
+  searchPrintingsByOracleId,
+} from '../../services/scryfallApi';
 import { searchPrintingsByExactName } from '../../services/scryfallSearchService';
-import { getEnglishNameForSearch, findBestMatchingCardName } from '../../services/magicCorporationService';
-import {
-  matchCardLogoToSets,
-  defaultLogoMatchOptions,
-  type LogoRegion,
-  type SetMatch,
-} from '../../services/scryfallSetIconsService';
-import {
-  resolveOcrToDictionaryBestOf,
-  getEnglishNameForOracleId,
-  preloadDictionary,
-  searchCardNamesForAutocomplete,
-} from '../../services/scryfallDictionaryService';
-import type { ScryfallDictionaryEntry } from '../../services/scryfallDictionaryService';
+import { fetchSetsWithIcons } from '../../services/scryfallSetIconsService';
 import { addCard as addCardToCollection } from '../../services/collectionService';
 import { useDecks } from '../../hooks/useDecks';
 import { mtgCardToDeckEntry } from '../../utils/deckEntry';
+import { detectCardEdges, drawQuadOnContext } from '../../utils/cardEdgeDetection';
+import { loadOpenCV } from '../../utils/loadOpenCV';
 import { DECK_FORMAT_LABELS, type DeckZone } from '../../types/deck';
 import { Button } from '../UI/Button';
 import { Spinner } from '../UI/Spinner';
 import type { MTGCard } from '../../types/card';
 
-/** En dev, utilise le proxy Vite pour contourner CORS sur les icônes Scryfall. */
+const STABLE_DETECTION_MS = 450;
+const DETECTION_INTERVAL_MS = 120;
+/** Ne quitter la détection que si un candidat atteint ce score (0–1). */
+const MIN_MATCH_SCORE = 0.95;
+/** Pause avant de re-capturer auto après un scan trop peu confiant. */
+const LOW_CONFIDENCE_COOLDOWN_MS = 900;
+type Step = 1 | 2 | 3;
+
+interface ResolvedCandidate {
+  candidate: ScanCandidate;
+  card: MTGCard | null;
+  loading: boolean;
+  error: string | null;
+  printings: MTGCard[];
+  printingsLoading: boolean;
+  hintedSet: string | null;
+}
+
+interface WizardState {
+  step: Step;
+  previewUrl: string | null;
+  candidates: ResolvedCandidate[];
+  selectedCard: MTGCard | null;
+  adding: boolean;
+  addSuccess: boolean;
+  deckAddSuccess: boolean;
+  deckAddError: string | null;
+  ocrDebug: string | null;
+}
+
+const initialState: WizardState = {
+  step: 1,
+  previewUrl: null,
+  candidates: [],
+  selectedCard: null,
+  adding: false,
+  addSuccess: false,
+  deckAddSuccess: false,
+  deckAddError: null,
+  ocrDebug: null,
+};
+
 function getSetIconDisplayUrl(iconUri: string): string {
   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV && iconUri.startsWith('https://svgs.scryfall.io')) {
     try {
@@ -42,8 +81,15 @@ function getSetIconDisplayUrl(iconUri: string): string {
   return iconUri;
 }
 
-/** Affiche l’icône du set (proxy en dev pour CORS) avec initiales en secours. */
-function SetIconImage({ iconUri, name, className }: { iconUri: string; name: string; className?: string }) {
+function SetIconImage({
+  iconUri,
+  name,
+  className,
+}: {
+  iconUri: string;
+  name: string;
+  className?: string;
+}) {
   const [loadError, setLoadError] = useState(false);
   const displayUrl = getSetIconDisplayUrl(iconUri);
   if (!loadError && displayUrl) {
@@ -66,69 +112,52 @@ function SetIconImage({ iconUri, name, className }: { iconUri: string; name: str
   );
 }
 
-type Step = 1 | 2 | 3;
-
-/** Zone logo d'extension fixe (pas d'overlay UI) — utilisée uniquement après résolution du nom. */
-const LOGO_REGION: LogoRegion = { x: 0.82, y: 0.54, width: 0.13, height: 0.08 };
-
-interface WizardState {
-  step: Step;
-  contourPoints: Quadrilateral | null;
-  contourPointsInCrop: [number, number][] | null;
-  cropWidth: number;
-  cropHeight: number;
-  croppedImageUrl: string | null;
-  detectedName: string;
-  /** Si résolu via le dictionnaire Scryfall, permet d'utiliser le nom anglais pour la recherche. */
-  detectedOracleId: string | null;
-  detectedSetCode: string | null;
-  detectedSetName: string | null;
-  setMatches: SetMatch[];
-  searchResults: MTGCard[];
-  selectedCard: MTGCard | null;
-  adding: boolean;
-  addSuccess: boolean;
-  /** Message after add-to-deck (optional parallel path) */
-  deckAddSuccess: boolean;
-  deckAddError: string | null;
+async function resolveCandidate(c: ScanCandidate): Promise<MTGCard | null> {
+  if (c.scryfall_id) {
+    const byId = await searchCardByScryfallId(c.scryfall_id, true, { magicCorporation: false });
+    if (byId) return byId;
+  }
+  if (c.set && c.collector_number) {
+    const bySet = await searchCardBySetAndNumber(c.set, c.collector_number, true);
+    if (bySet) return bySet;
+  }
+  if (c.oracle_id) {
+    const byOracle = await searchCardByOracleId(c.oracle_id, true);
+    if (byOracle) return byOracle;
+  }
+  const name = c.printed_name || c.name;
+  if (name) {
+    const prints = await searchPrintingsByExactName(
+      name,
+      3,
+      c.lang === 'fr' ? 'fr' : undefined,
+      c.set || undefined
+    );
+    if (prints.length) {
+      if (c.set) {
+        const match = prints.find((p) => p.set?.toLowerCase() === c.set!.toLowerCase());
+        if (match) return match;
+      }
+      return prints[0];
+    }
+  }
+  return null;
 }
 
-const initialState: WizardState = {
-  step: 1,
-  contourPoints: null,
-  contourPointsInCrop: null,
-  cropWidth: 0,
-  cropHeight: 0,
-  croppedImageUrl: null,
-  detectedName: '',
-  detectedOracleId: null,
-  detectedSetCode: null,
-  detectedSetName: null,
-  setMatches: [],
-  searchResults: [],
-  selectedCard: null,
-  adding: false,
-  addSuccess: false,
-  deckAddSuccess: false,
-  deckAddError: null,
-};
-
-/** Crop canvas to the axis-aligned bounding box of the quad */
-function cropCanvasToQuad(canvas: HTMLCanvasElement, quad: Quadrilateral): HTMLCanvasElement {
-  const xs = quad.points.map((p) => p[0]);
-  const ys = quad.points.map((p) => p[1]);
-  const x0 = Math.max(0, Math.floor(Math.min(...xs)));
-  const y0 = Math.max(0, Math.floor(Math.min(...ys)));
-  const x1 = Math.min(canvas.width, Math.ceil(Math.max(...xs)));
-  const y1 = Math.min(canvas.height, Math.ceil(Math.max(...ys)));
-  const w = Math.max(1, x1 - x0);
-  const h = Math.max(1, y1 - y0);
-  const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext('2d');
-  if (ctx) ctx.drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
-  return out;
+async function loadPrintingsForCandidate(rc: ResolvedCandidate): Promise<MTGCard[]> {
+  if (rc.candidate.oracle_id) {
+    const prints = await searchPrintingsByOracleId(rc.candidate.oracle_id, true, 120);
+    if (prints.length) return prints;
+  }
+  const englishOrPrinted = rc.card?.name || rc.candidate.name || rc.candidate.printed_name;
+  if (englishOrPrinted) {
+    const fr = await searchPrintingsByExactName(englishOrPrinted, 80, 'fr');
+    if (fr.length) return fr;
+    const en = await searchPrintingsByExactName(englishOrPrinted, 80, 'en');
+    if (en.length) return en;
+    return searchPrintingsByExactName(englishOrPrinted, 80);
+  }
+  return rc.card ? [rc.card] : [];
 }
 
 export function CardScanWizard() {
@@ -141,15 +170,22 @@ export function CardScanWizard() {
   const [deckZone, setDeckZone] = useState<DeckZone>('mainboard');
   const [addingToDeck, setAddingToDeck] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [sidecarOk, setSidecarOk] = useState<boolean | null>(null);
+  const [setIconByCode, setSetIconByCode] = useState<Record<string, string>>({});
+  const [cardDetected, setCardDetected] = useState(false);
+  const [opencvReady, setOpencvReady] = useState(false);
+  const [opencvError, setOpencvError] = useState<string | null>(null);
+
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationRef = useRef<number>(0);
-  const lastQuadRef = useRef<Quadrilateral | null>(null);
-  const [lastDetectionHasCardProportions, setLastDetectionHasCardProportions] = useState(false);
-  /** Début de la détection continue (carte détectée) pour passage auto après STABLE_DETECTION_MS */
+  const animationRef = useRef(0);
+  const lastDetectionTimeRef = useRef(0);
   const detectionStableSinceRef = useRef<number | null>(null);
-  const [nameSuggestions, setNameSuggestions] = useState<ScryfallDictionaryEntry[]>([]);
-  const nameAutocompleteRef = useRef<HTMLDivElement>(null);
-  const nameAutocompleteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanningRef = useRef(false);
+  const detectionBusyRef = useRef(false);
+  const handleCaptureAndScanRef = useRef<() => Promise<void>>(async () => {});
+  const nextAutoCaptureAllowedAtRef = useRef(0);
 
   const {
     videoRef,
@@ -161,10 +197,6 @@ export function CardScanWizard() {
   } = useCamera({ facingMode: 'environment' });
 
   useEffect(() => {
-    preloadDictionary();
-  }, []);
-
-  useEffect(() => {
     if (!collections.length) return;
     setTargetCollectionId((prev) =>
       prev && collections.some((c) => c.id === prev) ? prev : collections[0].id
@@ -172,122 +204,231 @@ export function CardScanWizard() {
   }, [collections]);
 
   useEffect(() => {
-    if (nameSuggestions.length === 0) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        nameAutocompleteRef.current &&
-        !nameAutocompleteRef.current.contains(e.target as Node)
-      ) {
-        setNameSuggestions([]);
-      }
+    let cancelled = false;
+    checkScanHealth().then((h) => {
+      if (!cancelled) setSidecarOk(h.ok);
+    });
+    return () => {
+      cancelled = true;
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [nameSuggestions.length]);
+  }, []);
 
-  const RECTIFY_WIDTH = 223;
-  const RECTIFY_HEIGHT = 311;
-
-  const handleValidateDetection = useCallback(async () => {
-    const canvas = captureFrame();
-    const quad = lastQuadRef.current;
-    if (!canvas || !quad) return;
-    detectionStableSinceRef.current = null;
-    stopCamera();
-    let croppedCanvas: HTMLCanvasElement;
-    let cropWidth: number;
-    let cropHeight: number;
-    let contourPointsInCrop: [number, number][];
-    try {
-      croppedCanvas = await rectifyCardToCanvas(canvas, quad, RECTIFY_WIDTH, RECTIFY_HEIGHT);
-      cropWidth = RECTIFY_WIDTH;
-      cropHeight = RECTIFY_HEIGHT;
-      contourPointsInCrop = [
-        [0, 0],
-        [RECTIFY_WIDTH, 0],
-        [RECTIFY_WIDTH, RECTIFY_HEIGHT],
-        [0, RECTIFY_HEIGHT],
-      ];
-    } catch {
-      const xs = quad.points.map((p) => p[0]);
-      const ys = quad.points.map((p) => p[1]);
-      const x0 = Math.max(0, Math.floor(Math.min(...xs)));
-      const y0 = Math.max(0, Math.floor(Math.min(...ys)));
-      const x1 = Math.min(canvas.width, Math.ceil(Math.max(...xs)));
-      const y1 = Math.min(canvas.height, Math.ceil(Math.max(...ys)));
-      cropWidth = Math.max(1, x1 - x0);
-      cropHeight = Math.max(1, y1 - y0);
-      contourPointsInCrop = quad.points.map(([px, py]) => [px - x0, py - y0]) as [number, number][];
-      croppedCanvas = cropCanvasToQuad(canvas, quad);
-    }
-    const dataUrl = croppedCanvas.toDataURL('image/jpeg', 0.92);
-    setState((s) => ({
-      ...s,
-      step: 2,
-      contourPoints: quad,
-      contourPointsInCrop,
-      cropWidth,
-      cropHeight,
-      croppedImageUrl: dataUrl,
-      detectedName: '',
-      detectedOracleId: null,
-      detectedSetCode: null,
-      detectedSetName: null,
-      setMatches: [],
-      selectedCard: null,
-      addSuccess: false,
-      deckAddSuccess: false,
-      deckAddError: null,
-    }));
-  }, [captureFrame, stopCamera]);
-
-  const handleValidateDetectionRef = useRef(handleValidateDetection);
   useEffect(() => {
-    handleValidateDetectionRef.current = handleValidateDetection;
-  }, [handleValidateDetection]);
+    let cancelled = false;
+    fetchSetsWithIcons()
+      .then((sets) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const s of sets) {
+          if (s.code && s.icon_svg_uri) map[s.code.toLowerCase()] = s.icon_svg_uri;
+        }
+        setSetIconByCode(map);
+      })
+      .catch(() => {
+        /* icons optional */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  /** Détection continue pendant ce délai (ms) avant passage automatique à l'étape 2 */
-  const STABLE_DETECTION_MS = 500;
-  /** Délai minimum (ms) entre deux exécutions de détection pour laisser le temps au traitement */
-  const DETECTION_INTERVAL_MS = 120;
-
-  // Step 1: run edge detection and draw overlay uniquement si les proportions correspondent à une carte MTG (63×88 mm)
-  const lastDetectionTimeRef = useRef<number>(0);
-  const runDetection = useCallback(async () => {
+  const handleCaptureAndScan = useCallback(async () => {
+    if (scanningRef.current) return;
     const canvas = captureFrame();
-    if (!canvas) return;
-    lastDetectionTimeRef.current = Date.now();
-    const result = await detectCardEdges(canvas);
-    lastQuadRef.current = result;
-    setLastDetectionHasCardProportions(result.hasCardProportions === true);
+    if (!canvas) {
+      setScanError('Impossible de capturer la frame caméra.');
+      return;
+    }
+    scanningRef.current = true;
+    setScanning(true);
+    setScanError(null);
+    detectionStableSinceRef.current = null;
+    setCardDetected(false);
+    stopCamera();
+    try {
+      const blob = await canvasToJpegBlob(canvas, 0.92);
+      const previewUrl = URL.createObjectURL(blob);
+      const result = await scanFrame(blob);
+      const confident = (result.candidates || [])
+        .filter((c) => (c.score ?? 0) >= MIN_MATCH_SCORE)
+        .slice(0, 3);
 
-    if (result.hasCardProportions) {
-      const now = Date.now();
-      if (detectionStableSinceRef.current === null) {
-        detectionStableSinceRef.current = now;
-      } else if (now - detectionStableSinceRef.current >= STABLE_DETECTION_MS) {
+      if (confident.length === 0) {
+        const best = (result.candidates || [])[0];
+        const bestPct = best ? Math.round((best.score ?? 0) * 100) : 0;
+        const hint = result.ocr?.title || result.ocr?.full_joined || '—';
+        setScanError(
+          best
+            ? `Confiance insuffisante (${bestPct}% < 95%). Recadrez — OCR : ${hint}`
+            : `Pas de match ≥ 95%. Recadrez la carte — OCR : ${hint}`
+        );
+        nextAutoCaptureAllowedAtRef.current = Date.now() + LOW_CONFIDENCE_COOLDOWN_MS;
         detectionStableSinceRef.current = null;
-        handleValidateDetectionRef.current();
+        startCamera();
         return;
       }
-    } else {
-      detectionStableSinceRef.current = null;
-    }
 
-    const overlay = overlayCanvasRef.current;
-    if (overlay) {
-      const ctx = overlay.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
-        if (result.hasCardProportions) {
-          drawQuadOnContext(ctx, result, { strokeStyle: '#00ff00', lineWidth: 4 });
-        }
-      }
+      const resolved: ResolvedCandidate[] = confident.map((c) => ({
+        candidate: c,
+        card: null,
+        loading: true,
+        error: null,
+        printings: [],
+        printingsLoading: true,
+        hintedSet: (c.set || null)?.toLowerCase() ?? null,
+      }));
+      setState({
+        ...initialState,
+        step: 2,
+        previewUrl: result.warped_jpeg || previewUrl,
+        candidates: resolved,
+        ocrDebug: result.ocr
+          ? `Titre: ${result.ocr.title || '—'} · Bas: ${result.ocr.set || '?'}/${result.ocr.collector_number || '?'} · ${result.ocr.method || '—'}${
+              result.ocr.strategy ? ` · ${result.ocr.strategy}` : ''
+            }${result.ocr.full_joined ? ` · full: ${result.ocr.full_joined.slice(0, 80)}` : ''}${
+              result.timings_ms?.total_ms != null ? ` · ${result.timings_ms.total_ms} ms` : ''
+            }`
+          : null,
+      });
+      setScanError(null);
+
+      const settled = await Promise.all(
+        confident.map(async (c) => {
+          const hintedSet = (c.set || null)?.toLowerCase() ?? null;
+          try {
+            const card = await resolveCandidate(c);
+            const rc: ResolvedCandidate = {
+              candidate: c,
+              card,
+              loading: false,
+              error: card ? null : 'Carte introuvable sur Scryfall',
+              printings: [],
+              printingsLoading: true,
+              hintedSet: hintedSet || (card?.set || null)?.toLowerCase() || null,
+            };
+            let printings: MTGCard[] = [];
+            try {
+              printings = await loadPrintingsForCandidate(rc);
+              if (!printings.length && card) printings = [card];
+              const hint = rc.hintedSet;
+              printings = [...printings].sort((a, b) => {
+                const aHint = hint && a.set?.toLowerCase() === hint ? 0 : 1;
+                const bHint = hint && b.set?.toLowerCase() === hint ? 0 : 1;
+                return aHint - bHint;
+              });
+            } catch {
+              if (card) printings = [card];
+            }
+            return {
+              ...rc,
+              printings,
+              printingsLoading: false,
+            } satisfies ResolvedCandidate;
+          } catch (err) {
+            return {
+              candidate: c,
+              card: null,
+              loading: false,
+              error: err instanceof Error ? err.message : 'Erreur Scryfall',
+              printings: [],
+              printingsLoading: false,
+              hintedSet,
+            } satisfies ResolvedCandidate;
+          }
+        })
+      );
+      setState((s) => ({ ...s, candidates: settled }));
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Scan échoué');
+      nextAutoCaptureAllowedAtRef.current = Date.now() + LOW_CONFIDENCE_COOLDOWN_MS;
+      startCamera();
+    } finally {
+      scanningRef.current = false;
+      setScanning(false);
     }
-  }, [captureFrame]);
+  }, [captureFrame, stopCamera, startCamera]);
 
   useEffect(() => {
-    if (state.step !== 1 || !cameraReady) return;
+    handleCaptureAndScanRef.current = handleCaptureAndScan;
+  }, [handleCaptureAndScan]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadOpenCV()
+      .then(() => {
+        if (!cancelled) {
+          setOpencvReady(true);
+          setOpencvError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOpencvReady(false);
+          setOpencvError(err instanceof Error ? err.message : 'OpenCV indisponible');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const runDetection = useCallback(async () => {
+    if (scanningRef.current || detectionBusyRef.current) return;
+    detectionBusyRef.current = true;
+    try {
+      const canvas = captureFrame();
+      if (!canvas) return;
+      lastDetectionTimeRef.current = Date.now();
+      const result = await detectCardEdges(canvas);
+      const hasCard = result.hasCardProportions === true;
+      setCardDetected(hasCard);
+
+      const overlay = overlayCanvasRef.current;
+      const video = videoRef.current;
+      if (overlay && video) {
+        const w = video.videoWidth || canvas.width;
+        const h = video.videoHeight || canvas.height;
+        if (w && h && (overlay.width !== w || overlay.height !== h)) {
+          overlay.width = w;
+          overlay.height = h;
+        }
+        const ctx = overlay.getContext('2d');
+        if (ctx && overlay.width > 0 && overlay.height > 0) {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          if (hasCard) {
+            // Même repère que captureFrame (pas de miroir CSS) → contour aligné sur l'affichage
+            drawQuadOnContext(ctx, result, {
+              strokeStyle: '#22c55e',
+              lineWidth: Math.max(4, Math.round(overlay.width / 200)),
+              fillStyle: 'rgba(34, 197, 94, 0.2)',
+            });
+          }
+        }
+      }
+
+      if (Date.now() < nextAutoCaptureAllowedAtRef.current) {
+        detectionStableSinceRef.current = null;
+        return;
+      }
+
+      if (hasCard) {
+        const now = Date.now();
+        if (detectionStableSinceRef.current === null) {
+          detectionStableSinceRef.current = now;
+        } else if (now - detectionStableSinceRef.current >= STABLE_DETECTION_MS) {
+          detectionStableSinceRef.current = null;
+          void handleCaptureAndScanRef.current();
+        }
+      } else {
+        detectionStableSinceRef.current = null;
+      }
+    } finally {
+      detectionBusyRef.current = false;
+    }
+  }, [captureFrame, videoRef]);
+
+  useEffect(() => {
+    if (state.step !== 1 || !cameraReady || scanning) return;
     let mounted = true;
     const tick = async () => {
       if (!mounted) return;
@@ -302,9 +443,8 @@ export function CardScanWizard() {
       mounted = false;
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [state.step, cameraReady, runDetection]);
+  }, [state.step, cameraReady, scanning, runDetection]);
 
-  // Resize overlay to match video
   useEffect(() => {
     const video = videoRef.current;
     const overlay = overlayCanvasRef.current;
@@ -317,141 +457,15 @@ export function CardScanWizard() {
     }
   }, [cameraReady, videoRef]);
 
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrError, setOcrError] = useState<string | null>(null);
-
-  const OCR_DEBOUNCE_MS = 450;
-  const AUTOCOMPLETE_DEBOUNCE_MS = 250;
-
-  useEffect(() => {
-    if (state.step !== 2 || !state.croppedImageUrl) return;
-    const imageUrl = state.croppedImageUrl;
-    const t = setTimeout(() => {
-      setOcrLoading(true);
-      setOcrError(null);
-      extractCardNameWithOCR(imageUrl, CARD_NAME_REGION)
-        .then(async (result) => {
-          let fromDict: Awaited<ReturnType<typeof resolveOcrToDictionaryBestOf>> = null;
-          try {
-            fromDict = await resolveOcrToDictionaryBestOf([
-              result.textAuto,
-              result.textInverted,
-              ...(result.candidates ?? []),
-            ]);
-          } catch {
-            // Dictionnaire indisponible (ex. 404), on utilise le fallback Magic Corporation
-          }
-          if (fromDict) {
-            setState((s) => ({
-              ...s,
-              detectedName: fromDict.name,
-              detectedOracleId: fromDict.oracle_id,
-              setMatches: [],
-              detectedSetCode: null,
-              detectedSetName: null,
-            }));
-            return;
-          }
-          const corrected = await findBestMatchingCardName(result.text);
-          const displayName = corrected
-            ? (corrected.nameVf || corrected.nameVo || result.text)
-            : result.text;
-          setState((s) => ({
-            ...s,
-            detectedName: displayName,
-            detectedOracleId: null,
-            setMatches: [],
-            detectedSetCode: null,
-            detectedSetName: null,
-          }));
-        })
-        .catch((err) => {
-          setOcrError(err instanceof Error ? err.message : 'OCR failed');
-        })
-        .finally(() => setOcrLoading(false));
-    }, OCR_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [state.step, state.croppedImageUrl]);
-
-  const [logoMatchLoading, setLogoMatchLoading] = useState(false);
-  const [logoMatchError, setLogoMatchError] = useState<string | null>(null);
-  const [saveCardLoading, setSaveCardLoading] = useState(false);
-  const [saveCardError, setSaveCardError] = useState<string | null>(null);
-
-  const LOGO_SEARCH_DEBOUNCE_MS = 400;
-
-  /** Recherche d'extension uniquement après qu'un nom de carte ait été trouvé / saisi. */
-  useEffect(() => {
-    if (state.step !== 2 || !state.croppedImageUrl || ocrLoading) return;
-    const name = state.detectedName.trim();
-    if (!name) return;
-
-    const imageUrl = state.croppedImageUrl;
-    const oracleId = state.detectedOracleId;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      setLogoMatchLoading(true);
-      setLogoMatchError(null);
-      void (async () => {
-        try {
-          const cardNameEnglish = oracleId
-            ? (getEnglishNameForOracleId(oracleId) ?? name)
-            : (await getEnglishNameForSearch(name)) ?? name;
-          const matches = await matchCardLogoToSets(
-            imageUrl,
-            LOGO_REGION,
-            10,
-            { ...defaultLogoMatchOptions, useNameFilter: true },
-            cardNameEnglish || undefined
-          );
-          if (cancelled) return;
-          setState((s) => ({
-            ...s,
-            setMatches: matches,
-            detectedSetCode: matches[0]?.set.code ?? null,
-            detectedSetName: matches[0]?.set.name ?? null,
-          }));
-        } catch (err) {
-          if (cancelled) return;
-          setLogoMatchError(err instanceof Error ? err.message : 'Recherche extension échouée');
-        } finally {
-          if (!cancelled) setLogoMatchLoading(false);
-        }
-      })();
-    }, LOGO_SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [state.step, state.croppedImageUrl, state.detectedName, state.detectedOracleId, ocrLoading]);
-
-  /** Au clic sur une édition : recherche nom+set puis passage à la sauvegarde. */
-  const handleSelectEdition = useCallback(
-    async (setCode: string, setName: string) => {
-      if (!state.detectedName.trim()) return;
-      setSaveCardError(null);
-      setSaveCardLoading(true);
-      const name = state.detectedName.trim();
-      const englishName = state.detectedOracleId
-        ? (getEnglishNameForOracleId(state.detectedOracleId) ?? name)
-        : await getEnglishNameForSearch(name).then((n) => n ?? name);
-      searchPrintingsByExactName(englishName ?? name, 5, undefined, setCode)
-        .then((cards) => {
-          if (cards.length > 0) {
-            const card = cards.find((c) => c.set?.toLowerCase() === setCode.toLowerCase()) ?? cards[0];
-            setState((s) => ({ ...s, selectedCard: card, detectedSetCode: setCode, detectedSetName: setName, step: 3 }));
-          } else {
-            setSaveCardError(`Aucune carte trouvée pour "${name}" dans ${setName}.`);
-          }
-        })
-        .catch((err) => {
-          setSaveCardError(err instanceof Error ? err.message : 'Recherche échouée');
-        })
-        .finally(() => setSaveCardLoading(false));
-    },
-    [state.detectedName, state.detectedOracleId]
-  );
+  const handleSelectEdition = useCallback((card: MTGCard) => {
+    setState((s) => ({
+      ...s,
+      selectedCard: card,
+      step: 3,
+      addSuccess: false,
+      deckAddSuccess: false,
+    }));
+  }, []);
 
   const handleAddToCollection = useCallback(async () => {
     const card = state.selectedCard;
@@ -488,13 +502,7 @@ export function CardScanWizard() {
       setState((s) => ({ ...s, adding: false }));
       throw err;
     }
-  }, [
-    state.selectedCard,
-    currentUser?.uid,
-    targetCollectionId,
-    collections,
-    createCollection,
-  ]);
+  }, [state.selectedCard, currentUser?.uid, targetCollectionId, collections, createCollection]);
 
   const handleAddToDeck = useCallback(async () => {
     const card = state.selectedCard;
@@ -526,21 +534,14 @@ export function CardScanWizard() {
     } finally {
       setAddingToDeck(false);
     }
-  }, [
-    state.selectedCard,
-    currentUser,
-    targetDeckId,
-    newDeckName,
-    deckZone,
-    createDeck,
-    addCardToDeck,
-  ]);
+  }, [state.selectedCard, currentUser, targetDeckId, newDeckName, deckZone, createDeck, addCardToDeck]);
 
   const handleScanAnother = useCallback(() => {
     setState(initialState);
     setTargetDeckId('');
     setNewDeckName('');
     setDeckZone('mainboard');
+    setScanError(null);
     startCamera();
   }, [startCamera]);
 
@@ -548,162 +549,206 @@ export function CardScanWizard() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="page-title">
-        Scanner une carte
-      </h1>
+      <h1 className="page-title">Scanner une carte</h1>
 
-      {/* Step 1: Camera + edge detection — la vidéo est toujours rendue pour que le ref existe au clic sur "Activer la caméra" */}
       {state.step === 1 && (
         <div className="space-y-4">
           <p className="text-gray-600 dark:text-gray-400">
-            Cadrez la carte dans le cadre. Le contour vert indique la détection. Validez quand la carte est bien détectée.
+            Cadrez la carte : le contour vert indique la détection, la capture part automatiquement. L&apos;identification
+            passe par le sidecar Python.
           </p>
-          <div className="relative inline-block rounded-lg overflow-hidden bg-black w-full min-h-[240px]">
+          {sidecarOk === false && (
+            <p className="text-amber-600 dark:text-amber-400 text-sm">
+              Sidecar RapidOCR non détecté. Lancez <code className="text-xs">npm run ocr:sidecar</code> avant de scanner.
+            </p>
+          )}
+          <div className="relative inline-block max-w-full rounded-lg overflow-hidden bg-black mx-auto">
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="block max-w-full max-h-[70vh] w-full min-h-[240px] object-cover"
-              style={{ transform: 'scaleX(-1)' }}
+              className="block max-w-full max-h-[70vh] h-auto"
             />
             <canvas
               ref={overlayCanvasRef}
               className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ transform: 'scaleX(-1)' }}
             />
             {!cameraReady && !cameraError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 min-h-[240px] min-w-[320px]">
                 <p className="text-white text-center px-4">
                   Cliquez sur le bouton ci-dessous pour activer la caméra.
                 </p>
               </div>
             )}
-            {cameraReady && !lastDetectionHasCardProportions && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                <p className="text-white text-center px-4 text-sm">
-                  Placez une carte dans le cadre (bord blanc ou noir).<br />
-                  La détection continue automatiquement.
+            {cameraReady && !scanning && (
+              <div className="absolute bottom-0 left-0 right-0 pointer-events-none bg-gradient-to-t from-black/75 to-transparent px-3 py-3">
+                <p className="text-white text-center text-sm">
+                  {!opencvReady && !opencvError && 'Chargement OpenCV…'}
+                  {opencvError && `Détection limitée : ${opencvError}`}
+                  {opencvReady && !cardDetected && 'Placez une carte — le contour vert apparaît à la détection.'}
+                  {opencvReady && cardDetected && 'Contour détecté — capture automatique…'}
                 </p>
+              </div>
+            )}
+            {scanning && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="flex items-center gap-2 text-white">
+                  <Spinner /> Analyse…
+                </div>
               </div>
             )}
           </div>
           {!cameraReady && !cameraError && (
             <Button onClick={startCamera}>Activer la caméra</Button>
           )}
-          {cameraError && (
-            <p className="text-red-600 dark:text-red-400">{cameraError}</p>
-          )}
+          {cameraError && <p className="text-red-600 dark:text-red-400">{cameraError}</p>}
+          {scanError && <p className="text-amber-600 dark:text-amber-400 text-sm">{scanError}</p>}
           {cameraReady && (
             <>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {lastDetectionHasCardProportions
-                  ? 'Carte détectée — passage automatique dans 0,2 s (ou cliquez ci-dessous).'
-                  : 'Ou validez manuellement une fois la carte bien cadrée.'}
+                {cardDetected
+                  ? 'Carte détectée — capture automatique…'
+                  : 'Capture auto dès contour stable ; on ne passe à la suite qu’avec un match ≥ 95 %.'}
               </p>
               <Button
-                onClick={handleValidateDetection}
-                disabled={!lastDetectionHasCardProportions}
-                title={lastDetectionHasCardProportions ? undefined : 'Cadrez une carte MTG pour activer la validation'}
+                onClick={() => void handleCaptureAndScan()}
+                loading={scanning}
+                disabled={scanning}
               >
-                Valider la détection
+                {scanning ? 'Analyse…' : 'Capturer maintenant'}
               </Button>
             </>
           )}
         </div>
       )}
 
-      {/* Step 2: Nom puis extension automatiquement ; clic sur l’édition → sauvegarde */}
       {state.step === 2 && (
         <div className="space-y-4">
-          <p className="text-gray-600 dark:text-gray-400">
-            Vérifiez le nom. L&apos;extension est recherchée ensuite automatiquement — cliquez sur le logo pour enregistrer.
-          </p>
-          {state.croppedImageUrl && (
-            <>
-              <img
-                src={state.croppedImageUrl}
-                alt="Carte cadrée"
-                className="max-w-full max-h-64 object-contain rounded-lg border border-gray-300 dark:border-gray-600 block"
-              />
-              {ocrLoading && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Spinner /> Lecture du nom…
-                </div>
-              )}
-              {ocrError && <p className="text-amber-600 dark:text-amber-400">{ocrError}</p>}
-              <div ref={nameAutocompleteRef} className="relative">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom de la carte</label>
-                <input
-                  type="text"
-                  value={state.detectedName}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setState((s) => ({
-                      ...s,
-                      detectedName: value,
-                      detectedOracleId: null,
-                      setMatches: [],
-                      detectedSetCode: null,
-                      detectedSetName: null,
-                    }));
-                    if (nameAutocompleteDebounceRef.current) clearTimeout(nameAutocompleteDebounceRef.current);
-                    if (!value.trim()) { setNameSuggestions([]); return; }
-                    nameAutocompleteDebounceRef.current = setTimeout(() => { searchCardNamesForAutocomplete(value, 15).then(setNameSuggestions); nameAutocompleteDebounceRef.current = null; }, AUTOCOMPLETE_DEBOUNCE_MS);
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setNameSuggestions([]); }}
-                  onFocus={() => { if (state.detectedName.trim()) searchCardNamesForAutocomplete(state.detectedName, 15).then(setNameSuggestions); }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  placeholder="Nom de la carte"
-                  autoComplete="off"
-                />
-                {nameSuggestions.length > 0 && (
-                  <ul className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg" role="listbox">
-                    {nameSuggestions.map((entry) => (
-                      <li key={`${entry.oracle_id}-${entry.lang}-${entry.name}`} role="option" className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 last:border-b-0" onMouseDown={(e) => { e.preventDefault(); setState((s) => ({ ...s, detectedName: entry.name, detectedOracleId: entry.oracle_id, setMatches: [], detectedSetCode: null, detectedSetName: null })); setNameSuggestions([]); }}>
-                        {entry.name}{entry.lang !== 'en' && <span className="ml-2 text-xs text-gray-500">({entry.lang})</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              {logoMatchLoading && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Spinner /> Recherche de l&apos;extension…
-                </div>
-              )}
-              {logoMatchError && <p className="text-amber-600 dark:text-amber-400">{logoMatchError}</p>}
-              {saveCardLoading && <Spinner />}
-              {saveCardError && <p className="text-red-600 dark:text-red-400">{saveCardError}</p>}
-              {state.setMatches.length > 0 && (
-                <div className="rounded-lg border border-gray-200 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">Cliquez sur l&apos;édition pour enregistrer la carte</span>
-                  <div className="flex flex-wrap gap-3">
-                    {state.setMatches.map((m) => (
-                      <button
-                        key={m.set.code}
-                        type="button"
-                        title={m.set.name}
-                        disabled={saveCardLoading || !state.detectedName.trim()}
-                        onClick={() => void handleSelectEdition(m.set.code, m.set.name)}
-                        className={`p-2 rounded-lg border-2 transition-colors flex flex-col items-center gap-1 ${state.detectedSetCode === m.set.code ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/30' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-amber-400'}`}
-                      >
-                        <SetIconImage iconUri={m.set.icon_svg_uri} name={m.set.name} className="w-10 h-10 object-contain" />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{Math.round(m.score * 100)} %</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+          {state.previewUrl && (
+            <img
+              src={state.previewUrl}
+              alt="Carte scannée"
+              className="max-w-full max-h-56 object-contain rounded-lg border border-gray-300 dark:border-gray-600 block"
+            />
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setState((s) => ({ ...s, step: 1 }))}>Retour</Button>
-          </div>
+          {state.ocrDebug && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{state.ocrDebug}</p>
+          )}
+
+          <p className="text-gray-600 dark:text-gray-400">
+            Choisissez la carte et son extension (icônes).
+          </p>
+          {state.candidates.length === 0 && (
+            <p className="text-amber-600 dark:text-amber-400">
+              Aucun candidat trouvé
+              {state.ocrDebug ? ` — OCR : ${state.ocrDebug}` : ''}.
+              Recadrez la carte bien à plat, titre et bas visibles, puis réessayez.
+            </p>
+          )}
+          <ul className="space-y-4">
+            {state.candidates.map((rc, i) => {
+              const label =
+                rc.candidate.printed_name ||
+                rc.candidate.name ||
+                rc.card?.name ||
+                `Candidat ${i + 1}`;
+              const meta = [
+                rc.candidate.lang,
+                rc.candidate.method,
+                `${Math.round((rc.candidate.score || 0) * 100)}%`,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <li
+                  key={`${rc.candidate.scryfall_id || rc.candidate.oracle_id || label}-${i}`}
+                  className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 space-y-3"
+                >
+                  <div className="flex items-center gap-3">
+                    {rc.card?.imageUrl ? (
+                      <img
+                        src={rc.card.imageUrl}
+                        alt={label}
+                        className="w-16 h-auto rounded border border-gray-200 dark:border-gray-600"
+                      />
+                    ) : (
+                      <div className="w-16 h-22 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded">
+                        {rc.loading ? <Spinner /> : null}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 dark:text-white truncate">{label}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{meta}</p>
+                      {rc.error && <p className="text-xs text-amber-600 mt-1">{rc.error}</p>}
+                    </div>
+                  </div>
+
+                  {rc.printingsLoading && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Spinner /> Extensions…
+                    </div>
+                  )}
+                  {!rc.printingsLoading && rc.printings.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {rc.printings.map((p) => {
+                        const code = (p.set || '').toLowerCase();
+                        const iconUri = setIconByCode[code];
+                        const hinted = Boolean(rc.hintedSet && code === rc.hintedSet);
+                        return (
+                          <button
+                            key={`${code}-${p.number}-${p.id}`}
+                            type="button"
+                            title={`${p.setName || p.set} · #${p.number}`}
+                            onClick={() => handleSelectEdition(p)}
+                            className={`p-2 rounded-lg border-2 transition-colors flex flex-col items-center gap-1 min-w-[4rem] ${
+                              hinted
+                                ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/30'
+                                : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 hover:border-amber-400'
+                            }`}
+                          >
+                            {iconUri ? (
+                              <SetIconImage
+                                iconUri={iconUri}
+                                name={p.setName || code}
+                                className="w-9 h-9 object-contain"
+                              />
+                            ) : (
+                              <span className="w-9 h-9 flex items-center justify-center text-xs font-semibold uppercase bg-gray-200 dark:bg-gray-600 rounded">
+                                {code.slice(0, 3) || '?'}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-gray-600 dark:text-gray-300 font-medium uppercase">
+                              {code || '—'}
+                            </span>
+                            <span className="text-[10px] text-gray-500">#{p.number}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {!rc.printingsLoading && !rc.printings.length && rc.card && (
+                    <Button size="sm" onClick={() => handleSelectEdition(rc.card!)}>
+                      Continuer avec cette impression
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setState(initialState);
+              startCamera();
+            }}
+          >
+            Retour
+          </Button>
         </div>
       )}
 
-      {/* Step 3: Sauvegarde (ajout à la collection) */}
       {state.step === 3 && state.selectedCard && (
         <div className="space-y-4">
           {state.addSuccess || state.deckAddSuccess ? (
@@ -738,9 +783,7 @@ export function CardScanWizard() {
                   />
                 )}
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {state.selectedCard.name}
-                  </p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{state.selectedCard.name}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {state.selectedCard.setName || state.selectedCard.set} · {state.selectedCard.number}
                   </p>
@@ -756,7 +799,10 @@ export function CardScanWizard() {
                 <Button variant="secondary" onClick={handleScanAnother}>
                   Scanner une autre carte
                 </Button>
-                <Button variant="secondary" onClick={() => setState((s) => ({ ...s, step: 2 }))}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setState((s) => ({ ...s, step: 2, selectedCard: null }))}
+                >
                   Retour
                 </Button>
               </div>
@@ -772,9 +818,7 @@ export function CardScanWizard() {
                   />
                 )}
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {state.selectedCard.name}
-                  </p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{state.selectedCard.name}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {state.selectedCard.setName || state.selectedCard.set} · {state.selectedCard.number}
                   </p>
@@ -806,7 +850,7 @@ export function CardScanWizard() {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => setState((s) => ({ ...s, step: 2 }))}
+                  onClick={() => setState((s) => ({ ...s, step: 2, selectedCard: null }))}
                   disabled={state.adding || addingToDeck}
                 >
                   Retour

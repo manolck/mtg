@@ -390,3 +390,127 @@ export async function searchCardByNameAndNumberScryfall(
   }
 }
 
+/**
+ * Résout une carte via oracle_id Scryfall (utile pour les noms FR du scan sans scryfall_id).
+ * Préfère une impression FR si disponible, sinon EN.
+ */
+export async function searchCardByOracleId(
+  oracleId: string,
+  preferFrench: boolean = true
+): Promise<MTGCard | null> {
+  const id = oracleId?.trim();
+  if (!id) return null;
+  const cacheKey = `scryfall_oracle_${id}_${preferFrench ? 'fr' : 'en'}`;
+  const cached = getCachedCard(cacheKey);
+  if (cached !== null) return cached;
+
+  try {
+    const langPref = preferFrench ? 'fr' : 'en';
+    const query = `oracleid:${id} lang:${langPref}`;
+    let url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=released&dir=desc`;
+    let response = await scryfallQueue.enqueue(
+      () =>
+        fetchWithRetry(url, {
+          headers: { 'User-Agent': 'MTGCollectionApp/1.0', Accept: 'application/json' },
+        }, { maxRetries: 3, initialDelay: 1000, maxDelay: 16000, retryableStatuses: [429, 500, 502, 503, 504] }),
+      'normal'
+    );
+    if (!response.ok && preferFrench) {
+      url = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(`oracleid:${id}`)}&unique=prints&order=released&dir=desc`;
+      response = await scryfallQueue.enqueue(
+        () =>
+          fetchWithRetry(url, {
+            headers: { 'User-Agent': 'MTGCollectionApp/1.0', Accept: 'application/json' },
+          }, { maxRetries: 3, initialDelay: 1000, maxDelay: 16000, retryableStatuses: [429, 500, 502, 503, 504] }),
+        'normal'
+      );
+    }
+    if (!response.ok) {
+      if (response.status === 404) {
+        setCachedCard(cacheKey, null);
+        return null;
+      }
+      throw new Error(`Scryfall API error: ${response.status}`);
+    }
+    const data = await response.json();
+    const card = (data.data || [])[0];
+    if (!card) {
+      setCachedCard(cacheKey, null);
+      return null;
+    }
+    let mtgCard = convertScryfallCardToMTGCard(card);
+    if (preferFrench && card.lang !== 'fr') {
+      mtgCard = await enrichCardWithFrenchData(mtgCard, true);
+      const frenchName = mtgCard.foreignNames?.find(
+        (fn) => fn.language === 'French' || fn.language === 'fr'
+      );
+      if (frenchName) {
+        if (frenchName.name) mtgCard.name = frenchName.name;
+        if (frenchName.type) mtgCard.type = frenchName.type;
+        if (frenchName.text) mtgCard.text = frenchName.text;
+        if (frenchName.imageUrl) mtgCard.imageUrl = frenchName.imageUrl;
+      }
+    }
+    setCachedCard(cacheKey, mtgCard);
+    return mtgCard;
+  } catch (error) {
+    console.error('Error searching card by oracle id:', error);
+    throw error;
+  }
+}
+
+/**
+ * Toutes les impressions d'un oracle_id (pour choisir l'extension après scan).
+ * Préfère FR quand une impression FR existe pour le même set+cn.
+ */
+export async function searchPrintingsByOracleId(
+  oracleId: string,
+  preferFrench: boolean = true,
+  limit: number = 100
+): Promise<MTGCard[]> {
+  const id = oracleId?.trim();
+  if (!id) return [];
+
+  const query = preferFrench
+    ? `oracleid:${id} (lang:fr OR lang:en)`
+    : `oracleid:${id}`;
+  let url: string | null = `${SCRYFALL_API_BASE_URL}/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=released&dir=desc&include_multilingual=true`;
+  const byKey = new Map<string, { card: MTGCard; lang: string }>();
+
+  try {
+    while (url && byKey.size < limit) {
+      const response = await scryfallQueue.enqueue(
+        () =>
+          fetchWithRetry(url!, {
+            headers: { 'User-Agent': 'MTGCollectionApp/1.0', Accept: 'application/json' },
+          }, { maxRetries: 3, initialDelay: 1000, maxDelay: 16000, retryableStatuses: [429, 500, 502, 503, 504] }),
+        'normal'
+      );
+      if (!response.ok) {
+        if (response.status === 404) break;
+        break;
+      }
+      const data = await response.json();
+      for (const raw of data.data || []) {
+        const lang = String(raw.lang || 'en');
+        if (preferFrench && lang !== 'fr' && lang !== 'en') continue;
+        if (!preferFrench && lang !== 'en') continue;
+        const key = `${String(raw.set || '').toLowerCase()}|${String(raw.collector_number || '')}`;
+        const mtgCard = convertScryfallCardToMTGCard(raw);
+        const existing = byKey.get(key);
+        if (!existing) {
+          byKey.set(key, { card: mtgCard, lang });
+        } else if (preferFrench && lang === 'fr' && existing.lang !== 'fr') {
+          byKey.set(key, { card: mtgCard, lang });
+        }
+        if (byKey.size >= limit) break;
+      }
+      url = data.has_more && byKey.size < limit ? data.next_page : null;
+    }
+    return [...byKey.values()].map((v) => v.card);
+  } catch (error) {
+    console.error('Error searching printings by oracle id:', error);
+    return [];
+  }
+}
+
