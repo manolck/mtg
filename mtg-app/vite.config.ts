@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => {
     build: {
       minify: 'esbuild',
       // Source maps "hidden" si Sentry est configuré (uploadables, non exposées au navigateur)
-      sourcemap: Boolean(env.VITE_SENTRY_DSN?.trim()) ? 'hidden' : false,
+      sourcemap: env.VITE_SENTRY_DSN?.trim() ? 'hidden' : false,
       rollupOptions: {
         output: {
           manualChunks: {

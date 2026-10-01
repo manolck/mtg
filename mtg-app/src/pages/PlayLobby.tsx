@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
 import { startMatch } from '../services/playMatchService';
@@ -77,7 +77,7 @@ export function PlayLobby() {
       void refreshRef.current();
     };
     return watchWithPoll(onChange, () => playLobbyService.subscribeLobby(lobbyId, onChange));
-  }, [lobbyId]);
+  }, [lobbyId, refresh]);
 
   const refreshChat = useCallback(async () => {
     if (!lobbyId) return;
@@ -124,11 +124,13 @@ export function PlayLobby() {
       })
     : null;
 
+  const hasEmptyCountdown = emptyRemainingMs !== null;
+
   useEffect(() => {
-    if (emptyRemainingMs === null) return;
+    if (!hasEmptyCountdown) return;
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(tick);
-  }, [emptyRemainingMs === null]);
+  }, [hasEmptyCountdown]);
 
   useEffect(() => {
     if (!lobby || lobby.status !== 'waiting' || seats.length >= 1) return;
@@ -148,7 +150,7 @@ export function PlayLobby() {
       navigate('/play', { replace: true });
     }, wait);
     return () => window.clearTimeout(timer);
-  }, [lobby?.id, lobby?.status, lobby?.createdAt, lobby?.hostId, seats.length, currentUser?.uid, navigate, showError]);
+  }, [lobby, seats.length, currentUser?.uid, navigate, showError]);
   const waitingOn = seats.filter((s) => !s.ready || !(s.deckSnapshot || s.deckId));
   const allReady = seats.length >= 1 && waitingOn.length === 0;
   const startHint =

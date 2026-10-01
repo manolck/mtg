@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
 import type { PlayLobby } from '../types/play';
@@ -32,7 +32,7 @@ export function PlayLobbies() {
   const [toDelete, setToDelete] = useState<PlayLobby | null>(null);
   const canDeleteLobby = isAdmin(profile);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       if (currentUser) {
         await playLobbyService.closeStaleEmptyLobbies(currentUser.uid);
@@ -44,7 +44,7 @@ export function PlayLobbies() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -55,7 +55,7 @@ export function PlayLobbies() {
       void refreshRef.current();
     };
     return watchWithPoll(onChange, () => playLobbyService.subscribeLobbyList(onChange));
-  }, []);
+  }, [refresh]);
 
   const handleCreate = async () => {
     if (!currentUser) return;

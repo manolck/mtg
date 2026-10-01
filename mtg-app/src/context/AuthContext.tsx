@@ -1,59 +1,41 @@
 // src/context/AuthContext.tsx (version PocketBase)
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { pb } from '../services/pocketbase';
 import { rateLimiter, RATE_LIMITS } from '../services/rateLimiter';
 import { errorHandler } from '../services/errorHandler';
 import type { User } from '../types/user';
+import { AuthContext, type AuthContextType } from './authContext';
 
-interface AuthContextType {
-  currentUser: User | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+function userFromAuthModel(model: { id: string; email: string; pseudonym?: string } | null): User | null {
+  if (!model) return null;
+  return {
+    uid: model.id,
+    email: model.email,
+    displayName: model.pseudonym || undefined,
+  };
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+function readInitialUser(): User | null {
+  if (!pb.authStore.isValid) return null;
+  const model = pb.authStore.model as { id: string; email: string; pseudonym?: string } | null;
+  return userFromAuthModel(model);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(readInitialUser);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est déjà authentifié
-    if (pb.authStore.isValid) {
-      const authModel = pb.authStore.model;
-      if (authModel) {
-        setCurrentUser({
-          uid: authModel.id,
-          email: authModel.email,
-          displayName: authModel.pseudonym || undefined,
-        });
-      }
-    }
-
-    // Écouter les changements d'authentification
-    pb.authStore.onChange((_token, model) => {
-      if (model) {
-        setCurrentUser({
-          uid: model.id,
-          email: model.email,
-          displayName: model.pseudonym || undefined,
-        });
-      } else {
-        setCurrentUser(null);
-      }
+    const unsubscribe = pb.authStore.onChange((_token, model) => {
+      setCurrentUser(
+        userFromAuthModel(model as { id: string; email: string; pseudonym?: string } | null),
+      );
       setLoading(false);
     });
 
-    setLoading(false);
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   async function login(email: string, password: string) {

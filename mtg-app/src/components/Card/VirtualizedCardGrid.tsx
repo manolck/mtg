@@ -7,7 +7,7 @@ const loadReactWindow = async () => {
   try {
     const rwModule = await import('react-window');
     return rwModule.FixedSizeGrid;
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to import react-window:', e);
     return null;
   }
@@ -98,7 +98,7 @@ export function VirtualizedCardGrid({
       try {
         resizeObserver = new ResizeObserver(updateSize);
         resizeObserver.observe(container);
-      } catch (error) {
+      } catch {
         console.warn('VirtualizedCardGrid: ResizeObserver not supported, using window resize only');
       }
 
@@ -122,22 +122,18 @@ export function VirtualizedCardGrid({
     };
   }, []);
 
-  const gridComponentRef = useRef<any>(null);
+  const [gridComponent, setGridComponent] = useState<React.ElementType | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [gridComponentReady, setGridComponentReady] = useState(false);
 
   useEffect(() => {
-    if (gridComponentRef.current) {
-      setLoading(false);
-      setGridComponentReady(true);
-      return;
-    }
-
+    let cancelled = false;
     loadReactWindow()
       .then((loadedGrid) => {
+        if (cancelled) return;
         if (loadedGrid) {
-          gridComponentRef.current = loadedGrid;
+          setGridComponent(() => loadedGrid);
           setGridComponentReady(true);
           setLoading(false);
         } else {
@@ -145,11 +141,15 @@ export function VirtualizedCardGrid({
           setLoading(false);
         }
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
+        if (cancelled) return;
         console.error('Error loading react-window:', error);
-        setLoadError(error);
+        setLoadError(error instanceof Error ? error : new Error(String(error)));
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Calculer le nombre de colonnes et de lignes
@@ -179,7 +179,6 @@ export function VirtualizedCardGrid({
       columnIndex: number; 
       rowIndex: number; 
       style: React.CSSProperties;
-      [key: string]: any;
     }) => {
       try {
         const index = rowIndex * columnCount + columnIndex;
@@ -279,14 +278,14 @@ export function VirtualizedCardGrid({
     );
   }
 
-  // Composant de fallback
-  const FallbackGrid = () => (
+  // Fallback non-virtualisé (élément JSX, pas un composant créé à chaque render)
+  const fallbackGrid = (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
       {displayCards.map((card) => {
         const cardsWithSameName = cardsByNameMap
           ? cardsByNameMap.map.get(card.name) || [card]
           : [card];
-        
+
         return (
           <CardDisplay
             key={card.id}
@@ -316,7 +315,7 @@ export function VirtualizedCardGrid({
     });
     return (
       <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        <FallbackGrid />
+        {fallbackGrid}
       </div>
     );
   }
@@ -326,13 +325,10 @@ export function VirtualizedCardGrid({
     console.error('VirtualizedCardGrid: Cell is not a valid function', Cell);
     return (
       <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        <FallbackGrid />
+        {fallbackGrid}
       </div>
     );
   }
-  
-  // Utiliser gridComponentRef au lieu de gridComponent state (déclarer AVANT utilisation)
-  const gridComponent = gridComponentRef.current;
 
   // Vérifier une dernière fois que toutes les valeurs sont valides
   const props = {
@@ -362,48 +358,37 @@ export function VirtualizedCardGrid({
     }
     return (
       <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        <FallbackGrid />
+        {fallbackGrid}
       </div>
     );
   }
 
   // Vérifier que toutes les props sont valides
-  if (!props.columnCount || !props.columnWidth || !props.height || 
+  if (!props.columnCount || !props.columnWidth || !props.height ||
       !props.rowCount || !props.rowHeight || !props.width) {
     console.error('VirtualizedCardGrid: Invalid props after normalization', props);
     return (
       <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        <FallbackGrid />
+        {fallbackGrid}
       </div>
     );
   }
 
-  try {
-    // react-window v1 utilise children comme fonction render prop
-    // La signature est: ({ columnIndex, rowIndex, style }) => ReactElement
-    // Utiliser createElement pour éviter les problèmes de contexte avec les composants chargés dynamiquement
-    return (
-      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        {createElement(gridComponent, {
-          columnCount: props.columnCount,
-          columnWidth: props.columnWidth,
-          height: props.height,
-          rowCount: props.rowCount,
-          rowHeight: props.rowHeight,
-          width: props.width,
-          className: 'virtualized-card-grid',
-          style: { overflowX: 'hidden', overflowY: 'auto', backgroundColor: 'transparent' },
-          children: Cell,
-        })}
-      </div>
-    );
-  } catch (error: any) {
-    console.error('Error rendering VirtualizedCardGrid:', error);
-    return (
-      <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
-        <FallbackGrid />
-      </div>
-    );
-  }
+  // react-window v1 utilise children comme fonction render prop
+  return (
+    <div ref={containerRef} className="w-full h-full min-h-0 bg-gray-50 dark:bg-gray-900">
+      {createElement(gridComponent, {
+        columnCount: props.columnCount,
+        columnWidth: props.columnWidth,
+        height: props.height,
+        rowCount: props.rowCount,
+        rowHeight: props.rowHeight,
+        width: props.width,
+        className: 'virtualized-card-grid',
+        style: { overflowX: 'hidden', overflowY: 'auto', backgroundColor: 'transparent' },
+        children: Cell,
+      })}
+    </div>
+  );
 }
 

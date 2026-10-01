@@ -1,5 +1,5 @@
 // src/hooks/useAllCollections.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { pb } from '../services/pocketbase';
 import * as collectionService from '../services/collectionService';
 import type { UserProfile } from '../types/user';
@@ -17,11 +17,7 @@ export function useAllCollections() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadAllCollections();
-  }, [currentUser]);
-
-  async function loadAllCollections() {
+  const loadAllCollections = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -50,17 +46,14 @@ export function useAllCollections() {
 
       const ownersData: CollectionOwner[] = [];
 
-      // Pour chaque utilisateur trouvé, récupérer le profil
       for (const [userId, cardCount] of userMap) {
         try {
           const profileRecord = await pb.collection('users').getOne(userId);
-          
-          // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+
           let roles: string[] = ['user'];
           if (profileRecord.roles && Array.isArray(profileRecord.roles)) {
             roles = profileRecord.roles;
           } else if (profileRecord.role) {
-            // Migration depuis l'ancien format
             roles = profileRecord.role === 'admin' ? ['user', 'admin'] : ['user'];
           }
 
@@ -82,7 +75,6 @@ export function useAllCollections() {
           });
         } catch (err) {
           console.warn(`Error loading profile for user ${userId}:`, err);
-          // Ajouter quand même l'utilisateur sans profil
           ownersData.push({
             userId,
             profile: null,
@@ -91,26 +83,22 @@ export function useAllCollections() {
         }
       }
 
-      // Trier par nombre de cartes (décroissant)
       ownersData.sort((a, b) => b.cardCount - a.cardCount);
 
       setOwners(ownersData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading all collections:', err);
-      // Si c'est une erreur de permissions, on retourne au moins l'utilisateur actuel
       if (currentUser) {
         try {
           const cards = await collectionService.getCollection(currentUser.uid);
           const cardCount = cards.length;
-          
+
           const profileRecord = await pb.collection('users').getOne(currentUser.uid);
-          
-          // Gérer la compatibilité avec l'ancien format (role string) et le nouveau (roles array)
+
           let roles: string[] = ['user'];
           if (profileRecord.roles && Array.isArray(profileRecord.roles)) {
             roles = profileRecord.roles;
           } else if (profileRecord.role) {
-            // Migration depuis l'ancien format
             roles = profileRecord.role === 'admin' ? ['user', 'admin'] : ['user'];
           }
 
@@ -125,11 +113,13 @@ export function useAllCollections() {
             updatedAt: new Date(profileRecord.updated),
           };
 
-          setOwners([{
-            userId: currentUser.uid,
-            profile,
-            cardCount,
-          }]);
+          setOwners([
+            {
+              userId: currentUser.uid,
+              profile,
+              cardCount,
+            },
+          ]);
         } catch (fallbackErr) {
           console.error('Error in fallback:', fallbackErr);
         }
@@ -138,7 +128,11 @@ export function useAllCollections() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentUser]);
+
+  useEffect(() => {
+    void loadAllCollections();
+  }, [loadAllCollections]);
 
   return {
     owners,

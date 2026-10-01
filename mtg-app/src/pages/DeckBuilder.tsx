@@ -6,7 +6,7 @@ import { useUserCollections } from '../hooks/useUserCollections';
 import { useAuth } from '../hooks/useAuth';
 import { useWishlist } from '../hooks/useWishlist';
 import { useDeckOwnership } from '../hooks/useDeckOwnership';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import { validateDeck, canPublish, formatIssuesByCardId } from '../services/deckFormatRules';
 import { parseDecklistText, exportDecklistText } from '../services/decklistParser';
@@ -35,7 +35,8 @@ import { isCoarsePointer } from '../utils/coarsePointer';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
 import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
-import { ShoppingListModal, deckEntryAsMtgCard } from '../components/Deck/ShoppingListModal';
+import { ShoppingListModal } from '../components/Deck/ShoppingListModal';
+import { deckEntryAsMtgCard } from '../utils/deckEntryAsMtgCard';
 import { SwapPrintModal } from '../components/Deck/SwapPrintModal';
 import { groupDeckEntries } from '../utils/deckGrouping';
 import { findSwappableEntries } from '../utils/deckPrintSwap';
@@ -153,14 +154,14 @@ export function DeckBuilder() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, ownedDeck?.id]);
+  }, [deckId, ownedDeck]);
 
   useEffect(() => {
     if (deck) {
       setDescriptionDraft(deck.description || '');
       setTagsDraft((deck.tags || []).join(', '));
     }
-  }, [deck?.id, deck?.description, deck?.tags]);
+  }, [deck]);
 
   const ownership = useDeckOwnership(deck, collectionCards);
 

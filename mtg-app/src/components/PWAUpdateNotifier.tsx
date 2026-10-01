@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useToast } from '../context/ToastContext'
+import { useToast } from '../hooks/useToast'
 
 export function PWAUpdateNotifier() {
   const { showInfo } = useToast()

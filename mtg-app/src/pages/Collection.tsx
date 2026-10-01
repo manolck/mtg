@@ -6,7 +6,7 @@ import { useUserCollections } from '../hooks/useUserCollections';
 import { useDecks } from '../hooks/useDecks';
 import { useWishlist } from '../hooks/useWishlist';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
@@ -446,6 +446,7 @@ export function Collection() {
     let observer: IntersectionObserver | null = null;
     let rafId: number | null = null;
     let cancelled = false;
+    let observedEl: Element | null = null;
 
     const checkAndSetup = () => {
       if (cancelled) return;
@@ -464,7 +465,8 @@ export function Collection() {
         { rootMargin: '200px' }
       );
 
-      observer.observe(loadMoreRef.current);
+      observedEl = loadMoreRef.current;
+      observer.observe(observedEl);
     };
 
     rafId = requestAnimationFrame(checkAndSetup);
@@ -474,15 +476,14 @@ export function Collection() {
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
       }
-      if (observer && loadMoreRef.current) {
-        observer.unobserve(loadMoreRef.current);
+      if (observer) {
+        if (observedEl) observer.unobserve(observedEl);
         observer.disconnect();
       }
     };
   }, [hasMoreCards, loadingMore, loadMoreCards]);
 
   const showLoadingMore = loadingMore && cards.length > 0;
-  const useVirtualGrid = Boolean(cardsByNameMap && cardsByNameMap.deduplicatedCards.length > 100);
 
   if (loading || loadingOwners) {
     return (

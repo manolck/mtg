@@ -2,7 +2,7 @@ import { useState, useMemo, useDeferredValue } from 'react';
 import { useWishlist } from '../hooks/useWishlist';
 import { useCollection } from '../hooks/useCollection';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import { CardDisplay } from '../components/Card/CardDisplay';
 import { VirtualizedCardGrid } from '../components/Card/VirtualizedCardGrid';
@@ -116,7 +116,7 @@ export function Wishlist() {
           return a.name.localeCompare(b.name);
         case 'date':
           return b.createdAt.getTime() - a.createdAt.getTime();
-        case 'rarity':
+        case 'rarity': {
           const rarityOrder: Record<string, number> = {
             'Mythic': 1,
             'Rare': 2,
@@ -126,10 +126,12 @@ export function Wishlist() {
           const aRarity = rarityOrder[a.rarity || ''] || 99;
           const bRarity = rarityOrder[b.rarity || ''] || 99;
           return aRarity - bRarity;
-        case 'set':
+        }
+        case 'set': {
           const aSet = (a.setCode || a.set || '').toLowerCase();
           const bSet = (b.setCode || b.set || '').toLowerCase();
           return aSet.localeCompare(bSet);
+        }
         case 'quantity':
           return b.quantity - a.quantity;
         default:
@@ -202,7 +204,7 @@ export function Wishlist() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const _handleDeleteAll = async () => {
     setShowDeleteModal(true);
   };

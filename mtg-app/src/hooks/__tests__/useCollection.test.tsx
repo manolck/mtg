@@ -53,7 +53,6 @@ jest.mock('../../services/csvParser', () => ({
     });
   }),
 }));
-}));
 
 jest.mock('../../services/mtgApi', () => ({
   searchCardByName: jest.fn().mockResolvedValue({
@@ -118,7 +117,7 @@ describe('useCollection', () => {
     email: 'test@example.com',
   };
 
-  const mockCard: UserCard = {
+  const _mockCard: UserCard = {
     id: 'card-1',
     name: 'Lightning Bolt',
     quantity: 1,
@@ -176,7 +175,7 @@ describe('useCollection', () => {
     it('should load all collections when userId is "all"', async () => {
       mockGetAllCollections.mockResolvedValue({ items: [], totalCount: 0, owners: [] });
 
-      const { result } = renderHook(() => useCollection('all'), { wrapper });
+      renderHook(() => useCollection('all'), { wrapper });
 
       await waitFor(() => {
         expect(mockGetAllCollections).toHaveBeenCalled();

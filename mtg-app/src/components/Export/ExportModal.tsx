@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
-import { useToast } from '../../context/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { errorHandler } from '../../services/errorHandler';
 import { exportCollection, downloadFile, type ExportFormat } from '../../services/exportService';
 import type { UserCard } from '../../types/card';

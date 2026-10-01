@@ -26,7 +26,7 @@ const PlayLobbies = lazy(() => import('./pages/PlayLobbies').then(module => ({ d
 const PlayLobby = lazy(() => import('./pages/PlayLobby').then(module => ({ default: module.PlayLobby })));
 const PlayTable = lazy(() => import('./pages/PlayTable').then(module => ({ default: module.PlayTable })));
 import { setErrorToastCallback } from './services/errorHandler';
-import { useToast } from './context/ToastContext';
+import { useToast } from './hooks/useToast';
 import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
 import { useEffect } from 'react';
 import { initializeMTGJSONPrices, shouldUpdatePrices, updateMTGJSONPrices } from './services/mtgjsonPriceServiceAPI';

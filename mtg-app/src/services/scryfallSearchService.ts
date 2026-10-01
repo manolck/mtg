@@ -28,7 +28,7 @@ const MIN_REQUEST_DELAY = 50; // 50ms entre les requêtes
 
 let lastRequestTime = 0;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 async function _delayBetweenRequests(): Promise<void> {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
@@ -218,7 +218,7 @@ export async function searchCards(
         }),
         'high' // Priorité haute pour les recherches utilisateur directes
       );
-    } catch (error) {
+    } catch {
       return [];
     }
 

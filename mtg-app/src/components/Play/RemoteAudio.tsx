@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface RemoteAudioProps {
   stream: MediaStream;
@@ -59,12 +59,4 @@ export function RemoteAudioHub({
       ))}
     </div>
   );
-}
-
-export function unlockRemoteAudio(): void {
-  document.querySelectorAll('audio').forEach((el) => {
-    el.muted = false;
-    el.volume = 1;
-    void el.play().catch(() => {});
-  });
 }

@@ -25,7 +25,7 @@ jest.mock('../pocketbase', () => ({
 
 describe('wishlistService', () => {
   const userId = 'test-user-id';
-  const mockWishlistItem: WishlistItem = {
+  const _mockWishlistItem: WishlistItem = {
     id: 'item-1',
     name: 'Lightning Bolt',
     quantity: 1,

@@ -3,6 +3,7 @@
  * Prefer a self-hosted copy under /vendor/opencv.js (no third-party runtime).
  * Falls back to CDN mirrors only if the local file is missing.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any -- OpenCV.js has no usable TS types */
 
 declare global {
   interface Window {

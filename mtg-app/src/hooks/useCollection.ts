@@ -56,13 +56,13 @@ export function useCollection(userId?: string, collectionId?: string | null) {
   useEffect(() => {
     // Si userId est 'all', charger toutes les collections (tous utilisateurs)
     if (userId === 'all') {
-      loadAllCollections();
+      void loadAllCollections();
       setViewingUserId(null);
       setViewingCollectionId(null);
     } else {
       const targetUserId = userId || currentUser?.uid;
       if (targetUserId) {
-        loadCollection(targetUserId, collectionId ?? undefined);
+        void loadCollection(targetUserId, collectionId ?? undefined);
         setViewingUserId(targetUserId);
         setViewingCollectionId(collectionId ?? null);
       } else {
@@ -72,6 +72,9 @@ export function useCollection(userId?: string, collectionId?: string | null) {
         setViewingCollectionId(null);
       }
     }
+    // loadCollection / loadAllCollections are stable enough for this mount trigger;
+    // including them would re-fetch on every render identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reload only when user/collection identity changes
   }, [currentUser, userId, collectionId]);
 
   async function loadCollection(targetUserId: string, targetCollectionId?: string) {
@@ -266,7 +269,16 @@ export function useCollection(userId?: string, collectionId?: string | null) {
   }
 
   // Fonction helper pour rechercher une carte avec toutes les priorités
-  async function searchCardData(parsedCard: any, preferFrench: boolean): Promise<{
+  async function searchCardData(
+    parsedCard: {
+      scryfallId?: string;
+      multiverseid?: number;
+      setCode?: string;
+      collectorNumber?: string;
+      name: string;
+    },
+    preferFrench: boolean,
+  ): Promise<{
     mtgData: MTGCard | null;
     backMtgData: MTGCard | null;
     backImageUrl: string | undefined;
@@ -659,12 +671,12 @@ export function useCollection(userId?: string, collectionId?: string | null) {
                 message: 'Déjà présente',
               };
             }
-          } catch (err: any) {
+          } catch (err: unknown) {
             progress.errors++;
             return {
               type: 'error' as const,
               status: 'error' as CardImportStatus,
-              message: err.message || 'Erreur inconnue',
+              message: err instanceof Error ? err.message : 'Erreur inconnue',
             };
           }
         }));
@@ -733,10 +745,15 @@ export function useCollection(userId?: string, collectionId?: string | null) {
       }
   
       setImportProgress(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error importing CSV:', err);
       if (currentImportId) {
-        await importService.updateImportStatus(currentImportId, 'failed', undefined, err.message);
+        await importService.updateImportStatus(
+          currentImportId,
+          'failed',
+          undefined,
+          err instanceof Error ? err.message : 'Erreur inconnue',
+        );
       }
       throw err;
     }
@@ -818,6 +835,7 @@ export function useCollection(userId?: string, collectionId?: string | null) {
       return;
     }
     await loadAllCollections(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAllCollections is an inner function
   }, [loadingMore, hasMoreCards]);
 
   return {

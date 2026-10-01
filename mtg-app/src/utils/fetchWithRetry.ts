@@ -68,8 +68,6 @@ export async function fetchWithRetry(
   };
 
   let lastError: Error | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let lastStatus: number | undefined;
 
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     try {
@@ -85,10 +83,7 @@ export async function fetchWithRetry(
         return response;
       }
 
-      // Erreur retryable, préparer le retry
-      lastStatus = response.status;
-      
-      // Si c'est le dernier essai, retourner la réponse d'erreur
+      // Erreur retryable — si dernier essai, retourner la réponse d'erreur
       if (attempt === opts.maxRetries) {
         return response;
       }

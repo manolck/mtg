@@ -97,7 +97,7 @@ export function distributeCounts(
     const exact = (weights[key] / sum) * total;
     return { key, n: Math.floor(exact), frac: exact - Math.floor(exact) };
   });
-  let remaining = total - parts.reduce((acc, part) => acc + part.n, 0);
+  const remaining = total - parts.reduce((acc, part) => acc + part.n, 0);
   parts.sort((a, b) => b.frac - a.frac || a.key.localeCompare(b.key));
   for (let i = 0; i < remaining; i++) {
     parts[i % parts.length].n += 1;

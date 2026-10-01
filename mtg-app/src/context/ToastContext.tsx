@@ -1,26 +1,7 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import type { Toast, ToastType } from '../components/UI/Toast';
 import { ToastItem } from '../components/UI/Toast';
-
-interface ToastContextType {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
-  showSuccess: (message: string, duration?: number) => void;
-  showError: (message: string, duration?: number) => void;
-  showWarning: (message: string, duration?: number) => void;
-  showInfo: (message: string, duration?: number) => void;
-  toasts: Toast[];
-  removeToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
-
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
-}
+import { ToastContext } from './toastContext';
 
 interface ToastProviderProps {
   children: ReactNode;
@@ -116,4 +97,3 @@ function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
     </div>
   );
 }
-

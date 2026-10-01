@@ -158,9 +158,9 @@ function preprocessForOCR(
 /** Nettoie le texte brut OCR (artefacts | ( [ etc.). */
 export function cleanOcrText(text: string): string {
   return (text ?? '')
-    .replace(/[|\[\](){}«»<>]/g, ' ')
+    .replace(/[|[\](){}«»<>]/g, ' ')
     .replace(/[_~`]/g, ' ')
-    .replace(/[^\p{L}\p{N}\s'\-]/gu, ' ')
+    .replace(/[^\p{L}\p{N}\s'-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

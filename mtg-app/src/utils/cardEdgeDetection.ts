@@ -8,6 +8,7 @@
  *   sont pas trop déséquilibrés (rapport max/min < 3.2).
  * S'il n'y a pas de carte détectée, la recherche continue à chaque frame (pas de contour affiché).
  */
+/* eslint-disable @typescript-eslint/no-explicit-any -- OpenCV.js Mat APIs are untyped */
 
 import { loadOpenCV } from './loadOpenCV';
 

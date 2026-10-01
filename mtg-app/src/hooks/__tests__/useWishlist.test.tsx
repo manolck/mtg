@@ -7,7 +7,6 @@ import {
   deleteWishlistItem,
   deleteAllWishlistItems,
   isCardInWishlist,
-  createWishlistItemFromCard,
 } from '../../services/wishlistService';
 import type { WishlistItem } from '../../types/card';
 

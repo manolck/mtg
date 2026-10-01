@@ -24,7 +24,7 @@ function setCachedCard(key: string, data: MTGCard | null): void {
 let lastRequestTime = 0;
 const MIN_REQUEST_DELAY = 50; // 50ms = 20 requêtes par seconde max (plus rapide)
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 async function _delayBetweenRequests(): Promise<void> {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;

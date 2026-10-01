@@ -176,7 +176,6 @@ export function PlayerBoard({
   seatHome = false,
   visibleSeats = 2,
   startingLife = 20,
-  deckName: _deckName,
   viewerId,
   opponents = [],
   onDraw,

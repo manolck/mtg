@@ -12,8 +12,8 @@ export function normalizeAccents(s: string) {
 
 export function cleanOcrKey(s: string) {
   return (s ?? '')
-    .replace(/[|\[\](){}«»<>]/g, ' ')
-    .replace(/[^\p{L}\p{N}\s'\-]/gu, ' ')
+    .replace(/[|[\](){}«»<>]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s'-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -59,7 +59,7 @@ function jaroWinkler(s1: string, s2: string) {
 
 export function tokenize(s: string) {
   return normalizeAccents(s.toLowerCase())
-    .split(/[\s'\-]+/)
+    .split(/[\s'-]+/)
     .map((t) => t.trim())
     .filter((t) => t.length >= 2);
 }

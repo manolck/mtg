@@ -79,7 +79,7 @@ export function computeDeckOwnership(
 
   for (const [, entry] of needMap) {
     const key = ownershipKey(entry);
-    let owned =
+    const owned =
       ownedMap.get(key) ??
       ownedMap.get(`name:${entry.name.toLowerCase()}`) ??
       0;

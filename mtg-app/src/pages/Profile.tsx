@@ -4,8 +4,8 @@ import { useProfile } from '../hooks/useProfile';
 import { useImports } from '../hooks/useImports';
 import { useCollection } from '../hooks/useCollection';
 import { useUserCollections } from '../hooks/useUserCollections';
-import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
+import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 import { errorHandler } from '../services/errorHandler';
 import * as collectionService from '../services/collectionService';
 import { Button } from '../components/UI/Button';
@@ -26,9 +26,9 @@ export function Profile() {
   const { profile, loading, error, updateProfile } = useProfile();
   const { imports, loading: loadingImports, updateImportStatus, deleteImport, loadImports } = useImports();
   const {
-    cards,
+    cards: _cards,
     importCSV,
-    deleteAllCards,
+    deleteAllCards: _deleteAllCards,
     cancelImport,
     importProgress,
     pauseImport,
@@ -361,7 +361,7 @@ export function Profile() {
     setResumeImportId(importId);
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const _confirmCancelImport = async () => {
     if (!resumeImportId) return;
     try {

@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { pb } from '../services/pocketbase';
 import { useAuth } from './useAuth';
-import { isAdmin as checkIsAdmin } from '../types/user';
 
 export function useAdmin() {
   const { currentUser } = useAuth();
@@ -58,7 +57,7 @@ export function useAdmin() {
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.uid]);
+  }, [currentUser]);
 
   return { isAdmin, loading };
 }

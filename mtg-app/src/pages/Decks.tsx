@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDecks } from '../hooks/useDecks';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { errorHandler } from '../services/errorHandler';
 import { getFormatSummary } from '../services/deckFormatRules';
 import { validateDeck } from '../utils/validationSchemas';

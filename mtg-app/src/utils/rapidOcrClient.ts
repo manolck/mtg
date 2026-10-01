@@ -12,8 +12,8 @@ export type RapidOcrResult = {
 
 function clean(text: string): string {
   return (text ?? '')
-    .replace(/[|\[\](){}«»<>]/g, ' ')
-    .replace(/[^\p{L}\p{N}\s'\-]/gu, ' ')
+    .replace(/[|[\](){}«»<>]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s'-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
