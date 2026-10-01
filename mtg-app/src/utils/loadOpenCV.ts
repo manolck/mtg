@@ -14,21 +14,49 @@ declare global {
       GaussianBlur: (src: any, dst: any, ksize: any, sigmaX: number) => void;
       Canny: (src: any, dst: any, threshold1: number, threshold2: number) => void;
       bitwise_not: (src: any, dst: any) => void;
-      threshold: (src: any, dst: any, thresh: number, maxval: number, type: number) => void;
+      threshold: (src: any, dst: any, thresh: number, maxval: number, type: number) => number;
+      adaptiveThreshold: (
+        src: any,
+        dst: any,
+        maxValue: number,
+        adaptiveMethod: number,
+        thresholdType: number,
+        blockSize: number,
+        C: number
+      ) => void;
+      dilate: (src: any, dst: any, kernel: any) => void;
+      morphologyEx: (src: any, dst: any, op: number, kernel: any) => void;
+      getStructuringElement: (shape: number, ksize: any) => any;
+      mean: (src: any) => number[] | Float64Array;
       findContours: (src: any, contours: any, hierarchy: any, mode: number, method: number) => void;
       approxPolyDP: (curve: any, approx: any, epsilon: number, closed: boolean) => void;
       contourArea: (contour: any) => number;
       arcLength: (curve: any, closed: boolean) => number;
-      Mat: new () => any;
+      minAreaRect: (contour: any) => any;
+      boundingRect: (contour: any) => { x: number; y: number; width: number; height: number };
+      boxPoints?: (rect: any, out?: any) => any;
+      CLAHE?: new (clipLimit?: number, tileGridSize?: any) => { apply: (src: any, dst: any) => void; delete: () => void };
+      Mat: { new (): any; ones: (rows: number, cols: number, type: number) => any };
+      MatVector: new () => any;
       matFromArray: (rows: number, cols: number, type: number, array: number[] | Float32Array) => any;
       Size: new (w: number, h: number) => any;
       Point: new (x: number, y: number) => any;
+      RotatedRect?: { points: (rect: any) => Array<{ x: number; y: number }> };
+      CV_8U: number;
       CV_8UC1: number;
       CV_8UC4: number;
       CV_32FC1: number;
       COLOR_RGBA2GRAY: number;
       THRESH_BINARY: number;
+      THRESH_BINARY_INV: number;
+      THRESH_OTSU: number;
+      ADAPTIVE_THRESH_GAUSSIAN_C: number;
+      MORPH_RECT: number;
+      MORPH_ELLIPSE: number;
+      MORPH_CLOSE: number;
+      MORPH_OPEN: number;
       RETR_LIST: number;
+      RETR_EXTERNAL: number;
       CHAIN_APPROX_SIMPLE: number;
       getPerspectiveTransform: (src: any, dst: any) => any;
       warpPerspective: (
