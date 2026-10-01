@@ -160,7 +160,7 @@ describe('useWishlist', () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const isInWishlist = result.current.checkIfInWishlist('Lightning Bolt', 'M21', '161');
+      const isInWishlist = await result.current.checkIfInWishlist('Lightning Bolt', 'M21', '161');
 
       expect(isInWishlist).toBe(true);
     });

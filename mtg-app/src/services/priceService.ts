@@ -29,6 +29,11 @@ export interface PriceData {
 const PRICE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
 const priceCache = new Map<string, { data: CardPrice; timestamp: number }>();
 
+/** Clear in-memory price cache (tests). */
+export function clearPriceCache(): void {
+  priceCache.clear();
+}
+
 /**
  * Récupère le prix d'une carte
  * Priorité: MTGJSON > Scryfall

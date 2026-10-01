@@ -73,18 +73,27 @@ if (typeof (globalThis as any).TextEncoder === 'undefined') {
   (globalThis as any).TextDecoder = TextDecoder;
 }
 
-// Mock crypto.subtle for Node.js environment
-if (typeof (globalThis as any).crypto === 'undefined' || !(globalThis as any).crypto?.subtle) {
+// Always provide crypto.subtle — jsdom/Node stubs are incomplete, and jest.fn
+// implementations get wiped by clearAllMocks in individual suites.
+{
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const crypto = require('crypto') as typeof import('crypto');
-  (globalThis as any).crypto = {
-    ...(globalThis as any).crypto,
-    subtle: {
-      digest: jest.fn().mockImplementation(async (_algorithm: string, data: ArrayBuffer) => {
-        const hash = crypto.createHash('sha256');
-        hash.update(Buffer.from(data));
-        return Buffer.from(hash.digest('hex'), 'hex');
-      }),
+  const nodeCrypto = require('crypto') as typeof import('crypto');
+  Object.defineProperty(globalThis, 'crypto', {
+    configurable: true,
+    writable: true,
+    value: {
+      getRandomValues: (arr: Uint8Array) => nodeCrypto.randomFillSync(arr),
+      subtle: {
+        digest: async (_algorithm: string, data: BufferSource) => {
+          const hash = nodeCrypto.createHash('sha256');
+          const bytes =
+            data instanceof ArrayBuffer
+              ? Buffer.from(data)
+              : Buffer.from((data as ArrayBufferView).buffer);
+          hash.update(bytes);
+          return hash.digest().buffer;
+        },
+      },
     },
-  } as any;
+  });
 }

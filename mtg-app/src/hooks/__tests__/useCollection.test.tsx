@@ -106,6 +106,7 @@ const mockGetCollection = collectionService.getCollection as jest.Mock;
 const mockGetAllCollections = collectionService.getAllCollections as jest.Mock;
 const mockDeleteCard = collectionService.deleteCard as jest.Mock;
 const mockDeleteCards = collectionService.deleteCards as jest.Mock;
+const mockDeleteAllCardsByUser = collectionService.deleteAllCardsByUser as jest.Mock;
 const mockUpdateCardQuantity = collectionService.updateCardQuantity as jest.Mock;
 const mockAddCard = collectionService.addCard as jest.Mock;
 const mockFindCard = collectionService.findCard as jest.Mock;
@@ -152,6 +153,7 @@ describe('useCollection', () => {
     mockGetAllCollections.mockResolvedValue({ items: [], totalCount: 0, owners: [] });
     mockDeleteCard.mockResolvedValue(undefined);
     mockDeleteCards.mockResolvedValue(undefined);
+    mockDeleteAllCardsByUser.mockResolvedValue(undefined);
     mockUpdateCardQuantity.mockResolvedValue(undefined);
     mockAddCard.mockResolvedValue({ id: 'new-card-id' });
     mockFindCard.mockResolvedValue(null);
@@ -182,13 +184,15 @@ describe('useCollection', () => {
       }, { timeout: 3000 });
     });
 
-    it('should return empty collection when user is not authenticated', () => {
+    it('should return empty collection when user is not authenticated', async () => {
       mockUseAuth.mockReturnValueOnce({ currentUser: null });
       
       const { result } = renderHook(() => useCollection(), { wrapper });
 
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
       expect(result.current.cards).toEqual([]);
-      expect(result.current.loading).toBe(false);
     });
 
     it('should handle loading error gracefully', async () => {
@@ -276,7 +280,7 @@ describe('useCollection', () => {
         await result.current.deleteAllCards();
       });
 
-      expect(mockDeleteCards).toHaveBeenCalled();
+      expect(mockDeleteAllCardsByUser).toHaveBeenCalled();
     });
 
     it('should throw error when trying to delete all without permission', async () => {
@@ -375,8 +379,8 @@ describe('useCollection', () => {
     });
 
     it('should throw error when importing without authentication', async () => {
-      mockUseAuth.mockReturnValueOnce({ currentUser: null });
-      
+      mockUseAuth.mockReturnValue({ currentUser: null });
+
       const { result } = renderHook(() => useCollection(), { wrapper });
 
       await waitFor(() => {
@@ -387,7 +391,7 @@ describe('useCollection', () => {
         await act(async () => {
           await result.current.importCSV('Lightning Bolt,1');
         });
-      }).rejects.toThrow('User not authenticated');
+      }).rejects.toThrow(/connecté|authenticated/i);
     });
 
     it('should handle pause import', async () => {

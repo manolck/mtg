@@ -10,21 +10,35 @@ export function Statistics() {
   const [currency, setCurrency] = useState<'usd' | 'eur'>('usd');
 
   useEffect(() => {
-    if (allCards.length > 0 && !collectionValue && !loadingValue) {
-      loadCollectionValue();
+    if (allCards.length === 0) {
+      setCollectionValue(null);
+      return;
     }
-  }, [allCards.length]);
-
-  const loadCollectionValue = async () => {
+    let cancelled = false;
     setLoadingValue(true);
-    try {
-      const { total } = await calculateCollectionValue(allCards, currency);
-      setCollectionValue(total);
-    } catch (error) {
-      console.error('Error calculating collection value:', error);
-    } finally {
-      setLoadingValue(false);
-    }
+    void calculateCollectionValue(allCards, currency)
+      .then(({ total }) => {
+        if (!cancelled) setCollectionValue(total);
+      })
+      .catch((error) => {
+        console.error('Error calculating collection value:', error);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingValue(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allCards, currency]);
+
+  const loadCollectionValue = () => {
+    // Force refresh (same deps as effect)
+    setCollectionValue(null);
+    setLoadingValue(true);
+    void calculateCollectionValue(allCards, currency)
+      .then(({ total }) => setCollectionValue(total))
+      .catch((error) => console.error('Error calculating collection value:', error))
+      .finally(() => setLoadingValue(false));
   };
 
   // Statistiques par couleur
@@ -109,8 +123,6 @@ export function Statistics() {
               value={currency}
               onChange={(e) => {
                 setCurrency(e.target.value as 'usd' | 'eur');
-                setCollectionValue(null);
-                loadCollectionValue();
               }}
               className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >

@@ -3,6 +3,8 @@
  * Logging et affichage utilisateur-friendly
  */
 
+import { getViteEnv } from '../utils/viteEnv';
+
 // Utilisation d'un objet const au lieu d'un enum pour compatibilité avec erasableSyntaxOnly
 export const ErrorTypeValues = {
   NETWORK: 'NETWORK',
@@ -45,16 +47,16 @@ class ErrorHandler {
         
         Sentry.init({
           dsn: sentryDsn,
-          environment: import.meta.env.MODE || 'development',
+          environment: getViteEnv().MODE || 'development',
           // Performance monitoring optionnel (10% des transactions)
           integrations: [
             Sentry.browserTracingIntegration(),
           ],
-          tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+          tracesSampleRate: getViteEnv().PROD ? 0.1 : 1.0,
           // Capture des erreurs non gérées
           beforeSend(event) {
             // Filtrer les erreurs de développement si nécessaire
-            if (import.meta.env.DEV && event.exception) {
+            if (getViteEnv().DEV && event.exception) {
               console.log('Sentry would capture:', event);
             }
             return event;
@@ -231,7 +233,7 @@ class ErrorHandler {
    */
   private logError(error: AppError): void {
     // Console en développement
-    if (import.meta.env.DEV) {
+    if (getViteEnv().DEV) {
       console.error('Error:', {
         type: error.type,
         message: error.message,
@@ -293,7 +295,7 @@ export const errorHandler = new ErrorHandler();
 
 // Initialiser avec la config d'environnement (async)
 if (typeof window !== 'undefined') {
-  const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+  const sentryDsn = getViteEnv().VITE_SENTRY_DSN;
   if (sentryDsn) {
     // Initialiser Sentry de manière asynchrone pour ne pas bloquer le chargement
     errorHandler.init(sentryDsn).catch((error) => {

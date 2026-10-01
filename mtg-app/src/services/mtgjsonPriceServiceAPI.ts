@@ -5,9 +5,10 @@
  */
 
 import { LRUCache } from '../utils/LRUCache';
+import { getViteEnv } from '../utils/viteEnv';
 
 // URL de l'API backend pour les prix MTGJSON
-const API_BASE_URL = import.meta.env.VITE_PRICE_API_URL || '';
+const API_BASE_URL = getViteEnv().VITE_PRICE_API_URL || '';
 
 // Cache en mémoire pour les prix recherchés
 const priceCache = new LRUCache<string, CardPrice>(1000, 24 * 60 * 60 * 1000); // 24h
@@ -24,8 +25,9 @@ export interface CardPrice {
  * Vérifie si on est en mode développement
  */
 function isDevelopment(): boolean {
-  return import.meta.env.DEV || 
-         import.meta.env.MODE === 'development' ||
+  const env = getViteEnv();
+  return env.DEV || 
+         env.MODE === 'development' ||
          window.location.hostname === 'localhost' ||
          window.location.hostname === '127.0.0.1';
 }
@@ -36,7 +38,7 @@ function isDevelopment(): boolean {
 async function isAPIAvailable(): Promise<boolean> {
   // En développement, on peut utiliser l'émulateur ou laisser tomber
   if (isDevelopment()) {
-    const apiUrl = import.meta.env.VITE_PRICE_API_URL;
+    const apiUrl = getViteEnv().VITE_PRICE_API_URL;
     if (!apiUrl || apiUrl.trim() === '') {
       return false; // API non configurée en dev
     }

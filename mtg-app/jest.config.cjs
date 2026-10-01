@@ -54,6 +54,10 @@ module.exports = {
       {
         tsconfig: 'tsconfig.jest.json',
         useESM: false,
+        isolatedModules: true,
+        diagnostics: {
+          ignoreCodes: [1343],
+        },
       },
     ],
   },

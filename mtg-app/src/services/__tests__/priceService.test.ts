@@ -1,4 +1,4 @@
-import { getCardPrice } from '../priceService';
+import { getCardPrice, clearPriceCache } from '../priceService';
 import { getCardPriceFromMTGJSON } from '../mtgjsonPriceServiceAPI';
 import { scryfallQueue } from '../../utils/apiQueue';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
@@ -44,6 +44,7 @@ describe('priceService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    clearPriceCache();
   });
 
   describe('getCardPrice', () => {
