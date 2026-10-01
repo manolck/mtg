@@ -151,7 +151,7 @@ Sans sidecar : message clair (HTTP 502/405) invitant à lancer `npm run ocr:side
 
 Au minimum : `users`, collections / decks / wishlist / imports / legal (voir export `pocketbase_schema_export.json`).
 
-**Playtest** : schéma dans [`pocketbase/play-collections.json`](pocketbase/play-collections.json) — `play_lobbies`, `play_seats`, `play_matches`, `play_match_actions`, `play_rtc_signals` (signaling legacy si pas de WS).
+**Playtest** : schéma dans [`pocketbase/play-collections.json`](pocketbase/play-collections.json) — `play_lobbies`, `play_seats`, `play_matches`, `play_match_actions`, `play_lobby_messages`, `play_rtc_signals` (signaling legacy si pas de WS).
 
 ### Règles API
 

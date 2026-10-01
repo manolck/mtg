@@ -102,5 +102,13 @@
     "updateRule": null,
     "deleteRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)",
     "notes": "Ephemeral WebRTC signaling. List/create for the two peers; delete after apply. No updates."
+  },
+  "play_lobby_messages": {
+    "listRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "viewRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "createRule": "@request.auth.id != \"\" && userId = @request.auth.id && lobbyId.status != \"closed\"",
+    "updateRule": null,
+    "deleteRule": null,
+    "notes": "Lobby chat append-only. Visible while lobby is open/playing; author-only create."
   }
 }

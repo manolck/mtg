@@ -6,15 +6,17 @@ import { useToast } from '../context/ToastContext';
 import { errorHandler } from '../services/errorHandler';
 import * as playLobbyService from '../services/playLobbyService';
 import { startMatch } from '../services/playMatchService';
-import type { PlayLobby, PlaySeat } from '../types/play';
+import type { PlayChatMessage, PlayLobby, PlaySeat } from '../types/play';
 import { DECK_FORMAT_LABELS } from '../types/deck';
 import { isAdmin } from '../types/user';
 import { emptyWaitingLobbyRemainingMs, EMPTY_WAITING_LOBBY_MS, formatCountdown } from '../utils/playLobby';
+import { appendChatMessage } from '../utils/playChat';
 import { watchWithPoll } from '../utils/playRealtime';
 import { Button } from '../components/UI/Button';
 import { Spinner } from '../components/UI/Spinner';
 import { ConfirmDialog } from '../components/UI/ConfirmDialog';
 import { SeatPane } from '../components/Play/SeatPane';
+import { LobbyChat } from '../components/Play/LobbyChat';
 import { DeckPickerModal } from '../components/Play/DeckPickerModal';
 
 export function PlayLobby() {
@@ -34,6 +36,7 @@ export function PlayLobby() {
   const [now, setNow] = useState(() => Date.now());
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [chatMessages, setChatMessages] = useState<PlayChatMessage[]>([]);
 
   const refresh = useCallback(async () => {
     if (!lobbyId) return;
@@ -75,6 +78,39 @@ export function PlayLobby() {
     };
     return watchWithPoll(onChange, () => playLobbyService.subscribeLobby(lobbyId, onChange));
   }, [lobbyId]);
+
+  const refreshChat = useCallback(async () => {
+    if (!lobbyId) return;
+    try {
+      const next = await playLobbyService.listLobbyMessages(lobbyId);
+      setChatMessages(next);
+    } catch {
+      /* collection may not exist yet on older PB */
+    }
+  }, [lobbyId]);
+
+  const refreshChatRef = useRef(refreshChat);
+  refreshChatRef.current = refreshChat;
+
+  useEffect(() => {
+    void refreshChat();
+    if (!lobbyId) return;
+    const onChange = () => {
+      void refreshChatRef.current();
+    };
+    return watchWithPoll(onChange, () => playLobbyService.subscribeLobbyMessages(lobbyId, onChange));
+  }, [lobbyId, refreshChat]);
+
+  const handleSendChat = async (message: PlayChatMessage) => {
+    if (!lobbyId || !currentUser) return;
+    setChatMessages((prev) => appendChatMessage(prev, message));
+    await playLobbyService.sendLobbyMessage({
+      lobbyId,
+      userId: currentUser.uid,
+      message,
+    });
+    await refreshChat();
+  };
 
   const mySeat = seats.find((s) => s.userId === currentUser?.uid);
   const isHost = lobby?.hostId === currentUser?.uid;
@@ -323,20 +359,35 @@ export function PlayLobby() {
         )}
       </div>
 
-      <div className={`grid gap-4 ${slots.length > 1 ? 'md:grid-cols-2' : ''}`}>
-        {slots.map((seat) => (
-          <SeatPane
-            key={seat.id}
-            seat={seat}
-            seatIndex={seat.seatIndex}
-            isHost={seat.userId === lobby.hostId}
-            isSelf={seat.userId === currentUser?.uid}
-            canJoin={false}
-            onLeave={handleLeave}
-            onPickDeck={() => setPickerOpen(true)}
-            onToggleReady={handleReady}
-          />
-        ))}
+      <div className="grid gap-4 md:grid-cols-2 items-stretch">
+        <LobbyChat
+          messages={chatMessages}
+          selfId={currentUser?.uid}
+          selfName={profile?.pseudonym || currentUser?.email || mySeat?.displayName || 'Joueur'}
+          seats={slots}
+          disabled={lobby.status === 'closed'}
+          onSend={handleSendChat}
+        />
+        <div className={`grid gap-4 content-start ${slots.length > 1 ? 'sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2' : ''}`}>
+          {slots.map((seat) => (
+            <SeatPane
+              key={seat.id}
+              seat={seat}
+              seatIndex={seat.seatIndex}
+              isHost={seat.userId === lobby.hostId}
+              isSelf={seat.userId === currentUser?.uid}
+              canJoin={false}
+              onLeave={handleLeave}
+              onPickDeck={() => setPickerOpen(true)}
+              onToggleReady={handleReady}
+            />
+          ))}
+          {slots.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-6 text-sm text-gray-500 dark:text-gray-400">
+              Aucun joueur assis pour l’instant.
+            </div>
+          )}
+        </div>
       </div>
 
       {currentUser && (

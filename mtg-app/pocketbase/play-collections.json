@@ -526,5 +526,122 @@
     "createRule": "@request.auth.id != \"\" && fromUserId = @request.auth.id",
     "updateRule": null,
     "deleteRule": "@request.auth.id != \"\" && (@request.auth.id = fromUserId || @request.auth.id = toUserId)"
+  },
+  {
+    "id": "play_lobby_messages_id",
+    "name": "play_lobby_messages",
+    "type": "base",
+    "system": false,
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text_pk_id",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_created",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate_updated",
+        "name": "updated",
+        "onCreate": true,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "id": "plm_lobbyid",
+        "name": "lobbyId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "play_lobbies_id",
+        "cascadeDelete": true,
+        "maxSelect": 1
+      },
+      {
+        "id": "plm_userid",
+        "name": "userId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "collectionId": "_pb_users_auth_",
+        "cascadeDelete": false,
+        "maxSelect": 1
+      },
+      {
+        "id": "plm_clientid",
+        "name": "clientId",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "min": 8,
+        "max": 64
+      },
+      {
+        "id": "plm_displayname",
+        "name": "displayName",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "max": 80
+      },
+      {
+        "id": "plm_text",
+        "name": "text",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "min": 1,
+        "max": 240
+      },
+      {
+        "id": "plm_dice",
+        "name": "dice",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "system": false,
+        "hidden": false,
+        "maxSize": 4000
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_play_lobby_messages_lobby` ON `play_lobby_messages` (`lobbyId`, `created`)",
+      "CREATE UNIQUE INDEX `idx_play_lobby_messages_client` ON `play_lobby_messages` (`lobbyId`, `clientId`)"
+    ],
+    "listRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "viewRule": "@request.auth.id != \"\" && lobbyId.status != \"closed\"",
+    "createRule": "@request.auth.id != \"\" && userId = @request.auth.id && lobbyId.status != \"closed\"",
+    "updateRule": null,
+    "deleteRule": null
   }
 ]

@@ -5,7 +5,8 @@ import { snapshotFromDeck } from '../utils/playTable';
 import { shouldCloseEmptyWaitingLobby } from '../utils/playLobby';
 import { isRealtimeUnavailable, safeRealtimeUnsub, swallowRealtimeError } from '../utils/playRealtime';
 import type { DeckFormat } from '../types/deck';
-import type { DeckSnapshot, LobbyStatus, PlayLobby, PlaySeat } from '../types/play';
+import type { DeckSnapshot, LobbyStatus, PlayChatDice, PlayChatMessage, PlayLobby, PlaySeat } from '../types/play';
+import { PLAY_CHAT_MAX_MESSAGES, isValidChatDice, sanitizeChatText } from '../utils/playChat';
 
 function relationId(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -234,6 +235,74 @@ export function subscribeLobbyList(onChange: () => void): () => void {
   pb.collection('play_lobbies')
     .subscribe('*', () => {
       if (!cancelled) onChange();
+    })
+    .then((next) => {
+      if (cancelled) safeRealtimeUnsub(next);
+      else unsub = next;
+    })
+    .catch(swallowRealtimeError);
+  return () => {
+    cancelled = true;
+    if (unsub) safeRealtimeUnsub(unsub);
+  };
+}
+
+function asDice(value: unknown): PlayChatDice | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as PlayChatDice;
+  return isValidChatDice(raw) ? raw : undefined;
+}
+
+function recordToLobbyMessage(record: { id: string; [key: string]: unknown }): PlayChatMessage {
+  const createdRaw = record.created ? new Date(String(record.created)).getTime() : Date.now();
+  const dice = asDice(record.dice);
+  return {
+    id: String(record.clientId || record.id),
+    userId: relationId(record.userId),
+    name: String(record.displayName || 'Joueur'),
+    text: String(record.text || ''),
+    created: Number.isFinite(createdRaw) ? createdRaw : Date.now(),
+    ...(dice ? { dice } : {}),
+  };
+}
+
+export async function listLobbyMessages(lobbyId: string): Promise<PlayChatMessage[]> {
+  const records = await pb.collection('play_lobby_messages').getFullList({
+    filter: pbEqual('lobbyId', lobbyId),
+    sort: 'created',
+  });
+  return records.map(recordToLobbyMessage).slice(-PLAY_CHAT_MAX_MESSAGES);
+}
+
+export async function sendLobbyMessage(input: {
+  lobbyId: string;
+  userId: string;
+  message: PlayChatMessage;
+}): Promise<PlayChatMessage> {
+  const text = sanitizeChatText(input.message.text);
+  if (!text && !input.message.dice) {
+    throw new Error('Message vide.');
+  }
+  const dice = isValidChatDice(input.message.dice) ? input.message.dice : null;
+  const record = await pb.collection('play_lobby_messages').create({
+    lobbyId: input.lobbyId,
+    userId: input.userId,
+    clientId: input.message.id.slice(0, 64),
+    displayName: (input.message.name || '').slice(0, 80),
+    text: text || input.message.text.slice(0, 240),
+    dice,
+  });
+  return recordToLobbyMessage(record);
+}
+
+export function subscribeLobbyMessages(lobbyId: string, onChange: () => void): () => void {
+  if (isRealtimeUnavailable()) return () => {};
+  let cancelled = false;
+  let unsub: (() => void) | undefined;
+  pb.collection('play_lobby_messages')
+    .subscribe('*', (e) => {
+      const recLobby = relationId((e.record as { lobbyId?: unknown }).lobbyId);
+      if (!cancelled && recLobby === lobbyId) onChange();
     })
     .then((next) => {
       if (cancelled) safeRealtimeUnsub(next);
