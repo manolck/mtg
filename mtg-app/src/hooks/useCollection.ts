@@ -274,6 +274,7 @@ export function useCollection(userId?: string, collectionId?: string | null) {
       scryfallId?: string;
       multiverseid?: number;
       setCode?: string;
+      set?: string;
       collectorNumber?: string;
       name: string;
     },

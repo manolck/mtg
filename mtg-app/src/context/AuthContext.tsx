@@ -4,7 +4,7 @@ import { pb } from '../services/pocketbase';
 import { rateLimiter, RATE_LIMITS } from '../services/rateLimiter';
 import { errorHandler } from '../services/errorHandler';
 import type { User } from '../types/user';
-import { AuthContext, type AuthContextType } from './authContext';
+import { AuthContext, type AuthContextType } from './authContextStore';
 
 function userFromAuthModel(model: { id: string; email: string; pseudonym?: string } | null): User | null {
   if (!model) return null;

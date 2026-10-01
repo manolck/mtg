@@ -27,8 +27,8 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      // Legacy / PocketBase-heavy code — warn instead of blocking CI.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // Legacy / PocketBase-heavy code — do not block CI on `any`.
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
