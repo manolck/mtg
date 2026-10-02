@@ -39,6 +39,7 @@ import { MOBILE_DOUBLE_TAP_GUARD_MS } from '../../hooks/useDeferredSingleTap';
 import { angleBetween, shouldTapFromRotate } from '../../utils/playRotateTap';
 import {
   BUILTIN_PLAY_MATS,
+  COMMANDER_PLAY_MAT_ID,
   commanderPlayMat,
   loadImagePlayMats,
   resolvePlayMat,
@@ -1276,7 +1277,11 @@ export function PlayerBoard({
   const matThemeClass = currentMat.kind === 'image' ? 'zone--photo' : currentMat.className || 'zone--battlefield';
   const matThemeStyle =
     currentMat.kind === 'image' && currentMat.imageUrl
-      ? ({ ['--playmat-image']: `url("${currentMat.imageUrl}")` } as CSSProperties)
+      ? ({
+          ['--playmat-image']: `url("${currentMat.imageUrl}")`,
+          // Commander art is portrait: pin to the top of the playmat.
+          ...(currentMat.id === COMMANDER_PLAY_MAT_ID ? { ['--playmat-position']: 'center top' } : null),
+        } as CSSProperties)
       : undefined;
 
   const matThemeMenuItems = onSetPlaymat ? (

@@ -114,7 +114,8 @@ export function commanderPlayMat(imageUrl?: string, label?: string): PlayMatOpti
     label: label ? `Commander · ${label}` : 'Commander',
     kind: 'image',
     imageUrl: safeUrl,
-    swatch: `center / cover url("${safeUrl}")`,
+    // Portrait art on a wide board: pin to the top so faces stay visible.
+    swatch: `center top / cover url("${safeUrl}")`,
   };
 }
 

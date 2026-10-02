@@ -103,7 +103,7 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: var(--playmat-image) center / cover no-repeat;
+  background: var(--playmat-image) var(--playmat-position, center) / cover no-repeat;
   pointer-events: none;
 }
 .zone--photo::after {
