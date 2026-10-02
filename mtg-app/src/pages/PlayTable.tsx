@@ -661,8 +661,16 @@ export function PlayTable() {
         onSetCounter={(instanceId, counterId, delta) =>
           send({ type: 'setCounter', userId: boardUserId, instanceId, counterId, delta })
         }
-        onAddToken={(card, quantity) =>
-          send({ type: 'addToken', userId: boardUserId, card, quantity })
+        onAddToken={(card, quantity, playmat) =>
+          send({
+            type: 'addToken',
+            userId: boardUserId,
+            card,
+            quantity,
+            playmatX: playmat?.playmatX,
+            playmatY: playmat?.playmatY,
+            playmatRow: playmat?.playmatRow,
+          })
         }
         onRemoveToken={(instanceId) =>
           send({ type: 'removeToken', userId: boardUserId, instanceId })

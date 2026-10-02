@@ -107,7 +107,11 @@ interface PlayerBoardProps {
     y: number,
     row?: 'lands' | 'battlefield' | 'enchantments' | null,
   ) => void | Promise<unknown>;
-  onAddToken?: (card: TokenBlueprint, quantity: number) => void;
+  onAddToken?: (
+    card: TokenBlueprint,
+    quantity: number,
+    playmat?: { playmatX?: number; playmatY?: number; playmatRow?: 'lands' | 'battlefield' | 'enchantments' | null },
+  ) => void;
   onRemoveToken?: (instanceId: string) => void;
   onScry?: (count: number, onTop: string[], onBottom: string[]) => void;
   onSurveil?: (count: number, onTop: string[], toGraveyard: string[]) => void;
@@ -139,6 +143,8 @@ interface MenuState {
   from: ZoneName | 'libraryPile';
   x: number;
   y: number;
+  clientX: number;
+  clientY: number;
   view: MenuView;
   libraryN: string;
   libraryReturn?: 'sendTo' | 'libraryDrop';
@@ -245,6 +251,8 @@ export function PlayerBoard({
   } | null>(null);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const playmatRef = useRef<HTMLDivElement | null>(null);
+  const battlefieldDropRef = useRef<HTMLDivElement | null>(null);
+  const tokenSpawnRef = useRef<{ x: number; y: number } | null>(null);
   const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
   const homeMat = isSelf || seatHome;
   /** Across-the-table view: mirror playmat coords so near-hand cards stay near the enemy hand. */
@@ -258,6 +266,21 @@ export function PlayerBoard({
 
   const toStoredPlaymat = (x: number, y: number, boardUserId = player.userId) =>
     boardUsesHomeLayout(boardUserId) ? { x, y } : { x: 100 - x, y: 100 - y };
+
+  const playmatPosFromClient = (clientX: number, clientY: number) => {
+    const el = battlefieldDropRef.current;
+    if (!el) return { x: 50, y: 50 };
+    const rect = el.getBoundingClientRect();
+    const x = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+    const y = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+    return toStoredPlaymat(Math.max(4, Math.min(96, x)), Math.max(4, Math.min(96, y)));
+  };
+
+  const openTokenPicker = (clientX: number, clientY: number) => {
+    tokenSpawnRef.current = playmatPosFromClient(clientX, clientY);
+    setTokenOpen(true);
+    setMenu(null);
+  };
   const canControl = isSelf || controlOpponents;
   const canUseLibrary = canControl;
   const rawPlayPx = cardWidthForSpace(playmatBox.width, playmatBox.height, 'play', compact) || 0;
@@ -444,6 +467,8 @@ export function PlayerBoard({
       from,
       x: Math.max(pad, x),
       y: Math.max(pad, y),
+      clientX: event.clientX,
+      clientY: event.clientY,
       view: !card && from === 'hand' ? 'showHand' : 'root',
       libraryN: '2',
     });
@@ -543,6 +568,8 @@ export function PlayerBoard({
           from,
           x: Math.max(pad, Math.min(clientX, window.innerWidth - width - pad)),
           y: Math.max(pad, Math.min(clientY, window.innerHeight - 220)),
+          clientX,
+          clientY,
           view: 'libraryDrop',
           libraryN: '2',
         });
@@ -975,6 +1002,7 @@ export function PlayerBoard({
       size === 'sm' ? (playCardPx ? Math.round(playCardPx * 0.78) : undefined) : playCardPx;
     return (
       <div
+        ref={battlefieldDropRef}
         className="relative flex-1 min-h-0 min-w-0"
         data-play-drop="battlefield"
         data-play-board-user-id={player.userId}
@@ -1783,10 +1811,7 @@ export function PlayerBoard({
                     <button
                       type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg bg-amber-500 text-black text-sm font-semibold mb-1"
-                      onClick={() => {
-                        setTokenOpen(true);
-                        setMenu(null);
-                      }}
+                      onClick={() => openTokenPicker(menu.clientX, menu.clientY)}
                     >
                       Ajouter un jeton
                     </button>
@@ -1942,10 +1967,7 @@ export function PlayerBoard({
                     <button
                       type="button"
                       className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-sm"
-                      onClick={() => {
-                        setTokenOpen(true);
-                        setMenu(null);
-                      }}
+                      onClick={() => openTokenPicker(menu.clientX, menu.clientY)}
                     >
                       Ajouter un jeton
                     </button>
@@ -2207,8 +2229,20 @@ export function PlayerBoard({
 
       {tokenOpen && canControl && (
         <TokenSearchPanel
-          onClose={() => setTokenOpen(false)}
-          onAdd={(card, quantity) => onAddToken?.(card, quantity)}
+          onClose={() => {
+            setTokenOpen(false);
+            tokenSpawnRef.current = null;
+          }}
+          onAdd={(card, quantity) => {
+            const spawn = tokenSpawnRef.current;
+            onAddToken?.(
+              card,
+              quantity,
+              spawn
+                ? { playmatX: spawn.x, playmatY: spawn.y, playmatRow: 'battlefield' }
+                : undefined,
+            );
+          }}
         />
       )}
 

@@ -1464,6 +1464,9 @@ describe('playTable', () => {
       type: 'addToken',
       userId: 'u1',
       quantity: 2,
+      playmatX: 31,
+      playmatY: 64,
+      playmatRow: 'battlefield',
       card: {
         scryfallId: 'saproling',
         name: 'Saproling',
@@ -1474,6 +1477,7 @@ describe('playTable', () => {
     const tokens = state.players[0].battlefield.filter((card) => card.isToken);
     expect(tokens).toHaveLength(2);
     expect(tokens.every((card) => card.name === 'Saproling' && card.facedown === false)).toBe(true);
+    expect(tokens.every((card) => card.playmatX === 31 && card.playmatY === 64)).toBe(true);
     expect(new Set(tokens.map((card) => card.instanceId)).size).toBe(2);
 
     const first = tokens[0];
