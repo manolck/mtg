@@ -1298,10 +1298,8 @@ export function PlayerBoard({
 
   return (
     <div
-      className={`h-full min-h-0 flex flex-col rounded-xl overflow-hidden text-white ${
-        isTurn
-          ? 'ring-2 ring-inset ring-amber-400 shadow-[inset_0_0_18px_rgba(251,191,36,0.2)]'
-          : 'ring-1 ring-inset ring-amber-200/20'
+      className={`relative h-full min-h-0 flex flex-col rounded-xl overflow-hidden text-white ${
+        isTurn ? '' : 'ring-1 ring-amber-200/20'
       }`}
     >
       <div className="relative flex-1 min-h-0 flex bg-[var(--ink)]">
@@ -2114,6 +2112,12 @@ export function PlayerBoard({
           onClose={() => setLightbox(null)}
         />
       )}
+      {isTurn ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-[80] rounded-xl shadow-[inset_0_0_0_3px_#fbbf24,inset_0_0_18px_rgba(251,191,36,0.35)]"
+          aria-hidden
+        />
+      ) : null}
     </div>
   );
 }
