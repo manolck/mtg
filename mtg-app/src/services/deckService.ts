@@ -60,6 +60,7 @@ function normalizeEntry(raw: unknown): DeckEntry | null {
     imageUrl: e.imageUrl,
     backImageUrl: e.backImageUrl,
     backName: e.backName,
+    oracleText: e.oracleText,
     legalities: e.legalities,
   };
 }
@@ -314,7 +315,18 @@ function mergeEntryIntoList(list: DeckEntry[], entry: DeckEntry): DeckEntry[] {
   const idx = list.findIndex((c) => c.scryfallId === entry.scryfallId);
   if (idx >= 0) {
     const next = [...list];
-    next[idx] = { ...next[idx], quantity: next[idx].quantity + entry.quantity };
+    const prev = next[idx];
+    next[idx] = {
+      ...prev,
+      ...entry,
+      quantity: prev.quantity + entry.quantity,
+      // Keep richer metadata when re-adding (e.g. oracleText for copy-limit exceptions)
+      oracleText: entry.oracleText || prev.oracleText,
+      legalities: entry.legalities || prev.legalities,
+      imageUrl: entry.imageUrl || prev.imageUrl,
+      typeLine: entry.typeLine || prev.typeLine,
+      colorIdentity: entry.colorIdentity || prev.colorIdentity,
+    };
     return next;
   }
   return [...list, { ...entry }];
@@ -509,6 +521,7 @@ export function mtgCardToDeckEntry(
     rarity?: string;
     colors?: string[];
     imageUrl?: string;
+    text?: string;
   },
   quantity: number = 1,
   extras?: Partial<DeckEntry>
@@ -528,5 +541,7 @@ export function mtgCardToDeckEntry(
     backImageUrl: (card as { backImageUrl?: string }).backImageUrl,
     backName: extras?.backName,
     ...extras,
+    // Prefer explicit extras, then Scryfall oracle text
+    oracleText: extras?.oracleText ?? card.text,
   };
 }

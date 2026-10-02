@@ -20,6 +20,7 @@ export function mtgCardToDeckEntry(card: MTGCard, quantity: number = 1): DeckEnt
     imageUrl: card.imageUrl,
     backImageUrl: card.backImageUrl,
     backName: card.backName,
+    oracleText: card.text,
     legalities: card.legalities,
   };
 }
@@ -41,6 +42,7 @@ export function userCardToDeckEntry(card: UserCard, quantity: number = 1): DeckE
     imageUrl: card.mtgData?.imageUrl,
     backImageUrl: card.backImageUrl || card.mtgData?.backImageUrl,
     backName: card.backMtgData?.name || card.mtgData?.backName,
+    oracleText: card.mtgData?.text,
     legalities: card.mtgData?.legalities,
   };
 }

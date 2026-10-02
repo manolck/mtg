@@ -1,5 +1,10 @@
 import type { Deck, DeckEntry, DeckFormat } from '../types/deck';
 import { countEntries, DECK_FORMAT_LABELS } from '../types/deck';
+import {
+  formatCopyLimitLabel,
+  isBasicLandEntry,
+  maxCopiesForEntry,
+} from '../utils/deckCopyLimits';
 
 export type ValidationMode = 'draft' | 'share';
 
@@ -17,27 +22,6 @@ export interface ValidationResult {
   warnings: ValidationIssue[];
 }
 
-const BASIC_LAND_NAMES = new Set([
-  'plains',
-  'island',
-  'swamp',
-  'mountain',
-  'forest',
-  'wastes',
-  'snow-covered plains',
-  'snow-covered island',
-  'snow-covered swamp',
-  'snow-covered mountain',
-  'snow-covered forest',
-]);
-
-function isBasicLand(entry: DeckEntry): boolean {
-  const name = entry.name.trim().toLowerCase();
-  if (BASIC_LAND_NAMES.has(name)) return true;
-  const type = (entry.typeLine || '').toLowerCase();
-  return type.includes('basic') && type.includes('land');
-}
-
 function legalityKey(format: DeckFormat): string {
   return format;
 }
@@ -50,11 +34,17 @@ function isLegal(entry: DeckEntry, format: DeckFormat): boolean | null {
   return status === 'legal' || status === 'restricted';
 }
 
-function aggregateByName(entries: DeckEntry[]): Map<string, number> {
-  const map = new Map<string, number>();
+function aggregateByName(entries: DeckEntry[]): Map<string, { qty: number; samples: DeckEntry[] }> {
+  const map = new Map<string, { qty: number; samples: DeckEntry[] }>();
   for (const e of entries) {
     const key = e.name.trim().toLowerCase();
-    map.set(key, (map.get(key) || 0) + e.quantity);
+    const cur = map.get(key);
+    if (cur) {
+      cur.qty += e.quantity;
+      cur.samples.push(e);
+    } else {
+      map.set(key, { qty: e.quantity, samples: [e] });
+    }
   }
   return map;
 }
@@ -90,14 +80,43 @@ function entryViolatesColorIdentity(entry: DeckEntry, allowed: Set<string>): boo
   return identity.some((color) => !allowed.has(color));
 }
 
+/** Prefer an entry that carries Oracle text when resolving copy limits. */
+function representativeEntry(samples: DeckEntry[]): DeckEntry {
+  return samples.find((s) => !!s.oracleText?.trim()) || samples[0];
+}
+
+function assertCopyLimits(
+  entries: DeckEntry[],
+  format: DeckFormat,
+  hard: (code: string, message: string, scryfallId?: string) => void
+): void {
+  const byName = aggregateByName(entries);
+  for (const [, { qty, samples }] of byName) {
+    const sample = representativeEntry(samples);
+    if (isBasicLandEntry(sample)) continue;
+    const max = maxCopiesForEntry(sample, format);
+    if (qty <= max) continue;
+
+    const label = formatCopyLimitLabel(max);
+    const msg =
+      format === 'commander' && max === 1
+        ? `Singleton Commander : plus d’un exemplaire de « ${sample.name} » (${qty}).`
+        : `${label} copie(s) de « ${sample.name} » (deck + sideboard/commanders) : ${qty}.`;
+
+    for (const s of samples) {
+      hard('copy_limit', msg, s.scryfallId);
+    }
+  }
+}
+
 export function getFormatSummary(format: DeckFormat): string {
   switch (format) {
     case 'commander':
-      return '100 cartes exactes (commander inclus), singleton sauf terrains de base, identité de couleur du commander.';
+      return '100 cartes exactes (commander inclus), singleton sauf terrains de base et cartes dont le texte Oracle autorise plus de copies.';
     case 'pauper':
-      return '≥ 60 cartes, ≤ 15 sideboard, ≤ 4 copies, uniquement communes (légalité Pauper).';
+      return '≥ 60 cartes, ≤ 15 sideboard, ≤ 4 copies (sauf exceptions Oracle), uniquement communes (légalité Pauper).';
     default:
-      return '≥ 60 cartes, ≤ 15 sideboard, ≤ 4 copies (deck + sideboard), légalité Scryfall du format.';
+      return '≥ 60 cartes, ≤ 15 sideboard, ≤ 4 copies deck+sideboard (sauf exceptions Oracle), légalité Scryfall du format.';
   }
 }
 
@@ -160,21 +179,7 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
       }
     }
 
-    const byName = aggregateByName([...main, ...commanders]);
-    for (const [name, qty] of byName) {
-      if (qty > 1 && !BASIC_LAND_NAMES.has(name)) {
-        const samples = [...main, ...commanders].filter((e) => e.name.toLowerCase() === name);
-        if (samples[0] && !isBasicLand(samples[0])) {
-          for (const sample of samples) {
-            hard(
-              'singleton',
-              `Singleton Commander : plus d’un exemplaire de « ${samples[0].name} » (${qty}).`,
-              sample.scryfallId
-            );
-          }
-        }
-      }
-    }
+    assertCopyLimits([...main, ...commanders], 'commander', hard);
   } else {
     if (mainCount < 60) {
       hard('min_size', `${formatLabel} exige au moins 60 cartes en main. Actuel : ${mainCount}.`);
@@ -186,24 +191,9 @@ export function validateDeck(deck: Deck, mode: ValidationMode = 'draft'): Valida
       soft('unexpected_commander', 'Des commanders sont définis hors format Commander.');
     }
 
-    const byName = aggregateByName([...main, ...side]);
-    for (const [name, qty] of byName) {
-      if (qty > 4 && !BASIC_LAND_NAMES.has(name)) {
-        const samples = [...main, ...side].filter((e) => e.name.toLowerCase() === name);
-        if (samples[0] && !isBasicLand(samples[0])) {
-          for (const sample of samples) {
-            hard(
-              'copy_limit',
-              `Maximum 4 copies de « ${samples[0].name} » (deck + sideboard) : ${qty}.`,
-              sample.scryfallId
-            );
-          }
-        }
-      }
-    }
+    assertCopyLimits([...main, ...side], deck.format, hard);
   }
 
-  // Legality checks when data present
   const checkPool = deck.format === 'commander' ? [...main, ...commanders] : [...main, ...side];
   for (const entry of checkPool) {
     if (entry.scryfallId.startsWith('legacy:')) {

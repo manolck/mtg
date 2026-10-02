@@ -29,6 +29,8 @@ export interface DeckEntry {
   /** Face verso des cartes transform / DFC */
   backImageUrl?: string;
   backName?: string;
+  /** Texte Oracle (anglais) — sert à détecter les exceptions de limite de copies */
+  oracleText?: string;
   /** Légalités Scryfall dénormalisées au moment de l'ajout */
   legalities?: Partial<Record<DeckFormat | string, string>>;
 }
