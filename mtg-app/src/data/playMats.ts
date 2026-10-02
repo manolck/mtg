@@ -1,5 +1,7 @@
 import bundledCatalog from '../../public/table-mats/index.json';
 
+import { toArtCropUrl } from '../utils/deckArt';
+
 export type PlayMatKind = 'css' | 'image';
 
 export interface PlayMatOption {
@@ -15,6 +17,7 @@ export interface PlayMatOption {
 export const PLAY_MATS_DIR = '/table-mats';
 
 export const DEFAULT_PLAY_MAT_ID = 'battlefield';
+export const COMMANDER_PLAY_MAT_ID = 'commander';
 
 export const BUILTIN_PLAY_MATS: PlayMatOption[] = [
   {
@@ -102,7 +105,28 @@ export function loadImagePlayMats(): Promise<PlayMatOption[]> {
   return imageMatsPending;
 }
 
-export function resolvePlayMat(id: string | undefined, imageMats: PlayMatOption[]): PlayMatOption {
-  const all = [...BUILTIN_PLAY_MATS, ...imageMats];
-  return all.find((mat) => mat.id === id) || BUILTIN_PLAY_MATS[0];
+export function commanderPlayMat(imageUrl?: string, label?: string): PlayMatOption | null {
+  const art = toArtCropUrl(imageUrl) || imageUrl;
+  if (!art) return null;
+  const safeUrl = art.replace(/"/g, '');
+  return {
+    id: COMMANDER_PLAY_MAT_ID,
+    label: label ? `Commander · ${label}` : 'Commander',
+    kind: 'image',
+    imageUrl: safeUrl,
+    swatch: `center / cover url("${safeUrl}")`,
+  };
+}
+
+export function resolvePlayMat(
+  id: string | undefined,
+  imageMats: PlayMatOption[],
+  commanderMat?: PlayMatOption | null,
+): PlayMatOption {
+  if (id && id !== COMMANDER_PLAY_MAT_ID) {
+    const found = [...BUILTIN_PLAY_MATS, ...imageMats].find((mat) => mat.id === id);
+    if (found) return found;
+  }
+  if (commanderMat && (!id || id === COMMANDER_PLAY_MAT_ID)) return commanderMat;
+  return BUILTIN_PLAY_MATS[0];
 }

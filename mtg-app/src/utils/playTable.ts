@@ -12,7 +12,7 @@ import type {
 } from '../types/play';
 import { REVEAL_ALL, ZONE_NAMES } from '../types/play';
 import { normalizeCounterId } from '../data/mtgCounters';
-import { DEFAULT_PLAY_MAT_ID, isValidPlaymatId } from '../data/playMats';
+import { COMMANDER_PLAY_MAT_ID, isValidPlaymatId } from '../data/playMats';
 import { shuffleCards } from './sampleHand';
 import { appendChatMessage, isValidChatDice, sanitizeChatText } from './playChat';
 
@@ -122,6 +122,8 @@ export function createPlayerFromSnapshot(
     options?.random,
   );
   const hand = libraryPool.splice(0, Math.min(STARTING_HAND, libraryPool.length));
+  const command = expandEntries(snapshot?.commanders, `${seat.userId}-cmd`, seat.userId);
+  const useCommanderMat = isCommanderFormat(format) && command.some((card) => Boolean(card.imageUrl));
   return {
     userId: seat.userId,
     seatIndex: seat.seatIndex,
@@ -133,12 +135,26 @@ export function createPlayerFromSnapshot(
     battlefield: [],
     graveyard: [],
     exile: [],
-    command: expandEntries(snapshot?.commanders, `${seat.userId}-cmd`, seat.userId),
+    command,
     shownHandTo: [],
     shownHandCards: [],
     chosenHandCards: [],
     libraryTopRevealedTo: [],
+    playmatId: useCommanderMat ? COMMANDER_PLAY_MAT_ID : undefined,
   };
+}
+
+/** Commander card used for the default playmat, even if it left the command zone. */
+export function commanderMatSource(player: PlayerTableState): TableCard | undefined {
+  const art = (card: TableCard) => card.imageUrl || card.backImageUrl;
+  const inCommand = player.command.find((card) => art(card));
+  if (inCommand) return inCommand;
+  const zones: ZoneName[] = ['battlefield', 'graveyard', 'exile', 'hand', 'library'];
+  for (const zone of zones) {
+    const found = player[zone].find((card) => card.instanceId.includes('-cmd-') && art(card));
+    if (found) return found;
+  }
+  return undefined;
 }
 
 export function createInitialMatchState(
@@ -195,7 +211,7 @@ export function rebuildMatchPlayers(
       },
       { random: options?.random, playerCount: count, format: state.format },
     );
-    return { ...fresh, playmatId: player.playmatId };
+    return { ...fresh, playmatId: player.playmatId || fresh.playmatId };
   });
 
   const template = rebuilt.find((player) => !isDummyUserId(player.userId));
@@ -980,7 +996,7 @@ export function applyMatchAction(
     }
     case 'setPlaymat': {
       if (!isValidPlaymatId(action.playmatId)) return state;
-      if ((player.playmatId || DEFAULT_PLAY_MAT_ID) === action.playmatId) return state;
+      if (player.playmatId === action.playmatId) return state;
       nextPlayer = { ...player, playmatId: action.playmatId };
       break;
     }

@@ -15,6 +15,7 @@ import {
   offsetOffTokenStack,
   tokenStackCell,
   deckOwnerId,
+  commanderMatSource,
 } from '../../utils/playTable';
 import { playUserColor } from '../../utils/playPlayerColors';
 import { playDropAt } from '../../utils/playDrop';
@@ -36,6 +37,7 @@ import { applyLocalizedTableCard, collectVisibleLocalizationIds } from '../../ut
 import { isCoarsePointer } from '../../utils/coarsePointer';
 import {
   BUILTIN_PLAY_MATS,
+  commanderPlayMat,
   loadImagePlayMats,
   resolvePlayMat,
   type PlayMatOption,
@@ -275,8 +277,17 @@ export function PlayerBoard({
     void loadImagePlayMats().then(setImageMats);
   }, []);
 
-  const playMats = useMemo(() => [...BUILTIN_PLAY_MATS, ...imageMats], [imageMats]);
-  const currentMat = resolvePlayMat(player.playmatId, imageMats);
+  const commanderMat = useMemo(() => {
+    const source = commanderMatSource(player);
+    if (!source) return null;
+    return commanderPlayMat(source.imageUrl || source.backImageUrl, source.name);
+  }, [player]);
+
+  const playMats = useMemo(
+    () => (commanderMat ? [commanderMat, ...BUILTIN_PLAY_MATS, ...imageMats] : [...BUILTIN_PLAY_MATS, ...imageMats]),
+    [imageMats, commanderMat],
+  );
+  const currentMat = resolvePlayMat(player.playmatId, imageMats, commanderMat);
   const boardCards = useMemo(
     () => player.battlefield.filter((card) => !card.attachedTo),
     [player.battlefield],
@@ -1281,7 +1292,9 @@ export function PlayerBoard({
   return (
     <div
       className={`h-full min-h-0 flex flex-col rounded-xl overflow-hidden text-white ${
-        isTurn ? 'ring-2 ring-amber-400 shadow-[0_0_24px_rgba(251,191,36,0.25)]' : 'ring-1 ring-amber-200/20'
+        isTurn
+          ? 'ring-2 ring-inset ring-amber-400 shadow-[inset_0_0_18px_rgba(251,191,36,0.2)]'
+          : 'ring-1 ring-inset ring-amber-200/20'
       }`}
     >
       <div className="relative flex-1 min-h-0 flex bg-[var(--ink)]">

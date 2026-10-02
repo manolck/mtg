@@ -814,7 +814,7 @@ export function PlayTable() {
 
       <div className="flex-1 min-h-0 relative">
         {stacked ? (
-          <div className="h-full min-h-0 flex flex-col gap-0 p-1">
+          <div className="h-full min-h-0 flex flex-col gap-1 p-1">
             {shownPlayers.map((player) => {
               const isSelf = player.userId === currentUser.uid;
               const homeLayout = isSelf || tableView === 'active';
@@ -822,7 +822,7 @@ export function PlayTable() {
               return (
                 <section
                   key={player.userId}
-                  className={homeLayout ? 'flex-[1.75] min-h-0 basis-0' : 'flex-[1] min-h-0 basis-0'}
+                  className={`${homeLayout ? 'flex-[1.75] min-h-0 basis-0' : 'flex-[1] min-h-0 basis-0'} overflow-hidden`}
                 >
                   {renderPane(player, compact)}
                 </section>
@@ -841,7 +841,7 @@ export function PlayTable() {
               {shownPlayers
                 .filter((player) => player.userId !== currentUser.uid)
                 .map((player) => (
-                  <section key={player.userId} className="min-h-0">
+                  <section key={player.userId} className="min-h-0 overflow-hidden">
                     {renderPane(player, true)}
                   </section>
                 ))}
@@ -849,7 +849,7 @@ export function PlayTable() {
             {shownPlayers
               .filter((player) => player.userId === currentUser.uid)
               .map((player) => (
-                <section key={player.userId} className="min-h-0 flex-[1.32]">
+                <section key={player.userId} className="min-h-0 flex-[1.32] overflow-hidden">
                   {renderPane(player, false)}
                 </section>
               ))}

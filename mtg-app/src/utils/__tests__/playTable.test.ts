@@ -90,6 +90,29 @@ describe('playTable', () => {
     expect(player.command[0].name).toBe('Kaalia of the Vast');
     expect(state.version).toBe(1);
     expect(state.chat).toEqual([]);
+    expect(player.playmatId).toBeUndefined();
+  });
+
+  it('defaults the playmat to the commander illustration', () => {
+    const state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Kaalia',
+            format: 'commander',
+            mainboard: [bolt],
+            commanders: [{ ...commander, imageUrl: 'https://cards.scryfall.io/normal/front/k/a/kaalia.jpg' }],
+          },
+        }),
+      ],
+      'commander',
+      { random: () => 0 },
+    );
+    expect(state.players[0].playmatId).toBe('commander');
+    expect(state.players[0].command[0].imageUrl).toContain('kaalia');
   });
 
   it('syncs table chat and dice rolls for every player', () => {
