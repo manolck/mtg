@@ -35,6 +35,7 @@ import { useLocalizedTableFaces } from '../../hooks/useLocalizedTableFaces';
 import { useProfile } from '../../hooks/useProfile';
 import { applyLocalizedTableCard, collectVisibleLocalizationIds } from '../../utils/localizedTableFaces';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { MOBILE_DOUBLE_TAP_GUARD_MS } from '../../hooks/useDeferredSingleTap';
 import { angleBetween, shouldTapFromRotate } from '../../utils/playRotateTap';
 import {
   BUILTIN_PLAY_MATS,
@@ -240,6 +241,8 @@ export function PlayerBoard({
   const [imageMats, setImageMats] = useState<PlayMatOption[]>([]);
   const skipClickRef = useRef(false);
   const lastTapRef = useRef<{ id: string; at: number } | null>(null);
+  const hoverTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHoverIdRef = useRef<string | null>(null);
   const rotateLockIdsRef = useRef<Set<number>>(new Set());
   const tapRotateRef = useRef<{
     cardId: string;
@@ -811,6 +814,11 @@ export function PlayerBoard({
   };
 
   const handleCardDoubleClick = (event: MouseEvent, card: TableCard, zone: ZoneName) => {
+    if (hoverTapTimerRef.current) {
+      clearTimeout(hoverTapTimerRef.current);
+      hoverTapTimerRef.current = null;
+      pendingHoverIdRef.current = null;
+    }
     if (skipClickRef.current || !canActOn(card) || zone !== 'battlefield') return;
     event.preventDefault();
     event.stopPropagation();
@@ -838,6 +846,49 @@ export function PlayerBoard({
       rect: event.currentTarget.getBoundingClientRect(),
       zone,
     });
+  };
+
+  /** Mobile enlarge: wait for a possible double-tap before showing the preview. */
+  const requestMobileCardHover = (event: MouseEvent<Element>, card: TableCard, zone: ZoneName) => {
+    if (!isCoarsePointer()) {
+      setCardHover(event, card, zone);
+      return;
+    }
+    if (dragId) {
+      setHover(null);
+      return;
+    }
+    const resolved = resolveCard(card);
+    if (!showFace(zone, resolved)) {
+      setHover(null);
+      return;
+    }
+    const face = visibleCardFace(resolved);
+    if (!face.imageUrl) {
+      setHover(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (
+      hoverTapTimerRef.current != null &&
+      pendingHoverIdRef.current === resolved.instanceId
+    ) {
+      clearTimeout(hoverTapTimerRef.current);
+      hoverTapTimerRef.current = null;
+      pendingHoverIdRef.current = null;
+      return;
+    }
+    if (hoverTapTimerRef.current) clearTimeout(hoverTapTimerRef.current);
+    pendingHoverIdRef.current = resolved.instanceId;
+    hoverTapTimerRef.current = setTimeout(() => {
+      hoverTapTimerRef.current = null;
+      pendingHoverIdRef.current = null;
+      setHover({
+        card: { ...resolved, imageUrl: face.imageUrl, name: face.name },
+        rect,
+        zone,
+      });
+    }, MOBILE_DOUBLE_TAP_GUARD_MS);
   };
 
   const renderOne = (
@@ -899,7 +950,7 @@ export function PlayerBoard({
             return;
           }
           if (skipClickRef.current || !isCoarsePointer()) return;
-          setCardHover(event, resolved, zone);
+          requestMobileCardHover(event, resolved, zone);
         }}
         onDoubleClick={(event) => handleCardDoubleClick(event, resolved, zone)}
         onContextMenu={(event) => {
@@ -1088,7 +1139,7 @@ export function PlayerBoard({
           }}
           onClick={(event) => {
             if (!isCoarsePointer() || !canSeeTop || !resolvedTop) return;
-            setCardHover(event, resolvedTop, zone);
+            requestMobileCardHover(event, resolvedTop, zone);
           }}
           onMouseEnter={(event) => {
             if (isCoarsePointer()) return;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TableCard } from '../../types/play';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { useDeferredMobilePreview } from '../../hooks/useDeferredSingleTap';
 import { MTG_CARD_BACK_URL } from './PlayCard';
 
 export type LibraryLookMode = 'scry' | 'surveil';
@@ -28,6 +29,10 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
   const [onTop, setOnTop] = useState(() => library.slice(0, Math.min(1, maxN)).map((card) => card.instanceId));
   const [other, setOther] = useState<string[]>([]);
   const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
+  const requestHover = useDeferredMobilePreview(
+    (value: { card: TableCard; rect: DOMRect }) => setHover(value),
+    (value) => value.card.instanceId
+  );
 
   const looked = useMemo(() => library.slice(0, count), [library, count]);
   const lookedKey = looked.map((card) => card.instanceId).join('|');
@@ -90,7 +95,7 @@ export function LibraryLookPanel({ mode, library, onClose, onConfirm }: LibraryL
                   className="w-24 sm:w-[7.5rem] shrink-0 aspect-[63/88] rounded overflow-hidden bg-[#1a1520]"
                   onClick={(event) => {
                     if (!isCoarsePointer() || !card.imageUrl) return;
-                    setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                    requestHover({ card, rect: event.currentTarget.getBoundingClientRect() });
                   }}
                   onMouseEnter={(event) => {
                     if (isCoarsePointer()) return;

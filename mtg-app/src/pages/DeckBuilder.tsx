@@ -32,6 +32,7 @@ import { CardSearchFilterBar } from '../components/Card/CardSearchFilterBar';
 import { CardHoverPreview } from '../components/Card/CardHoverPreview';
 import { CardLightbox } from '../components/Card/CardLightbox';
 import { isCoarsePointer } from '../utils/coarsePointer';
+import { useDeferredMobilePreview } from '../hooks/useDeferredSingleTap';
 import { DeckCardGrid, type DeckViewMode } from '../components/Deck/DeckCardGrid';
 import { DeckCoverCard } from '../components/Deck/DeckCoverCard';
 import { SampleHandModal } from '../components/Deck/SampleHandModal';
@@ -108,6 +109,10 @@ export function DeckBuilder() {
     imageUrl?: string;
     rect: DOMRect;
   } | null>(null);
+  const requestSearchHover = useDeferredMobilePreview(
+    (value: { name: string; imageUrl?: string; rect: DOMRect }) => setSearchHover(value),
+    (value) => `${value.name}|${value.imageUrl || ''}`
+  );
   const [searchLightbox, setSearchLightbox] = useState<{
     name: string;
     imageUrl?: string;
@@ -900,7 +905,7 @@ export function DeckBuilder() {
                                 onClick={(e) => {
                                   if (isCoarsePointer()) {
                                     e.preventDefault();
-                                    setSearchHover({
+                                    requestSearchHover({
                                       name: card.name,
                                       imageUrl: card.imageUrl,
                                       rect: e.currentTarget.getBoundingClientRect(),

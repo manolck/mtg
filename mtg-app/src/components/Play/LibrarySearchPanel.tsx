@@ -3,6 +3,7 @@ import type { TableCard, ZoneName } from '../../types/play';
 import { filterLibraryCards } from '../../utils/playTable';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { useDeferredMobilePreview } from '../../hooks/useDeferredSingleTap';
 
 interface LibrarySearchPanelProps {
   cards: TableCard[];
@@ -30,6 +31,10 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
   const [shuffleAfter, setShuffleAfter] = useState(true);
   const [nth, setNth] = useState('2');
   const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
+  const requestHover = useDeferredMobilePreview(
+    (value: { card: TableCard; rect: DOMRect }) => setHover(value),
+    (value) => value.card.instanceId
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const filtered = useMemo(() => filterLibraryCards(cards, query), [cards, query]);
 
@@ -107,7 +112,7 @@ export function LibrarySearchPanel({ cards, onClose, onTake }: LibrarySearchPane
                     onClick={(event) => {
                       if (isCoarsePointer()) {
                         event.preventDefault();
-                        setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                        requestHover({ card, rect: event.currentTarget.getBoundingClientRect() });
                         return;
                       }
                       take(card, 'hand');

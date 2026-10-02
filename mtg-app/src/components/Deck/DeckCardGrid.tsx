@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DeckEntry, DeckZone } from '../../types/deck';
 import { countEntries } from '../../types/deck';
 import { groupDeckEntries } from '../../utils/deckGrouping';
@@ -7,6 +7,8 @@ import { CardLightbox } from '../Card/CardLightbox';
 import { LazyImage } from '../UI/LazyImage';
 import { ManaCostDisplay } from '../UI/ManaCostDisplay';
 import { Button } from '../UI/Button';
+import { isCoarsePointer } from '../../utils/coarsePointer';
+import { MOBILE_DOUBLE_TAP_GUARD_MS } from '../../hooks/useDeferredSingleTap';
 
 export type DeckViewMode = 'list' | 'grid';
 
@@ -146,6 +148,38 @@ export function DeckCardGrid({
 }: DeckCardGridProps) {
   const isCommander = zone === 'commanders';
   const [enlarged, setEnlarged] = useState<DeckEntry | null>(null);
+  const enlargeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingEnlargeIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (enlargeTimerRef.current) clearTimeout(enlargeTimerRef.current);
+    };
+  }, []);
+
+  /** Mobile: wait 0.5s for a possible double tap on the same card before enlarging. */
+  const requestEnlarge = useCallback((entry: DeckEntry) => {
+    if (!isCoarsePointer()) {
+      setEnlarged(entry);
+      return;
+    }
+    if (
+      enlargeTimerRef.current != null &&
+      pendingEnlargeIdRef.current === entry.scryfallId
+    ) {
+      clearTimeout(enlargeTimerRef.current);
+      enlargeTimerRef.current = null;
+      pendingEnlargeIdRef.current = null;
+      return;
+    }
+    if (enlargeTimerRef.current) clearTimeout(enlargeTimerRef.current);
+    pendingEnlargeIdRef.current = entry.scryfallId;
+    enlargeTimerRef.current = setTimeout(() => {
+      enlargeTimerRef.current = null;
+      pendingEnlargeIdRef.current = null;
+      setEnlarged(entry);
+    }, MOBILE_DOUBLE_TAP_GUARD_MS);
+  }, []);
 
   const groups = useMemo(() => {
     const problemEntries = formatIssues?.size
@@ -193,7 +227,7 @@ export function DeckCardGrid({
             aria-label={`Voir ${entry.name} en grand`}
             aria-invalid={hasIssue || undefined}
             className="aspect-[63/88] bg-gray-200 dark:bg-gray-700 relative cursor-zoom-in"
-            onClick={() => setEnlarged(entry)}
+            onClick={() => requestEnlarge(entry)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
@@ -271,7 +305,7 @@ export function DeckCardGrid({
             type="button"
             title="Voir la carte en grand"
             className="flex-shrink-0 cursor-zoom-in"
-            onClick={() => setEnlarged(entry)}
+            onClick={() => requestEnlarge(entry)}
           >
             <LazyImage
               src={entry.imageUrl}

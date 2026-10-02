@@ -5,6 +5,7 @@ import { CardMenuModal } from '../UI/CardMenuModal';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
 import { LazyImage } from '../UI/LazyImage';
 import { useProfile } from '../../hooks/useProfile';
+import { useDeferredSingleTap } from '../../hooks/useDeferredSingleTap';
 import { isCoarsePointer } from '../../utils/coarsePointer';
 
 interface CardDisplayProps {
@@ -88,6 +89,8 @@ export const CardDisplay = memo(function CardDisplay({
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showEnlarged, setShowEnlarged] = useState(false);
 
+  const openEnlarged = useDeferredSingleTap(() => setShowEnlarged(true));
+
   useEffect(() => {
     if (!showEnlarged) return undefined;
     const onKey = (event: KeyboardEvent) => {
@@ -141,7 +144,8 @@ export const CardDisplay = memo(function CardDisplay({
           return;
         }
         if (isCoarsePointer()) setShowMenu(true);
-        setShowEnlarged(true);
+        // Mobile: wait 0.5s — double tap cancels enlarge
+        openEnlarged();
       }}
       onMouseEnter={() => {
         if (isCoarsePointer()) return;

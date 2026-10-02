@@ -5,6 +5,7 @@ import { canSeeGraveOrExileFace, filterPublicZoneCards, visibleCardFace } from '
 import { listedCounterCounts } from '../../data/mtgCounters';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { useDeferredMobilePreview } from '../../hooks/useDeferredSingleTap';
 import { MTG_CARD_BACK_URL } from './PlayCard';
 
 interface ZoneBrowsePanelProps {
@@ -42,6 +43,10 @@ export function ZoneBrowsePanel({
 }: ZoneBrowsePanelProps) {
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<{ imageUrl?: string; name: string; rect: DOMRect } | null>(null);
+  const requestHover = useDeferredMobilePreview(
+    (value: { imageUrl?: string; name: string; rect: DOMRect }) => setHover(value),
+    (value) => `${value.name}|${value.imageUrl || ''}`
+  );
   const filtered = useMemo(
     () => filterPublicZoneCards(cards, query, ownerId, viewerId),
     [cards, query, ownerId, viewerId],
@@ -111,7 +116,7 @@ export function ZoneBrowsePanel({
                           setHover(null);
                           return;
                         }
-                        setHover({
+                        requestHover({
                           imageUrl: face.imageUrl,
                           name: face.name,
                           rect: event.currentTarget.getBoundingClientRect(),

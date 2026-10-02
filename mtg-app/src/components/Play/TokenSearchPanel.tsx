@@ -4,6 +4,7 @@ import type { TokenBlueprint } from '../../types/play';
 import { searchPlayTokens } from '../../services/scryfallSearchService';
 import { CardHoverPreview } from '../Card/CardHoverPreview';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { useDeferredMobilePreview } from '../../hooks/useDeferredSingleTap';
 import { useProfile } from '../../hooks/useProfile';
 
 interface TokenSearchPanelProps {
@@ -50,6 +51,10 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
   const [results, setResults] = useState<MTGCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<{ card: MTGCard; rect: DOMRect } | null>(null);
+  const requestHover = useDeferredMobilePreview(
+    (value: { card: MTGCard; rect: DOMRect }) => setHover(value),
+    (value) => value.card.id || value.card.name
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -162,7 +167,7 @@ export function TokenSearchPanel({ onClose, onAdd }: TokenSearchPanelProps) {
                     onClick={(event) => {
                       if (isCoarsePointer()) {
                         event.preventDefault();
-                        setHover({ card, rect: event.currentTarget.getBoundingClientRect() });
+                        requestHover({ card, rect: event.currentTarget.getBoundingClientRect() });
                         return;
                       }
                       addCard(card);
