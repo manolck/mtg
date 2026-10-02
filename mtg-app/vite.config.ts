@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => {
     )
   }
 
+  const iceRaw = (env.VITE_ICE_SERVERS || process.env.VITE_ICE_SERVERS || '').trim()
+  const iceHasTurn = /turns?:/i.test(iceRaw)
+  console.info(
+    iceHasTurn
+      ? 'WebRTC ICE: TURN will be baked into this build'
+      : 'WebRTC ICE: STUN only — set VITE_ICE_SERVERS on the build machine before npm run build',
+  )
+
   return {
     plugins: [
       react({

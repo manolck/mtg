@@ -49,6 +49,8 @@ jobs:
           VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL }}
           VITE_PRICE_API_URL: ${{ secrets.VITE_PRICE_API_URL }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_PLAY_WS_URL: ${{ secrets.VITE_PLAY_WS_URL }}
+          VITE_ICE_SERVERS: ${{ secrets.VITE_ICE_SERVERS }}
 
       - name: Upload production artifact
         uses: actions/upload-artifact@v5

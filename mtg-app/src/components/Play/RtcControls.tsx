@@ -219,7 +219,13 @@ export function RtcControls({
   const linkHint = rtcLinkLabel(linkStatus);
   const statsHint = formatAudioStats(stats);
   const natHint = hasTurnConfigured
-    ? 'Audio sortant bloqué (NAT). Vérifiez coturn / ports — voir README.md'
+    ? stats.turnError
+      ? stats.turnError
+      : stats.forcingRelay
+        ? 'Redémarrage ICE via relais TURN…'
+        : stats.usingRelay
+          ? 'Relais TURN actif mais aucun paquet sortant — ports UDP 49152–49200 ?'
+          : 'Audio sortant bloqué (NAT). Passage automatique en relais TURN…'
     : 'Audio sortant bloqué (NAT). TURN requis — configurez VITE_ICE_SERVERS (README.md)';
 
   return (
@@ -230,12 +236,19 @@ export function RtcControls({
       {oneWayHint ? (
         <p
           role="status"
-          className="hidden sm:block max-w-[14rem] rounded-lg bg-amber-500/20 ring-1 ring-amber-400/50 px-2 py-1 text-[10px] leading-snug text-amber-100"
+          className="hidden sm:block max-w-[18rem] rounded-lg bg-amber-500/20 ring-1 ring-amber-400/50 px-2 py-1 text-[10px] leading-snug text-amber-100"
           title={natHint}
         >
           {hasTurnConfigured
-            ? 'Micro : paquets non envoyés (NAT / TURN)'
+            ? stats.forcingRelay
+              ? 'Micro : relais TURN…'
+              : stats.usingRelay
+                ? 'Micro : paquets bloqués (TURN)'
+                : 'Micro : paquets non envoyés (NAT / TURN)'
             : 'Micro : paquets non envoyés — TURN manquant'}
+          {stats.icePath ? (
+            <span className="block text-white/70">ICE {stats.icePath}</span>
+          ) : null}
         </p>
       ) : null}
       <div
@@ -263,9 +276,20 @@ export function RtcControls({
             className="absolute right-0 top-full mt-2 z-50 w-52 rounded-lg border border-white/15 bg-[#0c1b24] px-2.5 py-2 text-[11px] text-white/85 shadow-xl"
           >
             <p className="font-semibold text-white/90 mb-1">{linkHint}</p>
+            <p>TURN : {hasTurnConfigured ? 'configuré' : 'absent du build'}</p>
+            {stats.icePath ? (
+              <p>
+                Chemin ICE : {stats.icePath}
+                {stats.usingRelay ? ' · relais' : ''}
+              </p>
+            ) : (
+              <p>Chemin ICE : —</p>
+            )}
             <p>Paquets envoyés : {stats.packetsSent}</p>
             <p>Paquets reçus : {stats.packetsReceived}</p>
             {stats.packetsLost > 0 ? <p>Paquets perdus : {stats.packetsLost}</p> : null}
+            {stats.turnError ? <p className="text-amber-300">{stats.turnError}</p> : null}
+            {stats.forcingRelay ? <p>ICE : relais TURN forcé</p> : null}
             {oneWayHint ? <p className="mt-1.5 text-amber-300 leading-snug">{natHint}</p> : null}
           </div>
         )}

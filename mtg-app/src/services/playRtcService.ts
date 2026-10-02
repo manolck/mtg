@@ -2,9 +2,14 @@ import { pb } from './pocketbase';
 import { pbEqual } from '../utils/pocketbaseFilter';
 import { isRealtimeUnavailable, swallowRealtimeError } from '../utils/playRealtime';
 import { aggregateRtcLinkStatus, type RtcLinkStatus } from '../utils/rtcLinkStatus';
-import { EMPTY_AUDIO_STATS, sumAudioRtcStats, type RtcAudioStats } from '../utils/rtcAudioStats';
+import { EMPTY_AUDIO_STATS, sumAudioRtcStats, summarizeIcePath, type IceStatRow, type RtcAudioStats } from '../utils/rtcAudioStats';
 import { playMicConstraintAttempts } from '../utils/playMicConstraints';
 import { rtcOutgoingAudioTrack, setRtpSenderSending } from '../utils/rtcOutgoingAudio';
+import {
+  formatIceCandidateError,
+  shouldRetryTurnRelay,
+  shouldSwitchToTurnRelay,
+} from '../utils/rtcTurnFallback';
 import type { RtcSignalPayload } from '../types/play';
 
 export type { RtcLinkStatus, RtcAudioStats };
@@ -228,6 +233,12 @@ export class PlayRtcMesh {
   private restarting = new Set<string>();
   private restartTimers = new Map<string, number>();
   private lastRecoverAt = new Map<string, number>();
+  private iceTransportPolicy: RTCIceTransportPolicy = 'all';
+  private oneWaySinceMs: number | null = null;
+  private relayAttempts = 0;
+  private relayRestartAt = 0;
+  private relayRestartInFlight = false;
+  private turnError: string | undefined;
   private localStream: MediaStream | null = null;
   /** When false, RTP senders hold no audio track (mute must not send packets). */
   private audioSendEnabled = true;
@@ -268,6 +279,10 @@ export class PlayRtcMesh {
     if (this.destroyed) return;
     // Ensure ICE config is resolved (and logged) before peer connections.
     getIceServers();
+    if (isTurnConfigured()) {
+      this.iceTransportPolicy = 'relay';
+      console.info('WebRTC ICE: TURN relay-only (hard NAT)');
+    }
     stream.getTracks().forEach(hintOutgoingTrack);
     this.localStream = stream;
     this.audioSendEnabled = stream.getAudioTracks().some((track) => track.enabled);
@@ -304,24 +319,93 @@ export class PlayRtcMesh {
   }
 
   async getAudioStats(): Promise<RtcAudioStats> {
-    const rows: Array<{ type: string; kind?: string; packetsSent?: number; packetsReceived?: number; packetsLost?: number }> = [];
+    const rows: IceStatRow[] = [];
     for (const pc of this.pcs.values()) {
       try {
         const report = await pc.getStats();
         report.forEach((stat) => {
-          rows.push({
-            type: stat.type,
-            kind: (stat as { kind?: string }).kind,
-            packetsSent: (stat as { packetsSent?: number }).packetsSent,
-            packetsReceived: (stat as { packetsReceived?: number }).packetsReceived,
-            packetsLost: (stat as { packetsLost?: number }).packetsLost,
-          });
+          const row = stat as IceStatRow & { kind?: string; packetsSent?: number; packetsReceived?: number; packetsLost?: number };
+          rows.push(row);
         });
       } catch {
         /* closed */
       }
     }
-    return rows.length ? sumAudioRtcStats(rows) : { ...EMPTY_AUDIO_STATS };
+    const packets = rows.length ? sumAudioRtcStats(rows) : { ...EMPTY_AUDIO_STATS };
+    const stats: RtcAudioStats = {
+      ...packets,
+      ...summarizeIcePath(rows),
+      forcingRelay: this.relayRestartInFlight,
+      turnError: this.turnError,
+    };
+    void this.maybeForceTurnRelay(stats);
+    return stats;
+  }
+
+  private async maybeForceTurnRelay(stats: RtcAudioStats): Promise<void> {
+    if (this.destroyed) return;
+    const sendEnabled = Boolean(rtcOutgoingAudioTrack(this.localStream, this.audioSendEnabled));
+    if (!sendEnabled || stats.packetsReceived === 0 || stats.packetsSent > 0) {
+      this.oneWaySinceMs = null;
+      return;
+    }
+    if (this.oneWaySinceMs == null) this.oneWaySinceMs = Date.now();
+    const oneWayMs = Date.now() - this.oneWaySinceMs;
+    const sinceLastAttemptMs = Date.now() - this.relayRestartAt;
+    const switchToRelay = shouldSwitchToTurnRelay({
+      turnConfigured: isTurnConfigured(),
+      policyIsRelay: this.iceTransportPolicy === 'relay',
+      usingRelay: stats.usingRelay,
+      sendEnabled,
+      stats,
+      oneWayMs,
+    });
+    const retry = shouldRetryTurnRelay({
+      policyIsRelay: this.iceTransportPolicy === 'relay',
+      usingRelay: stats.usingRelay,
+      sendEnabled,
+      stats,
+      attempts: this.relayAttempts,
+      sinceLastAttemptMs,
+    });
+    if (!switchToRelay && !retry) return;
+    if (this.relayRestartInFlight) return;
+    this.relayRestartInFlight = true;
+    try {
+      if (switchToRelay) {
+        this.iceTransportPolicy = 'relay';
+        this.relayAttempts = 0;
+        console.info('WebRTC ICE: forcing TURN relay (one-way audio)');
+      }
+      this.relayAttempts += 1;
+      this.relayRestartAt = Date.now();
+      await this.restartAllPeersWithRelay();
+    } finally {
+      this.relayRestartInFlight = false;
+    }
+  }
+
+  private async restartAllPeersWithRelay(): Promise<void> {
+    const config = this.peerConfig();
+    for (const peerId of [...this.pcs.keys()]) {
+      if (this.destroyed) return;
+      const pc = this.pcs.get(peerId);
+      if (!pc || pc.signalingState === 'closed') continue;
+      try {
+        pc.setConfiguration(config);
+      } catch (err) {
+        console.warn('ICE setConfiguration relay failed', err);
+        this.dropPeer(peerId, false);
+        await this.ensurePeer(peerId, this.myUserId < peerId);
+        continue;
+      }
+      if (pc.signalingState !== 'stable' || this.makingOffer.has(peerId)) continue;
+      try {
+        await this.createAndSendOffer(peerId, true);
+      } catch (err) {
+        console.warn('ICE relay restart failed', err);
+      }
+    }
   }
 
   async updatePeers(peerIds: string[]): Promise<void> {
@@ -453,9 +537,10 @@ export class PlayRtcMesh {
   private peerConfig(): RTCConfiguration {
     return {
       iceServers: getIceServers(),
-      iceCandidatePoolSize: 4,
+      iceCandidatePoolSize: this.iceTransportPolicy === 'relay' ? 0 : 4,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
+      iceTransportPolicy: this.iceTransportPolicy,
     };
   }
 
@@ -476,6 +561,11 @@ export class PlayRtcMesh {
       if (!event.candidate || this.destroyed) return;
       this.sendSignal(peerId, { type: 'ice', candidate: event.candidate.toJSON() });
     };
+
+    pc.addEventListener('icecandidateerror', (event) => {
+      const msg = formatIceCandidateError(event as RTCPeerConnectionIceErrorEvent);
+      if (msg) this.turnError = msg;
+    });
 
     pc.ontrack = (event) => {
       if (event.track.kind !== 'audio') {
@@ -521,6 +611,7 @@ export class PlayRtcMesh {
     const ice = pc.iceConnectionState;
     if (conn === 'connected' || ice === 'connected' || ice === 'completed') {
       this.clearRestartTimer(peerId);
+      void this.syncOutgoingAudio();
       return;
     }
     if (conn === 'closed') {

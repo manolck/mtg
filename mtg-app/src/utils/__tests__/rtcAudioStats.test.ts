@@ -3,6 +3,7 @@ import {
   formatAudioStats,
   isOutboundAudioBlocked,
   sumAudioRtcStats,
+  summarizeIcePath,
 } from '../rtcAudioStats';
 
 describe('sumAudioRtcStats', () => {
@@ -38,5 +39,28 @@ describe('isOutboundAudioBlocked', () => {
       false,
     );
     expect(isOutboundAudioBlocked(EMPTY_AUDIO_STATS)).toBe(false);
+  });
+});
+
+describe('summarizeIcePath', () => {
+  it('reads the nominated pair and flags a TURN relay', () => {
+    expect(
+      summarizeIcePath([
+        { id: 't', type: 'transport', selectedCandidatePairId: 'p1' },
+        {
+          id: 'p1',
+          type: 'candidate-pair',
+          nominated: true,
+          localCandidateId: 'l1',
+          remoteCandidateId: 'r1',
+        },
+        { id: 'l1', type: 'local-candidate', candidateType: 'relay', protocol: 'udp' },
+        { id: 'r1', type: 'remote-candidate', candidateType: 'srflx', protocol: 'udp' },
+      ]),
+    ).toEqual({ icePath: 'relay → srflx (udp)', usingRelay: true });
+  });
+
+  it('returns empty when ICE has not nominated a pair', () => {
+    expect(summarizeIcePath([{ type: 'outbound-rtp', id: 'x' }])).toEqual({});
   });
 });

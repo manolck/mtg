@@ -722,8 +722,8 @@ export function PlayerBoard({
           lastTapRef.current = null;
           tapBattlefieldCard(card);
         }
-        return;
-      }
+      return;
+    }
       if (session?.fired || rotateLockIdsRef.current.has(event.pointerId)) return;
       if (moveEvent.pointerId !== event.pointerId) return;
       if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8 && !moved) return;
@@ -768,8 +768,8 @@ export function PlayerBoard({
         setDragPos(null);
         setHandInsertPreview(null);
         lastTapRef.current = null;
-        return;
-      }
+      return;
+    }
       setDragId(null);
       setDragPos(null);
       setHandInsertPreview(null);
@@ -784,8 +784,8 @@ export function PlayerBoard({
             lastTapRef.current = { id: card.instanceId, at: now };
           }
         }
-        return;
-      }
+      return;
+    }
       lastTapRef.current = null;
       skipClickRef.current = true;
       window.setTimeout(() => {
@@ -1239,9 +1239,9 @@ export function PlayerBoard({
           onClick={() => onSetEliminated(!player.eliminated)}
         >
           {player.eliminated ? 'Revenir en jeu' : 'Mort'}
-        </button>
+          </button>
       ) : null}
-    </div>
+        </div>
   );
 
   const endTurnButton =
@@ -1257,7 +1257,7 @@ export function PlayerBoard({
         }}
       >
         Fin de tour
-      </button>
+          </button>
     ) : null;
 
   const rightPilesDock = (
@@ -1269,7 +1269,7 @@ export function PlayerBoard({
         {pile('library')}
         {pile('graveyard')}
         {pile('exile')}
-      </div>
+        </div>
       {endTurnButton}
     </div>
   );
@@ -1368,7 +1368,7 @@ export function PlayerBoard({
         ? 'hover:-translate-y-[var(--hand-hover-y)] hover:z-50'
         : 'hover:translate-y-[var(--hand-hover-y)] hover:z-50';
 
-    return (
+  return (
       <>
         <div
           data-mat-chrome="true"
@@ -1378,7 +1378,7 @@ export function PlayerBoard({
         >
           <div className="flex items-end gap-1 rounded-lg bg-black/45 p-1 ring-1 ring-white/15">
             {pile('command')}
-          </div>
+            </div>
           <button
             type="button"
             className={`min-h-[32px] px-2.5 rounded-lg text-[11px] font-semibold shadow-lg ring-1 ${
@@ -1440,10 +1440,10 @@ export function PlayerBoard({
                     ? `Effacer les choix (${chosenCount})`
                     : `Effacer mes choix (${myChoiceCount})`}
           </button>
-              )}
-        </div>
-      )}
-        </div>
+            )}
+          </div>
+            )}
+          </div>
         {n > 0 && !handCollapsed && (
           <div
             className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
@@ -1548,8 +1548,8 @@ export function PlayerBoard({
               </p>
             </div>
           ) : null}
-            </div>
           </div>
+        </div>
 
       {menu && canControl && (
         <div className="fixed inset-0 z-[95]" onClick={() => setMenu(null)} onContextMenu={(event) => event.preventDefault()}>
@@ -1621,7 +1621,7 @@ export function PlayerBoard({
                     <span>{theme.label}</span>
                   </button>
                 ))}
-              </div>
+          </div>
             ) : menu.view === 'showHand' || menu.view === 'showCard' || menu.view === 'revealTop' ? (
               <div className="flex flex-col gap-0.5">
                 {menu.view === 'revealTop' && (
@@ -1701,7 +1701,7 @@ export function PlayerBoard({
                     Cacher le dessus
                   </button>
             )}
-          </div>
+        </div>
             ) : menu.view === 'sendTo' && menu.card && menu.from !== 'libraryPile' ? (
               <div className="flex flex-col gap-0.5">
                 {menu.from !== 'library' && (
@@ -1774,7 +1774,7 @@ export function PlayerBoard({
                     Exil face caché
               </button>
             )}
-          </div>
+      </div>
             ) : menu.view === 'libraryDrop' && menu.card && menu.from !== 'libraryPile' ? (
               <div className="flex flex-col gap-0.5">
                 <p className="px-2 py-1 text-[11px] text-white/60">Où placer dans la bibliothèque ?</p>

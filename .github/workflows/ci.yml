@@ -88,6 +88,8 @@ jobs:
           VITE_POCKETBASE_URL: ${{ secrets.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090' }}
           VITE_PRICE_API_URL: ${{ secrets.VITE_PRICE_API_URL }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_PLAY_WS_URL: ${{ secrets.VITE_PLAY_WS_URL }}
+          VITE_ICE_SERVERS: ${{ secrets.VITE_ICE_SERVERS }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v5
