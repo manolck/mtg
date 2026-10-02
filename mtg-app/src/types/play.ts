@@ -242,7 +242,7 @@ export type PlayAction =
       created?: number;
       dice?: PlayChatDice;
     }
-  | { type: 'passTurn' }
+  | { type: 'passTurn'; userId?: string }
   | { type: 'setTurn'; seatIndex: number }
   | { type: 'mulligan'; userId: string };
 

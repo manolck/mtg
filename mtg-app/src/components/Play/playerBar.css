@@ -218,9 +218,17 @@
   filter: brightness(1.08);
 }
 
-.player-bar-end.is-waiting {
+.player-bar-end.is-waiting,
+.player-bar-end:disabled {
   color: var(--gold-1);
   background: linear-gradient(180deg, #1c2a44, #0e1526);
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: none;
+}
+
+.player-bar-end:disabled:hover {
+  filter: none;
 }
 
 .player-bar-life {

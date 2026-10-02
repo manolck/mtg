@@ -436,7 +436,7 @@ export function PlayerBoard({
         event.preventDefault();
         onLife?.(event.shiftKey ? -5 : -1);
       } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-        if (player.eliminated) return;
+        if (!isTurn || player.eliminated) return;
         event.preventDefault();
         onPassTurn?.();
       }
@@ -1248,10 +1248,15 @@ export function PlayerBoard({
       <button
         type="button"
         className={`player-bar-end ${isTurn ? '' : 'is-waiting'}`.trim()}
-        onClick={onPassTurn}
+        disabled={!isTurn}
+        aria-disabled={!isTurn}
+        onClick={() => {
+          if (!isTurn) return;
+          onPassTurn?.();
+        }}
       >
         Fin de tour
-          </button>
+      </button>
     ) : null;
 
   const rightPilesDock = (

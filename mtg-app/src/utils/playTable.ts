@@ -832,6 +832,10 @@ export function applyMatchAction(
   options?: { random?: () => number }
 ): MatchState {
   if (action.type === 'passTurn') {
+    const turnPlayer = state.players.find((player) => player.seatIndex === state.turnSeatIndex);
+    if (!turnPlayer || turnPlayer.eliminated) return state;
+    // Ignore pass from anyone but the active seat (blocks double-click / stale sends).
+    if (action.userId && action.userId !== turnPlayer.userId) return state;
     const next = advanceToNextLiving(state);
     if (next === state) return state;
     return { ...next, version: state.version + 1 };

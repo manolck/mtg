@@ -576,6 +576,34 @@ describe('playTable', () => {
     expect(state.turnSeatIndex).toBe(0);
   });
 
+  it('ignores passTurn from a player who is not the active seat (double-click safe)', () => {
+    const mk = (userId: string, seatIndex: number) =>
+      seat({
+        userId,
+        seatIndex,
+        displayName: userId,
+        deckSnapshot: {
+          deckId: userId,
+          name: userId,
+          format: 'modern',
+          mainboard: [{ ...bolt, quantity: 8 }],
+          commanders: [],
+        },
+      });
+    let state = createInitialMatchState([mk('u1', 0), mk('u2', 1)], 'modern', { random: () => 0 });
+    expect(state.turnSeatIndex).toBe(0);
+    state = applyMatchAction(state, { type: 'passTurn', userId: 'u1' });
+    expect(state.turnSeatIndex).toBe(1);
+    const versionAfter = state.version;
+    // Same player double-fires after already passing — must not skip u2's turn.
+    state = applyMatchAction(state, { type: 'passTurn', userId: 'u1' });
+    expect(state.turnSeatIndex).toBe(1);
+    expect(state.version).toBe(versionAfter);
+    // Active seat can still pass normally.
+    state = applyMatchAction(state, { type: 'passTurn', userId: 'u2' });
+    expect(state.turnSeatIndex).toBe(0);
+  });
+
   it('skips eliminated players on passTurn and can hide them from the living set', () => {
     const mk = (userId: string, seatIndex: number) =>
       seat({
