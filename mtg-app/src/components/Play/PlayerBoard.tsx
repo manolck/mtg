@@ -35,6 +35,7 @@ import { useLocalizedTableFaces } from '../../hooks/useLocalizedTableFaces';
 import { useProfile } from '../../hooks/useProfile';
 import { applyLocalizedTableCard, collectVisibleLocalizationIds } from '../../utils/localizedTableFaces';
 import { isCoarsePointer } from '../../utils/coarsePointer';
+import { angleBetween, shouldTapFromRotate } from '../../utils/playRotateTap';
 import {
   BUILTIN_PLAY_MATS,
   commanderPlayMat,
@@ -220,7 +221,7 @@ export function PlayerBoard({
 }: PlayerBoardProps) {
   const [lightbox, setLightbox] = useState<TableCard | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect } | null>(null);
+  const [hover, setHover] = useState<{ card: TableCard; rect: DOMRect; zone: ZoneName } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [handCollapsed, setHandCollapsed] = useState(false);
   const [lookMode, setLookMode] = useState<LibraryLookMode | null>(null);
@@ -232,6 +233,16 @@ export function PlayerBoard({
   const [handInsertPreview, setHandInsertPreview] = useState<number | null>(null);
   const [imageMats, setImageMats] = useState<PlayMatOption[]>([]);
   const skipClickRef = useRef(false);
+  const lastTapRef = useRef<{ id: string; at: number } | null>(null);
+  const rotateLockIdsRef = useRef<Set<number>>(new Set());
+  const tapRotateRef = useRef<{
+    cardId: string;
+    ownerId: number;
+    pointers: Map<number, { x: number; y: number }>;
+    startAngle: number;
+    angleReady: boolean;
+    fired: boolean;
+  } | null>(null);
   const handFanRef = useRef<HTMLDivElement | null>(null);
   const playmatRef = useRef<HTMLDivElement | null>(null);
   const [playmatBox, setPlaymatBox] = useState({ width: 0, height: 0 });
@@ -270,7 +281,16 @@ export function PlayerBoard({
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(el);
-    return () => observer.disconnect();
+    const preventZoom = (event: Event) => event.preventDefault();
+    el.addEventListener('gesturestart', preventZoom);
+    el.addEventListener('gesturechange', preventZoom);
+    el.addEventListener('gestureend', preventZoom);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('gesturestart', preventZoom);
+      el.removeEventListener('gesturechange', preventZoom);
+      el.removeEventListener('gestureend', preventZoom);
+    };
   }, [visibleSeats, compact]);
 
   useEffect(() => {
@@ -587,24 +607,103 @@ export function PlayerBoard({
     return false;
   };
 
+  const tapLockRef = useRef(0);
+  const tapBattlefieldCard = (card: TableCard) => {
+    if (!canActOn(card)) return;
+    const now = performance.now();
+    if (now - tapLockRef.current < 300) return;
+    tapLockRef.current = now;
+    skipClickRef.current = true;
+    window.setTimeout(() => {
+      skipClickRef.current = false;
+    }, 500);
+    const members = stackFor(card);
+    onTap?.(card.instanceId, members.length > 1 ? members.map((item) => item.instanceId) : undefined);
+  };
+
   const onCardPointerDown = (event: PointerEvent<HTMLElement>, card: TableCard, from: ZoneName) => {
     if (!canDragCard(card) || event.button !== 0 || event.shiftKey) return;
     if (attachPickId) return;
-    event.preventDefault();
+    const touchy = event.pointerType === 'touch' || event.pointerType === 'pen';
+    if (touchy) event.preventDefault();
     const target = event.currentTarget;
-    try {
-      target.setPointerCapture(event.pointerId);
-    } catch {
-      /* ignore */
-    }
     const splitOne = event.altKey || event.ctrlKey || event.metaKey;
     const startX = event.clientX;
     const startY = event.clientY;
     let moved = false;
+    if (from === 'battlefield' && touchy) {
+      const existing = tapRotateRef.current;
+      if (existing && existing.pointers.size > 0) {
+        if (existing.cardId === card.instanceId) {
+          existing.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        }
+      } else {
+        tapRotateRef.current = {
+          cardId: card.instanceId,
+          ownerId: event.pointerId,
+          pointers: new Map([[event.pointerId, { x: event.clientX, y: event.clientY }]]),
+          startAngle: 0,
+          angleReady: false,
+          fired: false,
+        };
+      }
+    }
+
+    const lockRotate = () => {
+      const session = tapRotateRef.current;
+      if (!session || session.cardId !== card.instanceId || session.pointers.size < 2) return;
+      const pts = [...session.pointers.values()];
+      session.startAngle = angleBetween(pts[0], pts[1]);
+      session.angleReady = true;
+      moved = false;
+      setDragId(null);
+      setDragPos(null);
+    };
+    if (tapRotateRef.current && tapRotateRef.current.cardId === card.instanceId && tapRotateRef.current.pointers.size >= 2) {
+      lockRotate();
+    }
+
+    const onSecondDown = (downEvent: globalThis.PointerEvent) => {
+      if (from !== 'battlefield' || !touchy) return;
+      if (downEvent.pointerId === event.pointerId) return;
+      if (downEvent.pointerType !== 'touch' && downEvent.pointerType !== 'pen') return;
+      const session = tapRotateRef.current;
+      if (!session || session.cardId !== card.instanceId) return;
+      session.pointers.set(downEvent.pointerId, { x: downEvent.clientX, y: downEvent.clientY });
+      lockRotate();
+    };
+
     const onMovePtr = (moveEvent: globalThis.PointerEvent) => {
+      const session = tapRotateRef.current;
+      if (session && session.cardId === card.instanceId && session.pointers.has(moveEvent.pointerId)) {
+        session.pointers.set(moveEvent.pointerId, { x: moveEvent.clientX, y: moveEvent.clientY });
+      }
+      if (session && session.cardId === card.instanceId && session.angleReady && session.pointers.size >= 2) {
+        const pts = [...session.pointers.values()];
+        if (
+          pts.length >= 2 &&
+          !session.fired &&
+          canActOn(card) &&
+          shouldTapFromRotate(session.startAngle, angleBetween(pts[0], pts[1]))
+        ) {
+          session.fired = true;
+          rotateLockIdsRef.current = new Set(session.pointers.keys());
+          lastTapRef.current = null;
+          tapBattlefieldCard(card);
+        }
+        return;
+      }
+      if (session?.fired || rotateLockIdsRef.current.has(event.pointerId)) return;
       if (moveEvent.pointerId !== event.pointerId) return;
       if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 8 && !moved) return;
-      moved = true;
+      if (!moved) {
+        moved = true;
+        try {
+          target.setPointerCapture(event.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
       setHover(null);
       setDragId(card.instanceId);
       setDragPos({ x: moveEvent.clientX, y: moveEvent.clientY });
@@ -613,19 +712,50 @@ export function PlayerBoard({
       }
     };
     const onUp = (upEvent: globalThis.PointerEvent) => {
+      const session = tapRotateRef.current;
+      const rotateLocked = Boolean(session?.fired) || rotateLockIdsRef.current.has(upEvent.pointerId);
+      rotateLockIdsRef.current.delete(upEvent.pointerId);
+      if (session && session.cardId === card.instanceId) {
+        session.pointers.delete(upEvent.pointerId);
+        if (session.pointers.size < 2) session.angleReady = false;
+        if (session.pointers.size === 0 || session.ownerId === upEvent.pointerId) {
+          tapRotateRef.current = null;
+        }
+      }
       if (upEvent.pointerId !== event.pointerId) return;
       window.removeEventListener('pointermove', onMovePtr);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointerdown', onSecondDown, true);
       try {
         if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
       } catch {
         /* ignore */
       }
+      if (rotateLocked) {
+        setDragId(null);
+        setDragPos(null);
+        setHandInsertPreview(null);
+        lastTapRef.current = null;
+        return;
+      }
       setDragId(null);
       setDragPos(null);
       setHandInsertPreview(null);
-      if (!moved) return;
+      if (!moved) {
+        if (from === 'battlefield' && canActOn(card)) {
+          const now = performance.now();
+          const last = lastTapRef.current;
+          if (last && last.id === card.instanceId && now - last.at < 500) {
+            lastTapRef.current = null;
+            tapBattlefieldCard(card);
+          } else {
+            lastTapRef.current = { id: card.instanceId, at: now };
+          }
+        }
+        return;
+      }
+      lastTapRef.current = null;
       skipClickRef.current = true;
       window.setTimeout(() => {
         skipClickRef.current = false;
@@ -641,6 +771,9 @@ export function PlayerBoard({
     window.addEventListener('pointermove', onMovePtr);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+    if (from === 'battlefield' && touchy) {
+      window.addEventListener('pointerdown', onSecondDown, true);
+    }
   };
 
   const handleCardClick = (_event: MouseEvent, card: TableCard, zone: ZoneName) => {
@@ -654,8 +787,8 @@ export function PlayerBoard({
     if (skipClickRef.current || !canActOn(card) || zone !== 'battlefield') return;
     event.preventDefault();
     event.stopPropagation();
-    const members = stackFor(card);
-    onTap?.(card.instanceId, members.length > 1 ? members.map((item) => item.instanceId) : undefined);
+    lastTapRef.current = null;
+    tapBattlefieldCard(card);
   };
 
   const setCardHover = (event: MouseEvent<Element>, card: TableCard, zone: ZoneName) => {
@@ -673,7 +806,11 @@ export function PlayerBoard({
       setHover(null);
       return;
     }
-    setHover({ card: { ...resolved, imageUrl: face.imageUrl, name: face.name }, rect: event.currentTarget.getBoundingClientRect() });
+    setHover({
+      card: { ...resolved, imageUrl: face.imageUrl, name: face.name },
+      rect: event.currentTarget.getBoundingClientRect(),
+      zone,
+    });
   };
 
   const renderOne = (
@@ -715,9 +852,9 @@ export function PlayerBoard({
             : canControl && zone === 'hand'
               ? 'Glisser pour réordonner · déposer sur le plateau pour jouer'
               : canControl && zone === 'battlefield' && stackCount > 1
-              ? 'Glisser : déplacer · double-clic : engager · Alt : séparer un jeton'
+              ? 'Glisser : déplacer · double-clic ou deux doigts (tourner) : engager · Alt : séparer un jeton'
               : canControl && zone === 'battlefield'
-                ? 'Glisser pour déplacer · double-clic : engager / dégager'
+                ? 'Glisser pour déplacer · double-clic ou deux doigts (tourner) : engager / dégager'
                 : canControl && zone === 'command'
                   ? 'Glisser pour déplacer'
                   : undefined
@@ -730,6 +867,10 @@ export function PlayerBoard({
         onTransform={() => flipCard(resolved)}
         onClick={(event) => {
           handleCardClick(event, resolved, zone);
+          if (event.detail === 2 && zone === 'battlefield') {
+            handleCardDoubleClick(event, resolved, zone);
+            return;
+          }
           if (skipClickRef.current || !isCoarsePointer()) return;
           setCardHover(event, resolved, zone);
         }}
@@ -2033,6 +2174,11 @@ export function PlayerBoard({
           name={visibleCardFace(hover.card).name}
           anchorRect={hover.rect}
           onDismiss={isCoarsePointer() ? () => setHover(null) : undefined}
+          onDoubleClick={
+            hover.zone === 'battlefield' && canActOn(hover.card)
+              ? () => tapBattlefieldCard(hover.card)
+              : undefined
+          }
         />
       )}
 

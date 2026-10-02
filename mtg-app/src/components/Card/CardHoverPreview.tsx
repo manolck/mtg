@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { isCoarsePointer } from '../../utils/coarsePointer';
 
@@ -20,11 +20,13 @@ interface CardHoverPreviewProps {
   anchorRect: DOMRect;
   /** When set, tap outside (or Escape) closes — used for touch. */
   onDismiss?: () => void;
+  onDoubleClick?: () => void;
 }
 
-export function CardHoverPreview({ imageUrl, name, anchorRect, onDismiss }: CardHoverPreviewProps) {
+export function CardHoverPreview({ imageUrl, name, anchorRect, onDismiss, onDoubleClick }: CardHoverPreviewProps) {
   const dismissible = Boolean(onDismiss);
   const src = largeCardImageUrl(imageUrl) || imageUrl;
+  const tapFromPreview = Boolean(onDoubleClick);
 
   const placement = useMemo(() => {
     const vw = window.innerWidth;
@@ -62,11 +64,18 @@ export function CardHoverPreview({ imageUrl, name, anchorRect, onDismiss }: Card
     return () => window.removeEventListener('keydown', onKey);
   }, [onDismiss]);
 
+  const handlePreviewDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!onDoubleClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onDoubleClick();
+  };
+
   const card = (
     <div
       className={`overflow-hidden rounded-[18px] bg-black shadow-2xl ${
-        dismissible ? 'pointer-events-auto' : 'pointer-events-none'
-      } ${placement.center ? '' : 'fixed z-[110]'}`}
+        dismissible || tapFromPreview ? 'pointer-events-auto' : 'pointer-events-none'
+      } ${tapFromPreview ? 'cursor-pointer' : ''} ${placement.center ? '' : 'fixed z-[110]'}`}
       style={
         placement.center
           ? { width: placement.width, height: placement.height }
@@ -80,12 +89,13 @@ export function CardHoverPreview({ imageUrl, name, anchorRect, onDismiss }: Card
       role="img"
       aria-label={name}
       onClick={dismissible ? (event) => event.stopPropagation() : undefined}
+      onDoubleClick={tapFromPreview ? handlePreviewDoubleClick : undefined}
     >
       {src ? (
         <img
           src={src}
           alt={name}
-          className="h-full w-full object-contain"
+          className="pointer-events-none h-full w-full object-contain"
           style={{ borderRadius: '18px' }}
         />
       ) : (
