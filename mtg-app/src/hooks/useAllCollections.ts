@@ -44,11 +44,29 @@ export function useAllCollections() {
         });
       }
 
+      if (currentUser && !userMap.has(currentUser.uid)) {
+        userMap.set(currentUser.uid, 0);
+      }
+
       const ownersData: CollectionOwner[] = [];
 
       for (const [userId, cardCount] of userMap) {
         try {
-          const profileRecord = await pb.collection('users').getOne(userId);
+          const authModel = pb.authStore.model as {
+            id: string;
+            email?: string;
+            pseudonym?: string;
+            avatarId?: string;
+            roles?: string[];
+            role?: string;
+            preferredLanguage?: string;
+            created?: string;
+            updated?: string;
+          } | null;
+          const profileRecord =
+            authModel && authModel.id === userId
+              ? authModel
+              : await pb.collection('users').getOne(userId);
 
           let roles: string[] = ['user'];
           if (profileRecord.roles && Array.isArray(profileRecord.roles)) {
@@ -59,13 +77,13 @@ export function useAllCollections() {
 
           const profile: UserProfile = {
             uid: profileRecord.id,
-            email: profileRecord.email,
+            email: profileRecord.email || '',
             pseudonym: profileRecord.pseudonym,
             avatarId: profileRecord.avatarId || 'default',
             roles,
-            preferredLanguage: profileRecord.preferredLanguage || 'en',
-            createdAt: new Date(profileRecord.created),
-            updatedAt: new Date(profileRecord.updated),
+            preferredLanguage: profileRecord.preferredLanguage === 'fr' ? 'fr' : 'en',
+            createdAt: profileRecord.created ? new Date(profileRecord.created) : new Date(),
+            updatedAt: profileRecord.updated ? new Date(profileRecord.updated) : new Date(),
           };
 
           ownersData.push({
@@ -104,13 +122,13 @@ export function useAllCollections() {
 
           const profile: UserProfile = {
             uid: profileRecord.id,
-            email: profileRecord.email,
+            email: profileRecord.email || '',
             pseudonym: profileRecord.pseudonym,
             avatarId: profileRecord.avatarId || 'default',
             roles,
-            preferredLanguage: profileRecord.preferredLanguage || 'en',
-            createdAt: new Date(profileRecord.created),
-            updatedAt: new Date(profileRecord.updated),
+            preferredLanguage: profileRecord.preferredLanguage === 'fr' ? 'fr' : 'en',
+            createdAt: profileRecord.created ? new Date(profileRecord.created) : new Date(),
+            updatedAt: profileRecord.updated ? new Date(profileRecord.updated) : new Date(),
           };
 
           setOwners([

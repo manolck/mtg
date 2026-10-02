@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { AvatarDisplay } from './AvatarDisplay';
 import type { CollectionOwner } from '../../hooks/useAllCollections';
+import { userDisplayName } from '../../utils/userDisplayName';
 
 interface CollectionSelectorProps {
   owners: CollectionOwner[];
@@ -69,7 +70,7 @@ export function CollectionSelector({
           <span>
             {isAllCollections 
               ? `Toutes les collections (${displayOwner.cardCount} cartes)`
-              : displayOwner.profile?.pseudonym || displayOwner.profile?.email || 'Ma collection'}
+              : userDisplayName(displayOwner.profile, currentUserProfile, 'Ma collection')}
             {!isAllCollections && displayOwner.cardCount > 0 && ` (${displayOwner.cardCount} cartes)`}
           </span>
         </div>
@@ -125,7 +126,7 @@ export function CollectionSelector({
               )}
               <div className="flex-1">
                 <div className="font-medium text-gray-900 dark:text-white">
-                  {currentUserProfile?.pseudonym || currentUserProfile?.email || 'Ma collection'}
+                  {userDisplayName(currentUserProfile, 'Ma collection')}
                 </div>
                 {currentOwner && currentOwner.userId === currentUserId && (
                   <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -156,7 +157,7 @@ export function CollectionSelector({
                 )}
                 <div className="flex-1">
                   <div className="font-medium text-gray-900 dark:text-white">
-                    {owner.profile?.pseudonym || 'Utilisateur'}
+                    {userDisplayName(owner.profile)}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
                     {owner.cardCount} cartes

@@ -214,6 +214,12 @@ class ErrorHandler {
    * Convertit un message d'erreur d'authentification en message utilisateur
    */
   private getAuthErrorMessage(errorCode: string): string {
+    if (/too-many-requests|429/i.test(errorCode)) {
+      return 'Trop de tentatives. Réessayez plus tard.';
+    }
+    if (/Failed to authenticate|Invalid login credentials/i.test(errorCode)) {
+      return 'Email ou mot de passe incorrect.';
+    }
     const messages: Record<string, string> = {
       'auth/user-not-found': 'Aucun compte trouvé avec cet email.',
       'auth/wrong-password': 'Mot de passe incorrect.',
@@ -221,8 +227,6 @@ class ErrorHandler {
       'auth/weak-password': 'Le mot de passe est trop faible.',
       'auth/invalid-email': 'Email invalide.',
       'auth/too-many-requests': 'Trop de tentatives. Réessayez plus tard.',
-      'Failed to authenticate.': 'Email ou mot de passe incorrect.',
-      'Invalid login credentials': 'Email ou mot de passe incorrect.',
     };
 
     return messages[errorCode] || 'Erreur d\'authentification.';

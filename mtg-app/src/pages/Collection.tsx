@@ -27,6 +27,7 @@ import { rarityLabel, sortRarities } from '../utils/cardSearchFilters';
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from '../types/deck';
 import { getDeckBackdropUrl } from '../utils/deckArt';
 import { getFormatSummary } from '../services/deckFormatRules';
+import { userDisplayName } from '../utils/userDisplayName';
 
 export function Collection() {
   const { currentUser } = useAuth();
@@ -522,7 +523,7 @@ export function Collection() {
                       <span className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
                     )}
                     <span className="flex-1 min-w-0 truncate">
-                      {currentOwner?.profile?.pseudonym || currentOwner?.profile?.email || currentUser?.email || 'Moi'}
+                      {userDisplayName(currentOwner?.profile, currentUser, 'Moi')}
                       {currentOwner?.cardCount != null && ` (${currentOwner.cardCount} cartes)`}
                     </span>
                   </>
@@ -550,7 +551,7 @@ export function Collection() {
                     ) : (
                       <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
                     )}
-                    <span>{myOwner?.profile?.pseudonym || myOwner?.profile?.email || currentUser?.email || 'Moi'}</span>
+                    <span>{userDisplayName(myOwner?.profile, currentUser, 'Moi')}</span>
                     {myOwner?.cardCount != null && <span className="text-gray-500 dark:text-gray-400 text-sm">({myOwner.cardCount} cartes)</span>}
                   </li>
                   <li
@@ -584,7 +585,7 @@ export function Collection() {
                         ) : (
                           <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm" aria-hidden>?</span>
                         )}
-                        <span>{owner.profile?.pseudonym || owner.profile?.email || 'Utilisateur'}</span>
+                        <span>{userDisplayName(owner.profile, 'Utilisateur')}</span>
                         <span className="text-gray-500 dark:text-gray-400 text-sm">({owner.cardCount} cartes)</span>
                       </li>
                     ))}

@@ -20,8 +20,8 @@ export function Login() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/collection');
+      await login(email.trim(), password);
+      navigate('/collection', { replace: true });
     } catch (err: unknown) {
       const message =
         err instanceof Error && err.message
@@ -47,7 +47,7 @@ export function Login() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {consentRejected && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-4 py-3 rounded">
-              Le consentement RGPD est obligatoire pour utiliser l&apos;application. Vous avez été déconnecté.
+              Le consentement RGPD est obligatoire. Reconnectez-vous, puis cliquez sur « J&apos;accepte ».
             </div>
           )}
           {error && (

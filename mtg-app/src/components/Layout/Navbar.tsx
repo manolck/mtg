@@ -7,6 +7,7 @@ import { useAdmin } from '../../hooks/useAdmin';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { Button } from '../UI/Button';
 import { AvatarDisplay } from '../UI/AvatarDisplay';
+import { userDisplayName } from '../../utils/userDisplayName';
 
 const desktopLinkClass = ({ isActive }: { isActive: boolean }) =>
   `px-2.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
@@ -121,7 +122,7 @@ export function Navbar() {
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0 max-w-[12rem]">
               <AvatarDisplay avatarId={profile?.avatarId} size="sm" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                {profile?.pseudonym || currentUser.email}
+                {userDisplayName(profile, currentUser)}
               </span>
             </Link>
             <Button variant="secondary" onClick={handleLogout} size="sm">
@@ -195,7 +196,7 @@ export function Navbar() {
                   >
                     <AvatarDisplay avatarId={profile?.avatarId} size="sm" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                      {profile?.pseudonym || currentUser.email}
+                      {userDisplayName(profile, currentUser)}
                     </span>
                   </Link>
                   <div className="px-3">

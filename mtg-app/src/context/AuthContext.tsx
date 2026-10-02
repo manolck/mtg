@@ -45,11 +45,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await pb.collection('users').authWithPassword(email, password);
+      await pb.collection('users').authWithPassword(email.trim(), password);
       rateLimiter.reset(rateKey);
     } catch (error: unknown) {
       const appError = errorHandler.handleError(error);
-      throw new Error(appError.message);
+      let host = '';
+      try {
+        host = new URL(pb.baseUrl).host;
+      } catch {
+        host = '';
+      }
+      throw new Error(host ? `${appError.message} (serveur ${host})` : appError.message);
     }
   }
 

@@ -1,8 +1,13 @@
-// src/components/Legal/GDPRConsent.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { pb } from '../../services/pocketbase';
 import { pbEqual } from '../../utils/pocketbaseFilter';
+import {
+  forgetLocalGdprConsent,
+  hasLocalGdprConsent,
+  isNotFoundError,
+  rememberLocalGdprConsent,
+} from '../../utils/gdprConsentStorage';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../UI/Modal';
 import { Button } from '../UI/Button';
@@ -14,56 +19,66 @@ interface GDPRConsentProps {
 
 export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
   const { currentUser, logout } = useAuth();
+  const userId = currentUser?.uid;
   const navigate = useNavigate();
   const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(userId) && !hasLocalGdprConsent(userId));
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
   const checkConsent = useCallback(async () => {
-    if (!currentUser) {
+    if (!userId) {
+      setShow(false);
+      setLoading(false);
+      return;
+    }
+
+    if (hasLocalGdprConsent(userId)) {
       setShow(false);
       setLoading(false);
       return;
     }
 
     try {
-      const consentRecords = await pb.collection('legal').getFullList({
-        filter: `${pbEqual('userId', currentUser.uid)} && ${pbEqual('type', 'gdpr-consent')} && accepted = true`,
-        limit: 1,
-      });
-
-      setShow(consentRecords.length === 0);
-    } catch (error) {
-      console.error('Error checking GDPR consent:', error);
-      setShow(true);
+      const filter = `${pbEqual('userId', userId)} && ${pbEqual('type', 'gdpr-consent')} && accepted = true`;
+      await pb.collection('legal').getFirstListItem(filter);
+      rememberLocalGdprConsent(userId);
+      setShow(false);
+    } catch (error: unknown) {
+      if (hasLocalGdprConsent(userId)) {
+        setShow(false);
+      } else if (isNotFoundError(error)) {
+        setShow(true);
+      } else {
+        console.error('Error checking GDPR consent:', error);
+        setShow(false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [userId]);
 
   useEffect(() => {
-    checkConsent();
+    void checkConsent();
   }, [checkConsent]);
 
   async function handleAccept() {
-    if (!currentUser) return;
+    if (!userId) return;
 
+    rememberLocalGdprConsent(userId);
+    setShow(false);
+    setAccepting(true);
     try {
-      setAccepting(true);
       await pb.collection('legal').create({
-        userId: currentUser.uid,
+        userId,
         type: 'gdpr-consent',
         accepted: true,
         timestamp: new Date().toISOString(),
         version: '1.0',
       });
-
-      setShow(false);
       onAccept?.();
     } catch (error) {
       console.error('Error saving GDPR consent:', error);
-      alert("Erreur lors de l'enregistrement du consentement. Veuillez réessayer.");
     } finally {
       setAccepting(false);
     }
@@ -71,6 +86,7 @@ export function GDPRConsent({ onAccept, onReject }: GDPRConsentProps) {
 
   async function handleReject() {
     setRejecting(true);
+    forgetLocalGdprConsent(userId);
     onReject?.();
     try {
       await logout();
