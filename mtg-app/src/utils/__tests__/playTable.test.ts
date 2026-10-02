@@ -115,6 +115,44 @@ describe('playTable', () => {
     expect(state.players[0].command[0].imageUrl).toContain('kaalia');
   });
 
+  it('plays a commander from the command zone onto the battlefield', () => {
+    let state = createInitialMatchState(
+      [
+        seat({
+          userId: 'u1',
+          seatIndex: 0,
+          deckSnapshot: {
+            deckId: 'd1',
+            name: 'Kaalia',
+            format: 'commander',
+            mainboard: [bolt],
+            commanders: [commander],
+          },
+        }),
+      ],
+      'commander',
+      { random: () => 0 },
+    );
+    const cmd = state.players[0].command[0];
+    state = applyMatchAction(state, {
+      type: 'moveCard',
+      userId: 'u1',
+      instanceId: cmd.instanceId,
+      from: 'command',
+      to: 'battlefield',
+      playmatX: 42,
+      playmatY: 55,
+      playmatRow: 'battlefield',
+    });
+    expect(state.players[0].command).toHaveLength(0);
+    expect(state.players[0].battlefield[0]).toMatchObject({
+      instanceId: cmd.instanceId,
+      playmatX: 42,
+      playmatY: 55,
+      playmatRow: 'battlefield',
+    });
+  });
+
   it('syncs table chat and dice rolls for every player', () => {
     let state = createInitialMatchState(
       [

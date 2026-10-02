@@ -19,6 +19,7 @@ export function playDropAt(
   clientX: number,
   clientY: number,
   ignoreIds?: Iterable<string>,
+  skipZone?: PlayDropZone,
 ): PlayDropTarget | null {
   if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function') return null;
   const ignored = new Set(ignoreIds || []);
@@ -30,6 +31,7 @@ export function playDropAt(
     if (id && !cardId && !ignored.has(id)) cardId = id;
     const pile = node.dataset.playDrop;
     if (pile && PILE_ZONES.includes(pile as PlayDropZone)) {
+      if (pile === skipZone) continue;
       return {
         zone: pile as PlayDropZone,
         cardId,

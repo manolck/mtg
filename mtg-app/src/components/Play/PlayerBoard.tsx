@@ -493,6 +493,7 @@ export function PlayerBoard({
       clientX,
       clientY,
       members.map((item) => item.instanceId),
+      from === 'library' || from === 'graveyard' || from === 'exile' || from === 'command' ? from : undefined,
     );
     const targetBoard = drop?.boardUserId || player.userId;
     const crossBoard = Boolean(drop && targetBoard !== player.userId);
@@ -589,6 +590,7 @@ export function PlayerBoard({
   const onCardPointerDown = (event: PointerEvent<HTMLElement>, card: TableCard, from: ZoneName) => {
     if (!canDragCard(card) || event.button !== 0 || event.shiftKey) return;
     if (attachPickId) return;
+    event.preventDefault();
     const target = event.currentTarget;
     try {
       target.setPointerCapture(event.pointerId);
@@ -934,8 +936,8 @@ export function PlayerBoard({
           className={`relative ${sizeClass} aspect-[63/88] rounded-md bg-[#241c2c] ring-1 ${
             canSeeTop ? 'ring-sky-300/70' : 'ring-amber-200/25'
           } shadow-[0_0_12px_rgba(212,178,74,0.15)] flex flex-col items-center justify-end pb-1 hover:ring-amber-300/70 shrink-0 ${
-            dragId ? 'ring-2 ring-amber-300/80' : ''
-          }`}
+            canControl && zone !== 'library' && resolvedTop ? 'touch-none cursor-grab' : ''
+          } ${dragId ? 'ring-2 ring-amber-300/80' : ''}`}
           style={widthPx ? { width: widthPx } : undefined}
           title={
             zone === 'library' && canControl
@@ -948,13 +950,18 @@ export function PlayerBoard({
           }
         >
           {canSeeTop && topFace?.imageUrl ? (
-            <img src={topFace.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover rounded-md opacity-90" />
+            <img
+              src={topFace.imageUrl}
+              alt=""
+              draggable={false}
+              className="absolute inset-0 h-full w-full object-cover rounded-md opacity-90 pointer-events-none"
+            />
           ) : count > 0 ? (
             <img
               src={MTG_CARD_BACK_URL}
               alt=""
-              className="absolute inset-0 h-full w-full object-cover rounded-md"
               draggable={false}
+              className="absolute inset-0 h-full w-full object-cover rounded-md pointer-events-none"
             />
           ) : (
             <span className="absolute inset-0 rounded-md bg-[#241c2c]" />
